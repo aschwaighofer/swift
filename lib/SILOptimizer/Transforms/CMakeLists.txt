@@ -1,6 +1,7 @@
 set(TRANSFORMS_SOURCES
   Transforms/AllocBoxToStack.cpp
   Transforms/ArrayCountPropagation.cpp
+  Transforms/ArrayElementValuePropagation.cpp
   Transforms/MergeCondFail.cpp
   Transforms/SILSROA.cpp
   Transforms/CSE.cpp
