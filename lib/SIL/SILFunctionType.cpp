@@ -818,7 +818,8 @@ static CanSILFunctionType getSILFunctionType(SILModule &M,
   auto silExtInfo = SILFunctionType::ExtInfo()
     .withRepresentation(extInfo.getSILRepresentation())
     .withIsPseudogeneric(pseudogeneric)
-    .withIsNoReturn(extInfo.isNoReturn());
+    .withIsNoReturn(extInfo.isNoReturn())
+    .withIsNoEscape(extInfo.isNoEscape());
   
   return SILFunctionType::get(genericSig,
                               silExtInfo, calleeConvention,

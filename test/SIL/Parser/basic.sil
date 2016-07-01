@@ -1508,6 +1508,17 @@ entry(%a : $ParentClass, %b : $*ParentStruct):
   unreachable
 }
 
+// CHECK-LABEL: sil @noescape_closure{{.*}}@noescape
+// CHECK: bb0(%0{{.*}}@noescape{{.*}}, %1
+// CHECK: return
+sil @noescape_closure : $@convention(thin) (@owned @noescape @callee_owned (Builtin.Int64) -> Builtin.Int64, Builtin.Int64) -> Builtin.Int64 {
+bb0(%0 : $@noescape @callee_owned (Builtin.Int64) -> Builtin.Int64, %1 : $Builtin.Int64):
+  strong_retain %0 : $@noescape @callee_owned (Builtin.Int64) -> Builtin.Int64
+  %5 = apply %0(%1) : $@noescape @callee_owned (Builtin.Int64) -> Builtin.Int64
+  strong_release %0 : $@noescape @callee_owned (Builtin.Int64) -> Builtin.Int64
+  return %5 : $Builtin.Int64
+}
+
 // CHECK-LABEL: sil_vtable Foo {
 // CHECK: #Foo.subscript!getter.1: _TFC3tmp3Foog9subscriptFTVs5Int32S1__S1_
 // CHECK: #Foo.subscript!setter.1: _TFC3tmp3Foos9subscriptFTVs5Int32S1__S1_

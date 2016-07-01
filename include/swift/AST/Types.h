@@ -2893,12 +2893,13 @@ public:
     // you'll need to adjust both the Bits field below and
     // BaseType::AnyFunctionTypeBits.
 
-    //   |representation|noReturn|pseudogeneric|
-    //   |    0 .. 3    |   4    |      5      |
+    //   |representation|noReturn|pseudogeneric|noEscape|
+    //   |    0 .. 3    |   4    |      5      |   6    |
     //
     enum : uint16_t { RepresentationMask = 0x00F };
     enum : uint16_t { NoReturnMask       = 0x010 };
     enum : uint16_t { PseudogenericMask  = 0x020 };
+    enum : uint16_t { NoEscapeMask       = 0x040 };
 
     uint16_t Bits;
 
@@ -2911,10 +2912,12 @@ public:
     ExtInfo() : Bits(0) { }
 
     // Constructor for polymorphic type.
-    ExtInfo(Representation rep, bool isNoReturn, bool isPseudogeneric) {
+    ExtInfo(Representation rep, bool isNoReturn, bool isPseudogeneric,
+            bool isNoEscape) {
       Bits = ((unsigned) rep) |
              (isNoReturn ? NoReturnMask : 0) |
-             (isPseudogeneric ? PseudogenericMask : 0);
+             (isPseudogeneric ? PseudogenericMask : 0) |
+             (isNoEscape ? NoEscapeMask : 0);
     }
 
     /// Is this function pseudo-generic?  A pseudo-generic function
@@ -2923,6 +2926,10 @@ public:
 
     /// Do functions of this type return normally?
     bool isNoReturn() const { return Bits & NoReturnMask; }
+
+    /// \brief True if the parameter declaration it is attached to is guaranteed
+    /// to not persist the closure for longer than the duration of the call.
+    bool isNoEscape() const { return Bits & NoEscapeMask; }
 
     /// What is the abstract representation of this function value?
     Representation getRepresentation() const {
@@ -2992,6 +2999,12 @@ public:
         return ExtInfo(Bits | PseudogenericMask);
       else
         return ExtInfo(Bits & ~PseudogenericMask);
+    }
+    ExtInfo withIsNoEscape(bool IsNoEscape = true) const {
+      if (IsNoEscape)
+        return ExtInfo(Bits | NoEscapeMask);
+      else
+        return ExtInfo(Bits & ~NoEscapeMask);
     }
 
     uint16_t getFuncAttrKey() const {
@@ -3238,6 +3251,10 @@ public:
 
   bool isPseudogeneric() const {
     return getExtInfo().isPseudogeneric();
+  }
+
+  bool isNoEscape() const {
+    return getExtInfo().isNoEscape();
   }
 
   CanSILFunctionType substGenericArgs(SILModule &silModule,

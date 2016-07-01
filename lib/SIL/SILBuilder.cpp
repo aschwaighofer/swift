@@ -43,7 +43,8 @@ SILType SILBuilder::getPartialApplyResultType(SILType origTy, unsigned argCount,
   auto extInfo = SILFunctionType::ExtInfo(
                                         SILFunctionType::Representation::Thick,
                                         FTI->isNoReturn(),
-                                        FTI->isPseudogeneric());
+                                        FTI->isPseudogeneric(),
+                                        FTI->isNoEscape()); // TODO: revisit
 
   // If the original method has an @unowned_inner_pointer return, the partial
   // application thunk will lifetime-extend 'self' for us, converting the

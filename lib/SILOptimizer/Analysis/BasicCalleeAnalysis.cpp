@@ -186,8 +186,21 @@ CalleeList CalleeCache::getCalleeListForCalleeKind(SILValue Callee) const {
            "Unhandled method instruction in callee determination!");
     return CalleeList();
 
+  case ValueKind::ConvertFunctionInst:
+    return getCalleeListForCalleeKind(cast<ConvertFunctionInst>(Callee)->getOperand());
+
   case ValueKind::ThinToThickFunctionInst:
     Callee = cast<ThinToThickFunctionInst>(Callee)->getOperand();
+
+    // Handle convert_function instructions.
+    if (isa<ConvertFunctionInst>(Callee))
+      Callee = cast<ConvertFunctionInst>(Callee)->getOperand();
+
+    // The callee could be other things such as say a convert_function
+    // instruction.
+    if (!isa<FunctionRefInst>(Callee))
+      return CalleeList();
+
     SWIFT_FALLTHROUGH;
 
   case ValueKind::FunctionRefInst:

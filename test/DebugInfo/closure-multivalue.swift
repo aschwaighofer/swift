@@ -39,4 +39,4 @@ demo()
 // CHECK-O0-NOT: DW_OP_bit_piece
 // CHECK-O0: !DILocalVariable(name: "b", arg: 2{{.*}} line: 17,
 // CHECK-O0-NOT: DW_OP_bit_piece
-// CHECK-O0: !DISubprogram(linkageName: "_TTRXFo_oSSoSS_dSb_XFo_iSSiSS_dSb_",
+// CHECK-O0: !DISubprogram(linkageName: "_TTRXFoE_oSSoSS_dSb_XFoE_iSSiSS_dSb_",

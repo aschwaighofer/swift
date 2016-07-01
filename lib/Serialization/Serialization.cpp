@@ -3053,6 +3053,7 @@ void Serializer::writeType(Type ty) {
           stableRepresentation,
           fnTy->isNoReturn(),
           fnTy->isPseudogeneric(),
+          fnTy->isNoEscape(),
           fnTy->hasErrorResult(),
           fnTy->getParameters().size(),
           fnTy->getNumAllResults(),

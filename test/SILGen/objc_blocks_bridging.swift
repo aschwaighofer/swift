@@ -131,8 +131,8 @@ func bridgeNonnullBlockResult() {
 
 // CHECK-LABEL: sil hidden @{{.*}}bridgeNoescapeBlock{{.*}}
 func bridgeNoescapeBlock() {
-  // CHECK: function_ref @_TTRXFo___XFdCb___
+  // CHECK: function_ref @_TTRXFoE___XFdCbE___
   noescapeBlockAlias { }
-  // CHECK: function_ref @_TTRXFo___XFdCb___
+  // CHECK: function_ref @_TTRXFoE___XFdCbE___
   noescapeNonnullBlockAlias { }
 }

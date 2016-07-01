@@ -53,7 +53,7 @@ const uint16_t VERSION_MAJOR = 0;
 /// in source control, you should also update the comment to briefly
 /// describe what change you made. The content of this comment isn't important;
 /// it just ensures a conflict if two people change the module format.
-const uint16_t VERSION_MINOR = 252; // Last change: remove class's "foreign" field
+const uint16_t VERSION_MINOR = 253; // Last change: noescape SILFunctionType
 
 using DeclID = PointerEmbeddedInt<unsigned, 31>;
 using DeclIDField = BCFixed<31>;
@@ -703,6 +703,7 @@ namespace decls_block {
     SILFunctionTypeRepresentationField, // representation
     BCFixed<1>,            // noreturn?
     BCFixed<1>,            // pseudogeneric?
+    BCFixed<1>,            // noescape?
     BCFixed<1>,            // error result?
     BCFixed<30>,           // number of parameters
     BCFixed<30>,           // number of results

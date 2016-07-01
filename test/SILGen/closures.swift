@@ -592,3 +592,12 @@ func r25993258_helper(_ fn: (inout Int, Int) -> ()) {}
 func r25993258() {
   r25993258_helper { _ in () }
 }
+
+// Check that @noescape is propagated to SIL function types.
+
+// CHECK-LABEL: sil hidden @_TF8closures24noEscapeClosureParameterFFT_T_T_ : $@convention(thin) ({{.*}}@noescape{{.*}}() -> ())
+// CHECK: bb0(%0 : $@noescape{{.*}}() -> ())
+// CHECK: return
+func noEscapeClosureParameter(_ fn : @noescape () -> ()) {
+  fn()
+}

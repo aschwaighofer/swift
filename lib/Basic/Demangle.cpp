@@ -2144,6 +2144,9 @@ private:
     if (Mangled.nextIf('N'))
       addImplFunctionAttribute(type, "@noreturn");
 
+    if (Mangled.nextIf('E'))
+      addImplFunctionAttribute(type, "@noescape");
+
     // Enter a new generic context if this type is generic.
     // FIXME: replace with std::optional, when we have it.
     bool isPseudogeneric = false;

@@ -3693,6 +3693,10 @@ public:
     if (Options.SkipAttributes)
       return;
 
+    if (info.isNoEscape())
+      // autoclosure implies noescape.
+      Printer << "@noescape ";
+
     if (Options.PrintFunctionRepresentationAttrs) {
       // TODO: coalesce into a single convention attribute.
       switch (info.getRepresentation()) {
