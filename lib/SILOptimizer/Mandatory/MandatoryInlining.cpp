@@ -14,6 +14,7 @@
 #include "swift/SILOptimizer/PassManager/Passes.h"
 #include "swift/AST/DiagnosticEngine.h"
 #include "swift/AST/DiagnosticsSIL.h"
+#include "swift/SIL/DebugUtils.h"
 #include "swift/SILOptimizer/Utils/Devirtualize.h"
 #include "swift/SILOptimizer/Utils/Local.h"
 #include "swift/SILOptimizer/Utils/SILInliner.h"
@@ -130,6 +131,28 @@ cleanupCalleeValue(SILValue CalleeValue, ArrayRef<SILValue> CaptureArgs,
       return;
   }
 
+  // Ignore convert_function instructions.
+  if (auto *CFI = dyn_cast<ConvertFunctionInst>(CalleeValue)) {
+    CalleeValue = CFI->getOperand();
+    // Revector retain/release uses to its operands to simplify dead closure
+    // removal.
+    for (auto *Use : CFI->getUses()) {
+      if (auto *Release = dyn_cast<StrongReleaseInst>(Use->getUser())) {
+        SILBuilderWithScope(Release).createStrongRelease(
+            Release->getLoc(), CalleeValue, Release->getAtomicity());
+        Release->eraseFromParent();
+        continue;
+      }
+      if (auto *Retain = dyn_cast<StrongRetainInst>(Use->getUser())) {
+        SILBuilderWithScope(Retain).createStrongRetain(
+            Retain->getLoc(), CalleeValue, Retain->getAtomicity());
+        Retain->eraseFromParent();
+      }
+    }
+    if (onlyHaveDebugUses(CFI))
+      eraseFromParentWithDebugInsts(CFI);
+  }
+
   if (auto *PAI = dyn_cast<PartialApplyInst>(CalleeValue)) {
     SILValue Callee = PAI->getCallee();
     if (!tryDeleteDeadClosure(PAI))
@@ -216,6 +239,11 @@ getCalleeFunction(FullApplySite AI, bool &IsThick,
     CalleeValue = SI->getSrc();
   }
 
+  // Ignore convert_function instructions.
+  if (auto *CFI = dyn_cast<ConvertFunctionInst>(CalleeValue)) {
+    CalleeValue = CFI->getOperand();
+  }
+
   // We are allowed to see through exactly one "partial apply" instruction or
   // one "thin to thick function" instructions, since those are the patterns
   // generated when using auto closures.
@@ -233,6 +261,11 @@ getCalleeFunction(FullApplySite AI, bool &IsThick,
                dyn_cast<ThinToThickFunctionInst>(CalleeValue)) {
     CalleeValue = TTTFI->getOperand();
     IsThick = true;
+  }
+
+  // Ignore convert_function instructions.
+  if (auto *CFI = dyn_cast<ConvertFunctionInst>(CalleeValue)) {
+    CalleeValue = CFI->getOperand();
   }
 
   FunctionRefInst *FRI = dyn_cast<FunctionRefInst>(CalleeValue);
