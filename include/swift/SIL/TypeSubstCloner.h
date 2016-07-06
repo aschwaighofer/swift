@@ -187,7 +187,8 @@ protected:
                                    getOpType(Inst->getSubstCalleeSILType()),
                                    ArrayRef<Substitution>(),
                                    Args,
-                                   getOpType(Inst->getType()));
+                                   getOpType(Inst->getType()),
+                                   Inst->canAllocOnStack());
         return;
       }
     }
@@ -200,7 +201,7 @@ protected:
     Builder.createPartialApply(
       getOpLocation(Inst->getLoc()), getOpValue(CalleeVal),
         getOpType(Inst->getSubstCalleeSILType()), TempSubstList, Args,
-        getOpType(Inst->getType()));
+        getOpType(Inst->getType()), Inst->canAllocOnStack());
   }
 
   void visitWitnessMethodInst(WitnessMethodInst *Inst) {

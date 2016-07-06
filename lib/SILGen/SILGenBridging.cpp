@@ -573,10 +573,9 @@ SILGenFunction::emitBlockToFunc(SILLocation loc,
 
   // Create it in the current function.
   auto thunkValue = B.createFunctionRef(loc, thunk);
-  auto thunkedFn = B.createPartialApply(loc, thunkValue,
-                                    SILType::getPrimitiveObjectType(substFnTy),
-                                    subs, block.forward(*this),
-                                    SILType::getPrimitiveObjectType(funcTy));
+  auto thunkedFn = B.createPartialApply(
+      loc, thunkValue, SILType::getPrimitiveObjectType(substFnTy), subs,
+      block.forward(*this), SILType::getPrimitiveObjectType(funcTy));
   return emitManagedRValueWithCleanup(thunkedFn);
 }
 

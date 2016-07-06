@@ -863,6 +863,8 @@ public:
   
   void visitPartialApplyInst(PartialApplyInst *CI) {
     *this << "partial_apply ";
+    if (CI->canAllocOnStack())
+      *this << "[stack] ";
     *this << getID(CI->getCallee());
     printSubstitutions(CI->getSubstitutions());
     *this << '(';

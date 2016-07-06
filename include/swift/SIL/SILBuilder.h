@@ -313,10 +313,11 @@ public:
                                        SILType SubstFnTy,
                                        ArrayRef<Substitution> Subs,
                                        ArrayRef<SILValue> Args,
-                                       SILType ClosureTy) {
+                                       SILType ClosureTy,
+                                       bool CanBeOnStack = false) {
     return insert(PartialApplyInst::create(getSILDebugLocation(Loc), Fn,
                                            SubstFnTy, Subs, Args, ClosureTy, F,
-                                           OpenedArchetypes));
+                                           OpenedArchetypes, CanBeOnStack));
   }
 
   BuiltinInst *createBuiltin(SILLocation Loc, Identifier Name, SILType ResultTy,

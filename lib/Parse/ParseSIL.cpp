@@ -3551,9 +3551,18 @@ bool SILParser::parseCallInstruction(SILLocation InstLoc,
   SmallVector<UnresolvedValueName, 4> ArgNames;
 
   bool IsNonThrowingApply = false;
-  if (parseSILOptional(IsNonThrowingApply, *this, "nothrow"))
-    return true;
-  
+  bool OnStack = false;
+  StringRef Optional;
+  while (parseSILOptional(Optional, *this)) {
+    if (Optional == "nothrow") {
+      IsNonThrowingApply = true;
+    } else if (Optional == "stack") {
+      OnStack = true;
+    } else {
+      return true;
+    }
+  }
+
   if (parseValueName(FnName))
     return true;
   SmallVector<ParsedSubstitution, 4> parsedSubs;
@@ -3651,8 +3660,8 @@ bool SILParser::parseCallInstruction(SILLocation InstLoc,
     SILType closureTy =
       SILBuilder::getPartialApplyResultType(Ty, ArgNames.size(), SILMod, subs);
     // FIXME: Why the arbitrary order difference in IRBuilder type argument?
-    ResultVal = B.createPartialApply(InstLoc, FnVal, FnTy,
-                                     subs, Args, closureTy);
+    ResultVal = B.createPartialApply(InstLoc, FnVal, FnTy, subs, Args,
+                                     closureTy, OnStack);
     break;
   }
   case ValueKind::TryApplyInst: {

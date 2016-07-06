@@ -574,7 +574,8 @@ SILCloner<ImplClass>::visitPartialApplyInst(PartialApplyInst *Inst) {
                                     getOpType(Inst->getSubstCalleeSILType()),
                                     getOpSubstitutions(Inst->getSubstitutions()),
                                     Args,
-                                    getOpType(Inst->getType())));
+                                    getOpType(Inst->getType()),
+                                    Inst->canAllocOnStack()));
 }
 
 template<typename ImplClass>

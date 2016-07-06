@@ -432,27 +432,32 @@ PartialApplyInst::PartialApplyInst(SILDebugLocation Loc, SILValue Callee,
                                    ArrayRef<Substitution> Subs,
                                    ArrayRef<SILValue> Args,
                                    ArrayRef<SILValue> OpenedArchetypeOperands,
-                                   SILType ClosureType)
+                                   SILType ClosureType,
+                                   bool CanBeOnStack)
     // FIXME: the callee should have a lowered SIL function type, and
     // PartialApplyInst
     // should derive the type of its result by partially applying the callee's
     // type.
     : ApplyInstBase(ValueKind::PartialApplyInst, Loc, Callee, SubstCalleeTy,
-                    Subs, Args, OpenedArchetypeOperands, ClosureType) {}
+                    Subs, Args, OpenedArchetypeOperands, ClosureType) {
+      setCanAllocOnStack(CanBeOnStack);
+    }
 
 PartialApplyInst *
 PartialApplyInst::create(SILDebugLocation Loc, SILValue Callee,
                          SILType SubstCalleeTy, ArrayRef<Substitution> Subs,
                          ArrayRef<SILValue> Args, SILType ClosureType,
                          SILFunction &F,
-                         SILOpenedArchetypesState &OpenedArchetypes) {
+                         SILOpenedArchetypesState &OpenedArchetypes,
+                         bool CanBeOnStack) {
   SmallVector<SILValue, 32> OpenedArchetypeOperands;
   collectOpenedArchetypeOperands(Subs, OpenedArchetypeOperands,
                                  OpenedArchetypes, F.getModule());
   void *Buffer = allocate(F, Subs, OpenedArchetypeOperands, Args);
   return ::new(Buffer) PartialApplyInst(Loc, Callee, SubstCalleeTy,
                                         Subs, Args,
-                                        OpenedArchetypeOperands, ClosureType);
+                                        OpenedArchetypeOperands, ClosureType,
+                                        CanBeOnStack);
 }
 
 TryApplyInstBase::TryApplyInstBase(ValueKind valueKind, SILDebugLocation Loc,

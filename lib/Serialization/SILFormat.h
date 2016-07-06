@@ -336,6 +336,7 @@ namespace sil_block {
   using SILInstApplyLayout = BCRecordLayout<
     SIL_INST_APPLY,
     BCFixed<3>,           // ApplyKind
+    BCFixed<1>,           // CanAllocOnStack
     BCFixed<32>,          // num substitutions
     TypeIDField,          // callee unsubstituted type
     TypeIDField,          // callee substituted type

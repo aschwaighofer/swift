@@ -920,6 +920,10 @@ class ApplyInstBase<Impl, Base, false> : public Base {
   /// error result but is not actually throwing.
   bool NonThrowing: 1;
 
+  // Used for partial_apply instructions: true if the partial apply does not
+  // escape the function.
+  bool CanAllocOnStack: 1;
+
   /// The number of call arguments as required by the callee.
   unsigned NumCallArguments;
 
@@ -939,11 +943,10 @@ protected:
   ApplyInstBase(ValueKind kind, SILDebugLocation DebugLoc, SILValue callee,
                 SILType substCalleeType, ArrayRef<Substitution> substitutions,
                 ArrayRef<SILValue> args,
-                ArrayRef<SILValue> openedArchetypesOperands,
-                As... baseArgs)
+                ArrayRef<SILValue> openedArchetypesOperands, As... baseArgs)
       : Base(kind, DebugLoc, baseArgs...), SubstCalleeType(substCalleeType),
         NumSubstitutions(substitutions.size()), NonThrowing(false),
-        NumCallArguments(args.size()),
+        CanAllocOnStack(false), NumCallArguments(args.size()),
         Operands(this, args, openedArchetypesOperands, callee) {
     static_assert(sizeof(Impl) == sizeof(*this),
         "subclass has extra storage, cannot use TailAllocatedOperandList");
@@ -966,6 +969,9 @@ protected:
   
   bool isNonThrowingApply() const { return NonThrowing; }
   
+  void setCanAllocOnStack(bool canBeOnStack) { CanAllocOnStack = canBeOnStack; }
+
+  bool canAllocOnStack() const { return CanAllocOnStack; }
 public:
   /// The operand number of the first argument.
   static unsigned getArgumentOperandNumber() { return 1; }
@@ -1238,14 +1244,16 @@ class PartialApplyInst
                    ArrayRef<Substitution> Substitutions,
                    ArrayRef<SILValue> Args,
                    ArrayRef<SILValue> OpenedArchetypeOperands,
-                   SILType ClosureType);
+                   SILType ClosureType,
+                   bool CanBeOnStack);
 
   static PartialApplyInst *create(SILDebugLocation DebugLoc, SILValue Callee,
                                   SILType SubstCalleeType,
                                   ArrayRef<Substitution> Substitutions,
                                   ArrayRef<SILValue> Args, SILType ClosureType,
                                   SILFunction &F,
-                                  SILOpenedArchetypesState &OpenedArchetypes);
+                                  SILOpenedArchetypesState &OpenedArchetypes,
+                                  bool CanBeOnStack);
 
 public:
   /// Return the ast level function type of this partial apply.
@@ -1255,6 +1263,14 @@ public:
 
   static bool classof(const ValueBase *V) {
     return V->getKind() == ValueKind::PartialApplyInst;
+  }
+
+  bool canAllocOnStack() const {
+    return ApplyInstBase::canAllocOnStack();
+  }
+
+  void setCanAllocOnStack(bool canBeOnStack) {
+    ApplyInstBase::setCanAllocOnStack(canBeOnStack);
   }
 };
 

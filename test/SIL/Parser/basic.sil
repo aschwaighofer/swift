@@ -1001,6 +1001,20 @@ bb0(%0 : $Float):
   %3 = return %2 : $@callee_owned Int -> ()
 }
 
+// CHECK-LABEL: sil @test_partial_apply_stack : $@convention(thin) (Float) -> () {
+// CHECK: partial_apply [stack] %{{.*}}(%{{.*}}) : $@convention(thin) (Int, Float) -> ()
+// CHECK: return
+
+sil @test_partial_apply_stack : $@convention(thin) (Float) -> () {
+bb0(%0 : $Float):
+  %1 = function_ref @takes_int64_float32 : $@convention(thin) (Int, Float) -> ()
+  %2 = partial_apply [stack] %1(%0) : $@convention(thin) (Int, Float) -> ()
+  strong_release %2 : $@callee_owned (Int) -> ()
+  %3 = tuple()
+  %4 = return %3 : $()
+}
+
+
 class X {
   @objc func f() { }
 }
