@@ -419,8 +419,24 @@ SILCombiner::optimizeApplyOfConvertFunctionInst(FullApplySite AI,
   // We only handle simplification of static function references. If we don't
   // have one, bail.
   FunctionRefInst *FRI = dyn_cast<FunctionRefInst>(CFI->getOperand());
-  if (!FRI)
+  PartialApplyInst *PAI = dyn_cast<PartialApplyInst>(CFI->getOperand());
+  if (!FRI && !PAI)
     return nullptr;
+
+  // Process partial_applies of convert_function instructions that add
+  // @noescape.
+  if (false && PAI) {
+    auto BaseTy = CFI->getOperand()->getType().castTo<SILFunctionType>();
+    auto CalleeTy = CFI->getType().castTo<SILFunctionType>();
+    auto WithNoEscape = SILFunctionType::get(
+        BaseTy->getGenericSignature(), BaseTy->getExtInfo().withIsNoEscape(),
+        BaseTy->getCalleeConvention(), BaseTy->getParameters(),
+        BaseTy->getAllResults(), BaseTy->getOptionalErrorResult(),
+        CFI->getFunction()->getModule().getSwiftModule()->getASTContext());
+    if (CalleeTy != WithNoEscape || BaseTy->hasIndirectResults()) {
+      return nullptr;
+    }
+  }
 
   // Grab our relevant callee types...
   CanSILFunctionType SubstCalleeTy = AI.getSubstCalleeType();
@@ -429,6 +445,9 @@ SILCombiner::optimizeApplyOfConvertFunctionInst(FullApplySite AI,
 
   // ... and make sure they have no unsubstituted generics. If they do, bail.
   if (SubstCalleeTy->hasArchetype() || ConvertCalleeTy->hasArchetype())
+    return nullptr;
+
+  if (ConvertCalleeTy->hasIndirectResults())
     return nullptr;
 
   // Ok, we can now perform our transformation. Grab AI's operands and the
@@ -468,12 +487,13 @@ SILCombiner::optimizeApplyOfConvertFunctionInst(FullApplySite AI,
   SILType CCSILTy = SILType::getPrimitiveObjectType(ConvertCalleeTy);
   // Create the new apply inst.
   SILInstruction *NAI;
+  SILValue Callee(FRI ? static_cast<SILInstruction *>(FRI) : PAI);
   if (auto *TAI = dyn_cast<TryApplyInst>(AI))
-    NAI = Builder.createTryApply(AI.getLoc(), FRI, CCSILTy,
+    NAI = Builder.createTryApply(AI.getLoc(), Callee, CCSILTy,
                                  ArrayRef<Substitution>(), Args,
                                  TAI->getNormalBB(), TAI->getErrorBB());
   else
-    NAI = Builder.createApply(AI.getLoc(), FRI, CCSILTy,
+    NAI = Builder.createApply(AI.getLoc(), Callee, CCSILTy,
                               ConvertCalleeTy->getSILResult(),
                               ArrayRef<Substitution>(), Args,
                               cast<ApplyInst>(AI)->isNonThrowing());
