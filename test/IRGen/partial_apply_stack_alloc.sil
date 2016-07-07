@@ -1,0 +1,22 @@
+// RUN: %target-swift-frontend -stack-promotion-limit 128 -Onone -emit-ir %s | FileCheck %s
+import Builtin
+
+class Klazz {
+  init()
+}
+
+sil @use_two_references : $@convention(thin) (@owned Klazz, @owned Klazz) -> ()
+
+sil @simple_promote : $@convention(thin) (@owned Klazz, @owned Klazz) -> () {
+bb0(%0 : $Klazz, %1 : $Klazz):
+  %f = function_ref @use_two_references : $@convention(thin) (@owned Klazz, @owned Klazz) -> ()
+  %cl = partial_apply [stack] %f(%0, %1) : $@convention(thin) (@owned Klazz, @owned Klazz) -> ()
+  strong_release %cl : $@callee_owned () -> ()
+  dealloc_ref [stack] %cl : $@callee_owned () -> ()
+
+  %r = tuple()
+  return %r : $()
+}
+
+
+sil_vtable Klazz {}
