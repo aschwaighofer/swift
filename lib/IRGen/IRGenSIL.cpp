@@ -2236,6 +2236,17 @@ void IRGenSILFunction::visitPartialApplyInst(swift::PartialApplyInst *i) {
     = getPartialApplicationFunction(*this, i->getCallee(),
                                     i->getSubstitutions());
 
+
+  // Estimate available stack size for potential stack allocation of the closure
+  // context.
+  int StackAllocSize = -1;
+  if (i->canAllocOnStack()) {
+    estimateStackSize();
+    // Is there enough space for stack allocation?
+    StackAllocSize =
+        IGM.IRGen.Opts.StackPromotionSizeLimit - EstimatedStackSize;
+  }
+
   // Create the thunk and function value.
   Explosion function;
   emitFunctionPartialApplication(*this, *CurSILFn,
@@ -2243,7 +2254,14 @@ void IRGenSILFunction::visitPartialApplyInst(swift::PartialApplyInst *i) {
                                  params, i->getSubstitutions(),
                                  origCalleeTy, i->getSubstCalleeType(),
                                  i->getType().castTo<SILFunctionType>(),
-                                 function);
+                                 function, StackAllocSize);
+  if (StackAllocSize >= 0) {
+    // Remember that this parital_apply [stack] allocates the object on the
+    // stack.
+
+    StackAllocs.insert(i);
+    EstimatedStackSize += StackAllocSize;
+  }
   setLoweredExplosion(v, function);
 }
 

@@ -57,7 +57,8 @@ namespace irgen {
                                       CanSILFunctionType origType,
                                       CanSILFunctionType substType,
                                       CanSILFunctionType outType,
-                                      Explosion &out);
+                                      Explosion &out,
+                                      int &InOutStackAllocSize);
   
 } // end namespace irgen
 } // end namespace swift

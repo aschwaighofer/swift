@@ -1128,7 +1128,13 @@ void irgen::emitFunctionPartialApplication(IRGenFunction &IGF,
                                            CanSILFunctionType origType,
                                            CanSILFunctionType substType,
                                            CanSILFunctionType outType,
-                                           Explosion &out) {
+                                           Explosion &out,
+                                           int &InOutStackAllocSize) {
+  // Coming in this is the available stack size.
+  int AvailableStackSize = InOutStackAllocSize;
+  // Going out this is whether we have allocated on the stack.
+  InOutStackAllocSize = -1;
+
   // If we have a single Swift-refcounted context value, we can adopt it
   // directly as our closure context without creating a box and thunk.
   enum HasSingleSwiftRefcountedContext { Maybe, Yes, No, Thunkable }
@@ -1342,7 +1348,24 @@ void irgen::emitFunctionPartialApplication(IRGenFunction &IGF,
     // Allocate a new object.
     HeapNonFixedOffsets offsets(IGF, layout);
 
-    data = IGF.emitUnmanagedAlloc(layout, "closure", descriptor, &offsets);
+    if (layout.isFixedLayout() &&
+        (int)layout.getSize().getValue() < AvailableStackSize) {
+      // FIXUP.
+      llvm::Type *destType = layout.getType()->getPointerTo();
+      auto *Ty = layout.getType();
+      auto Alloca = IGF.createAlloca(Ty, layout.getAlignment(),
+                                   "closure.raw");
+      llvm::Value *val = Alloca.getAddress();
+      assert(val->getType() == destType);
+      val = IGF.Builder.CreateBitCast(val, IGF.IGM.RefCountedPtrTy);
+      llvm::Value *metadata = layout.getPrivateMetadata(IGF.IGM, descriptor);
+      data = IGF.emitInitStackObjectCall(metadata, val, "closure");
+      InOutStackAllocSize = layout.getSize().getValue();
+      // FIXUP.
+    } else {
+      data = IGF.emitUnmanagedAlloc(layout, "closure", descriptor, &offsets);
+      InOutStackAllocSize = -1;
+    }
     Address dataAddr = layout.emitCastTo(IGF, data);
     
     unsigned i = 0;
