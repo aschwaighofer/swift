@@ -9,10 +9,16 @@ import Builtin
 class X {
 }
 
+sil @takes_int64_float64 : $@convention(thin) (Builtin.Int64, Builtin.FPIEEE64) -> ()
+
 sil [always_inline] @callee_alloc_ref_stack : $@convention(thin) () -> () {
 bb0:
-  %0 = alloc_ref [stack] $X
-  dealloc_ref [stack] %0 : $X
+  %0 = float_literal $Builtin.FPIEEE64, 0x402E4CCCCCCCCCCD
+  %1 = alloc_ref [stack] $X
+  dealloc_ref [stack] %1 : $X
+  %2 = function_ref @takes_int64_float64 : $@convention(thin) (Builtin.Int64, Builtin.FPIEEE64) -> ()
+  %3 = partial_apply [stack] %2(%0) : $@convention(thin) (Builtin.Int64, Builtin.FPIEEE64) -> ()
+  strong_release %3 : $@callee_owned (Builtin.Int64) -> ()
   %r = tuple ()
   return %r : $()
 }
@@ -20,6 +26,8 @@ bb0:
 // CHECK-LABEL: sil @caller_alloc_ref_stack : $@convention(thin) () -> ()
 // CHECK: [[X:%[0-9]+]] = alloc_ref [stack] $X
 // CHECK: dealloc_ref [stack] [[X]] : $X
+// CHECK: partial_apply [stack]
+// CHECK: return
 sil @caller_alloc_ref_stack : $@convention(thin) () -> () {
 bb0:
   %0 = function_ref @callee_alloc_ref_stack : $@convention(thin) () -> ()

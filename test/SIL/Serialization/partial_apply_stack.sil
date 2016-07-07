@@ -1,0 +1,24 @@
+// RUN: rm -rf %t
+// RUN: mkdir -p %t
+// RUN: %target-swift-frontend -parse-sil -emit-sib -parse-as-library -parse-stdlib -module-name NoEscape -o %t/NoEscape.sib %s
+// RUN: %target-sil-opt %t/NoEscape.sib -o - -sil-sort-output | FileCheck %s
+
+sil_stage canonical
+
+import Builtin
+
+sil @takes_int64_float64 : $@convention(thin) (Builtin.Int64, Builtin.FPIEEE64) -> ()
+
+// CHECK-LABEL: sil @test_partial_apply_stack
+// CHECK: partial_apply [stack]
+// CHECK: return
+sil @test_partial_apply_stack : $@convention(thin) (Builtin.FPIEEE64) -> () {
+bb0(%0 : $Builtin.FPIEEE64):
+  %1 = function_ref @takes_int64_float64 : $@convention(thin) (Builtin.Int64, Builtin.FPIEEE64) -> ()
+  %2 = partial_apply [stack] %1(%0) : $@convention(thin) (Builtin.Int64, Builtin.FPIEEE64) -> ()
+  strong_release %2 : $@callee_owned (Builtin.Int64) -> ()
+  %3 = tuple()
+  %4 = return %3 : $()
+}
+
+
