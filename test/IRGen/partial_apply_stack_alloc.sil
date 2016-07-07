@@ -7,6 +7,7 @@ class Klazz {
 
 sil @use_two_references : $@convention(thin) (@owned Klazz, @owned Klazz) -> ()
 
+// CHECK: @simple_promote
 sil @simple_promote : $@convention(thin) (@owned Klazz, @owned Klazz) -> () {
 bb0(%0 : $Klazz, %1 : $Klazz):
   %f = function_ref @use_two_references : $@convention(thin) (@owned Klazz, @owned Klazz) -> ()

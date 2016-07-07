@@ -3606,11 +3606,26 @@ void IRGenSILFunction::visitDeallocRefInst(swift::DeallocRefInst *i) {
     emitClassDeallocation(*this, classType, selfValue);
     return;
   }
-  // It's a dealloc_ref [stack]. Even if the alloc_ref did not allocate the
+
+  // It's a dealloc_ref [stack]. The operand can be either an alloc_ref [stack]
+  // or a partial_apply [stack].
+  auto *PAI = dyn_cast<PartialApplyInst>(i->getOperand());
+  SILInstruction *StackAlloc = PAI;
+  if (PAI) {
+    assert(PAI->canAllocOnStack() && "dealloc_ref [stack] must have a "
+                                     "partial_apply operand with the [stack] "
+                                     "attribute");
+    // The context is the second value.
+    selfValue = self.claimNext();
+  } else  {
+    assert((ARI && ARI->canAllocOnStack()) &&
+         "dealloc_ref [stack] must have an alloc_ref [stack] operand");
+    StackAlloc = ARI;
+  }
+  // Even if the alloc_ref/partial_apply did not allocate the
   // object on the stack, we don't have to deallocate it, because it is
   // deallocated in the final release.
-  assert(ARI->canAllocOnStack());
-  if (StackAllocs.count(ARI)) {
+  if (StackAllocs.count(StackAlloc)) {
     if (IGM.IRGen.Opts.EmitStackPromotionChecks) {
       selfValue = Builder.CreateBitCast(selfValue, IGM.RefCountedPtrTy);
       emitVerifyEndOfLifetimeCall(selfValue);

@@ -19,7 +19,7 @@ bb0:
   %2 = function_ref @takes_int64_float64 : $@convention(thin) (Builtin.Int64, Builtin.FPIEEE64) -> ()
   %3 = partial_apply [stack] %2(%0) : $@convention(thin) (Builtin.Int64, Builtin.FPIEEE64) -> ()
   strong_release %3 : $@callee_owned (Builtin.Int64) -> ()
-  dealloc_ref [stack] %3: $@callee_owned (Int) -> ()
+  dealloc_ref [stack] %3: $@callee_owned (Builtin.Int64) -> ()
   %r = tuple ()
   return %r : $()
 }
@@ -27,7 +27,8 @@ bb0:
 // CHECK-LABEL: sil @caller_alloc_ref_stack : $@convention(thin) () -> ()
 // CHECK: [[X:%[0-9]+]] = alloc_ref [stack] $X
 // CHECK: dealloc_ref [stack] [[X]] : $X
-// CHECK: partial_apply [stack]
+// CHECK: [[Y:%.*]] = partial_apply [stack]
+// CHECK: dealloc_ref [stack] [[Y]]
 // CHECK: return
 sil @caller_alloc_ref_stack : $@convention(thin) () -> () {
 bb0:
