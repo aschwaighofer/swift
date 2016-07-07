@@ -911,6 +911,10 @@ bool SILInstruction::isAllocatingStack() const {
     if (ARI->canAllocOnStack())
       return true;
   }
+
+  if (auto *PAI = dyn_cast<PartialApplyInst>(this))
+    return PAI->canAllocOnStack();
+
   return false;
 }
 

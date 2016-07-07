@@ -19,6 +19,7 @@ bb0:
   %2 = function_ref @takes_int64_float64 : $@convention(thin) (Builtin.Int64, Builtin.FPIEEE64) -> ()
   %3 = partial_apply [stack] %2(%0) : $@convention(thin) (Builtin.Int64, Builtin.FPIEEE64) -> ()
   strong_release %3 : $@callee_owned (Builtin.Int64) -> ()
+  dealloc_ref [stack] %3: $@callee_owned (Int) -> ()
   %r = tuple ()
   return %r : $()
 }

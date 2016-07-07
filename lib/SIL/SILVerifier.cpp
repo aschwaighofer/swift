@@ -1490,8 +1490,14 @@ public:
   void checkDeallocRefInst(DeallocRefInst *DI) {
     require(DI->getOperand()->getType().isObject(),
             "Operand of dealloc_ref must be object");
-    require(DI->getOperand()->getType().getClassOrBoundGenericClass(),
-            "Operand of dealloc_ref must be of class type");
+    if (!DI->canAllocOnStack()) {
+      require(DI->getOperand()->getType().getClassOrBoundGenericClass(),
+              "Operand of dealloc_ref must be of class type");
+    } else {
+      require(DI->getOperand()->getType().getClassOrBoundGenericClass() ||
+              DI->getOperand()->getType().getAs<SILFunctionType>(),
+              "Operand of dealloc_ref must be of class type or function type");
+    }
   }
   void checkDeallocPartialRefInst(DeallocPartialRefInst *DPRI) {
     require(DPRI->getInstance()->getType().isObject(),
