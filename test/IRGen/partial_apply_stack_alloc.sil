@@ -7,7 +7,15 @@ class Klazz {
 
 sil @use_two_references : $@convention(thin) (@owned Klazz, @owned Klazz) -> ()
 
-// CHECK: @simple_promote
+// CHECK-LABEL: define void @simple_promote
+// CHECK:  [[A:%.*]] = alloca <{ %swift.refcounted, [[KL:%.*]]*, [[KL]]* }>
+// CHECK:  [[B:%.*]] = bitcast <{ %swift.refcounted, [[KL]]*, [[KL]]* }>* [[A]] to %swift.refcounted*
+// CHECK:  [[C:%.*]] = call %swift.refcounted* @swift_initStackObject({{.*}}, %swift.refcounted* [[B]])
+// CHECK:  call void @rt_swift_release(%swift.refcounted* [[C]]
+// CHECK:  [[D:%.*]] = bitcast %swift.refcounted* [[C]] to i8*
+// CHECK:  call void @llvm.lifetime.end(i64 -1, i8* [[D]])
+// CHECK:  ret
+
 sil @simple_promote : $@convention(thin) (@owned Klazz, @owned Klazz) -> () {
 bb0(%0 : $Klazz, %1 : $Klazz):
   %f = function_ref @use_two_references : $@convention(thin) (@owned Klazz, @owned Klazz) -> ()
