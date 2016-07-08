@@ -14,8 +14,13 @@
 #include "swift/SILOptimizer/PassManager/Passes.h"
 #include "swift/SILOptimizer/Analysis/EscapeAnalysis.h"
 #include "swift/SILOptimizer/PassManager/Transforms.h"
+#include "llvm/Support/CommandLine.h"
 
 using namespace swift;
+
+llvm::cl::opt<std::string> SILEAViewOnlyCGName(
+    "sil-ea-view-cg-only-function", llvm::cl::init(""),
+    llvm::cl::desc("Only view the EA connection graph this function"));
 
 namespace {
 
@@ -35,6 +40,11 @@ class EscapeAnalysisDumper : public SILModuleTransform {
       if (!F.isExternalDeclaration()) {
         auto *ConnectionGraph = EA->getConnectionGraph(&F);
         ConnectionGraph->print(llvm::outs());
+        if (!SILEAViewOnlyCGName.empty() &&
+            F.getName().str() == SILEAViewOnlyCGName) {
+          ConnectionGraph->viewCG();
+        }
+
       }
     }
 #endif
