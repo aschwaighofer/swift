@@ -1377,12 +1377,21 @@ void EscapeAnalysis::analyzeInstruction(SILInstruction *I,
     case ValueKind::PartialApplyInst: {
       // The result of a partial_apply is a thick function which stores the
       // boxed partial applied arguments. We create defer-edges from the
-      // partial_apply values to the arguments.
+      // partial_apply value's content to the arguments.
       CGNode *ResultNode = ConGraph->getNode(I, this);
       assert(ResultNode && "thick functions must have a CG node");
+      // We represent the partially applied arguments as the content node of the
+      // partial_apply value, similar to ref_element_addr this allows us to
+      // escape the arguments but not the closure when passing the closure to a
+      // @noescape parameter of a call.
+      //  %closure = partial_apply %fun(arg0..n)
+      //  %res = apply %call_closure(%closure) : @convention(thin) (@noescape () -> ())
+      //         At this apply arg0..n should escape but the "%closure" should
+      //         not.
+      CGNode *PointsTo = ConGraph->getContentNode(ResultNode);
       for (const Operand &Op : I->getAllOperands()) {
         if (CGNode *ArgNode = ConGraph->getNode(Op.get(), this)) {
-          ResultNode = ConGraph->defer(ResultNode, ArgNode);
+          PointsTo = ConGraph->defer(PointsTo, ArgNode);
         }
       }
       return;
@@ -1529,9 +1538,23 @@ void EscapeAnalysis::setAllEscaping(SILInstruction *I,
   // operands to escaping, because they may "escape" to the result value in
   // an unspecified way. For example consider bit-casting a pointer to an int.
   // In this case we don't even create a node for the resulting int value.
+
+  // Treat non-escaping closure parameters specially. Only mark the closure's
+  // captured values as escaping.
+  auto IsApply = (bool)FullApplySite::isa(I);
+
   for (const Operand &Op : I->getAllOperands()) {
     SILValue OpVal = Op.get();
-    if (!isNonWritableMemoryAddress(OpVal))
+
+    // If the operand does not escape only mark the content (the closure's
+    // captured values) escaping.
+    auto FunTy = OpVal->getType().getAs<SILFunctionType>();
+    if (IsApply && FunTy && FunTy->isNoEscape()) {
+      if (CGNode *Node = ConGraph->getNode(OpVal, this)) {
+        CGNode *PointsTo = ConGraph->getContentNode(Node);
+        ConGraph->setEscapesGlobal(PointsTo);
+      }
+    } else if (!isNonWritableMemoryAddress(OpVal))
       setEscapesGlobal(ConGraph, OpVal);
   }
   // Even if the instruction does not write memory it could e.g. return the
@@ -1652,6 +1675,11 @@ bool EscapeAnalysis::mergeCalleeGraph(FullApplySite FAS,
       continue;
 
     CGNode *CallerNd = CallerGraph->getNode(CallerArg, this);
+    if (Idx >= numCallerArgs) {
+      if (auto *Captures = CallerGraph->getContentNode(CallerNd))
+        CallerNd = Captures;
+    }
+
     // There can be the case that we see a callee argument as pointer but not
     // the caller argument. E.g. if the callee argument has a @convention(c)
     // function type and the caller passes a function_ref.
