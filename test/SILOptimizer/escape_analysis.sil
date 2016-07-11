@@ -386,7 +386,8 @@ sil @call_copy_addr_content : $@convention(thin) () -> () {
 // CHECK-NEXT:    Con %6.1 Esc: %14,%15,%16,%17, Succ: (%6.2)
 // CHECK-NEXT:    Con %6.2 Esc: %14,%15,%16,%17, Succ: %2
 // CHECK-NEXT:    Con %6.3 Esc: G, Succ: 
-// CHECK-NEXT:    Val %12 Esc: %14,%15, Succ: %3, %6
+// CHECK-NEXT:    Val %12 Esc: %14,%15, Succ: (%12.1)
+// CHECK-NEXT:    Con %12.1 Esc: %14,%15, Succ: %3, %6
 // CHECK-NEXT:  End
 sil @test_partial_apply : $@convention(thin) (Int64, @owned X, @owned Y) -> Int64 {
 bb0(%0 : $Int64, %1 : $X, %2 : $Y):
@@ -418,7 +419,8 @@ bb0(%0 : $Int64, %1 : $X, %2 : $Y):
 // CHECK-NEXT:    Con %2.1 Esc: A, Succ: (%2.2)
 // CHECK-NEXT:    Con %2.2 Esc: A, Succ: (%2.3)
 // CHECK-NEXT:    Con %2.3 Esc: G, Succ: 
-// CHECK-NEXT:    Val %7 Esc: %8, Succ: %2
+// CHECK-NEXT:    Val %7 Esc: %8, Succ: (%7.1)
+// CHECK-NEXT:    Con %7.1 Esc: %8, Succ: %2
 // CHECK-NEXT:  End
 sil @closure1 : $@convention(thin) (@owned X, @owned @box Int64, @owned @box Y) -> Int64 {
 bb0(%0 : $X, %1 : $@box Int64, %2 : $@box Y):
@@ -458,7 +460,8 @@ bb0(%0 : $X, %1 : $@box Y):
 // CHECK-NEXT:    Con %1.1 Esc: G, Succ: (%1.2)
 // CHECK-NEXT:    Con %1.2 Esc: G, Succ: (%1.3)
 // CHECK-NEXT:    Con %1.3 Esc: G, Succ: 
-// CHECK-NEXT:    Val %6 Esc: G, Succ: %1
+// CHECK-NEXT:    Val %6 Esc: %8,%9, Succ: (%6.1)
+// CHECK-NEXT:    Con %6.1 Esc: G, Succ: %1
 // CHECK-NEXT:  End
 sil @test_escaped_box : $@convention(thin) (Int64) -> Int64 {
 bb0(%0 : $Int64):
@@ -501,7 +504,8 @@ sil @takebox :  $@convention(thin) (@owned @box Int64) -> ()
 // CHECK-LABEL: CG of test_escaped_partial_apply
 // CHECK-NEXT:    Val %1 Esc: G, Succ: (%1.1)
 // CHECK-NEXT:    Con %1.1 Esc: G, Succ: 
-// CHECK-NEXT:    Val %6 Esc: G, Succ: %1
+// CHECK-NEXT:    Val %6 Esc: G, Succ: (%6.1)
+// CHECK-NEXT:    Con %6.1 Esc: G, Succ: %1
 // CHECK-NEXT:  End
 sil @test_escaped_partial_apply : $@convention(thin) (Int64) -> () {
 bb0(%0 : $Int64):
@@ -514,6 +518,28 @@ bb0(%0 : $Int64):
   strong_retain %6 : $@callee_owned () -> Int64
   %7 = function_ref @take_partial_apply : $@convention(thin) (@owned @callee_owned () -> Int64) -> ()
   %8 = apply %7(%6) : $@convention(thin) (@owned @callee_owned () -> Int64) -> ()
+  %9 = tuple()
+  return %9 : $()
+}
+
+// CHECK-LABEL: CG of test_no_escape_partial_apply
+// CHECK-NEXT:    Val %1 Esc: G, Succ: (%1.1)
+// CHECK-NEXT:    Con %1.1 Esc: G, Succ:
+// CHECK-NEXT:    Val %6 Esc: %10, Succ: (%6.1)
+// CHECK-NEXT:    Con %6.1 Esc: G, Succ: %1
+// CHECK-NEXT:  End
+sil @test_no_escape_partial_apply : $@convention(thin) (Int64) -> () {
+bb0(%0 : $Int64):
+  %1 = alloc_box $Int64
+  %2 = project_box %1 : $@box Int64
+  store %0 to %2 : $*Int64
+  %4 = function_ref @closure3 : $@convention(thin) (@owned @box Int64) -> Int64
+  strong_retain %1 : $@box Int64
+  %6 = partial_apply %4(%1) : $@convention(thin) (@owned @box Int64) -> Int64
+  strong_retain %6 : $@callee_owned () -> Int64
+  %cvt = convert_function %6 : $@callee_owned () -> Int64  to $@noescape @callee_owned () -> Int64
+  %7 = function_ref @take_partial_apply_no_escape : $@convention(thin) (@owned  @noescape @callee_owned () -> Int64) -> ()
+  %8 = apply %7(%cvt) : $@convention(thin) (@owned @noescape @callee_owned () -> Int64) -> ()
   %9 = tuple()
   return %9 : $()
 }
@@ -533,6 +559,7 @@ bb0(%0 : $@box Int64):
 }
 
 sil @take_partial_apply : $@convention(thin) (@owned @callee_owned () -> Int64) -> ()
+sil @take_partial_apply_no_escape : $@convention(thin) (@owned @noescape @callee_owned () -> Int64) -> ()
 
 // Test if the global escape state is propagated through recursive functions.
 
@@ -738,7 +765,8 @@ sil @unknown_throwing_func : $@convention(thin) (@owned X) -> (@owned X, @error 
 // CHECK-NEXT:    Con %1.1 Esc: %6, Succ: (%1.2)
 // CHECK-NEXT:    Con %1.2 Esc: %6, Succ: %0
 // CHECK-NEXT:    Con %1.3 Esc: G, Succ: 
-// CHECK-NEXT:    Val %5 Esc: %6, Succ: %1
+// CHECK-NEXT:    Val %5 Esc: %6, Succ: (%5.1)
+// CHECK-NEXT:    Con %5.1 Esc: %6, Succ: %1
 // CHECK-NEXT:  End
 sil @test_release_of_partial_apply_with_box : $@convention(thin) (@owned Y) -> () {
 bb0(%0 : $Y):
