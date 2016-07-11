@@ -1300,6 +1300,9 @@ void EscapeAnalysis::analyzeInstruction(SILInstruction *I,
         // the object itself (because it will be a dangling pointer after
         // deallocation).
         CGNode *CapturedByDeinit = ConGraph->getContentNode(AddrNode);
+        // Skip the 'content' node for partial_applies.
+        if (isa<PartialApplyInst>(OpV))
+          CapturedByDeinit = ConGraph->getContentNode(CapturedByDeinit);
         CapturedByDeinit = ConGraph->getContentNode(CapturedByDeinit);
         if (deinitIsKnownToNotCapture(OpV)) {
           CapturedByDeinit = ConGraph->getContentNode(CapturedByDeinit);
