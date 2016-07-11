@@ -258,12 +258,10 @@ void CapturePropagation::rewritePartialApply(PartialApplyInst *OrigPAI,
                                              SILFunction *SpecialF) {
   SILBuilderWithScope Builder(OrigPAI);
   auto FuncRef = Builder.createFunctionRef(OrigPAI->getLoc(), SpecialF);
-  auto NewPAI = Builder.createPartialApply(OrigPAI->getLoc(),
-                                           FuncRef,
-                                           SpecialF->getLoweredType(),
-                                           ArrayRef<Substitution>(),
-                                           ArrayRef<SILValue>(),
-                                           OrigPAI->getType());
+  auto NewPAI = Builder.createPartialApply(
+      OrigPAI->getLoc(), FuncRef, SpecialF->getLoweredType(),
+      ArrayRef<Substitution>(), ArrayRef<SILValue>(), OrigPAI->getType(),
+      OrigPAI->canAllocOnStack());
   OrigPAI->replaceAllUsesWith(NewPAI);
   recursivelyDeleteTriviallyDeadInstructions(OrigPAI, true);
   DEBUG(llvm::dbgs() << "  Rewrote caller:\n" << *NewPAI);

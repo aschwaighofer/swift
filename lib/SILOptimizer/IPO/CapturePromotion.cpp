@@ -977,7 +977,7 @@ processPartialApplyInst(PartialApplyInst *PAI, IndicesSet &PromotableIndices,
   // Create a new partial apply with the new arguments.
   auto *NewPAI = B.createPartialApply(PAI->getLoc(), FnVal, SubstFnTy,
                                       PAI->getSubstitutions(), Args,
-                                      PAI->getType());
+                                      PAI->getType(), PAI->canAllocOnStack());
   PAI->replaceAllUsesWith(NewPAI);
   PAI->eraseFromParent();
   if (FRI->use_empty()) {

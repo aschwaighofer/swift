@@ -220,6 +220,12 @@ static bool isPromotableAllocInst(SILInstruction *I) {
       return true;
     return false;
   }
+
+  // Closures can be promoted.
+  if (isa<PartialApplyInst>(I)) {
+    return true;
+  }
+
   // Check for array buffer allocation.
   auto *AI = dyn_cast<ApplyInst>(I);
   if (AI && AI->getNumArguments() == 3) {
@@ -321,6 +327,15 @@ void StackPromoter::tryPromoteAlloc(SILInstruction *I) {
     AI->setOperand(0, AllocFRI);
 
     ChangedCalls = true;
+    return;
+  }
+  if (auto *Closure = dyn_cast<PartialApplyInst>(I)) {
+    assert(!AllocInsertionPoint && "can't move call to partial_apply");
+    // It's an array buffer allocation.
+    Closure->setCanAllocOnStack(true);
+    /// And create a dealloc_ref [stack] at the end of the closure's lifetime.
+    B.createDeallocRef(I->getLoc(), I, true);
+    ChangedInsts = true;
     return;
   }
   llvm_unreachable("unhandled allocation instruction");
@@ -489,8 +504,9 @@ bool StackPromoter::canPromoteAlloc(SILInstruction *AI,
     if (!RestartPoint)
       return false;
 
-    // Moving a buffer allocation call is not trivial because we would need to
-    // move all the parameter calculations as well. So we just don't do it.
+    // Moving a buffer allocation call or a partial_apply is not trivial because
+    // we would need to move all the parameter calculations as well. So we just
+    // don't do it.
     if (!isa<AllocRefInst>(AI))
       return false;
 

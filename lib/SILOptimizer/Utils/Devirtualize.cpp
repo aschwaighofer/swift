@@ -820,8 +820,9 @@ static ApplySite devirtualizeWitnessMethod(ApplySite AI, SILFunction *F,
                                  NewSubs, Arguments,
                                  TAI->getNormalBB(), TAI->getErrorBB());
   if (auto *PAI = dyn_cast<PartialApplyInst>(AI))
-    SAI = Builder.createPartialApply(Loc, FRI, SubstCalleeSILType,
-                                     NewSubs, Arguments, PAI->getType());
+    SAI = Builder.createPartialApply(Loc, FRI, SubstCalleeSILType, NewSubs,
+                                     Arguments, PAI->getType(),
+                                     PAI->canAllocOnStack());
 
   NumWitnessDevirt++;
   return SAI;

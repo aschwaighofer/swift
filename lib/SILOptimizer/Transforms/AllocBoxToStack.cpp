@@ -761,10 +761,11 @@ specializePartialApply(PartialApplyInst *PartialApply,
   CanSILFunctionType SubstCalleeTy = CanFnTy->substGenericArgs(M,
                                                              M.getSwiftModule(),
                                                              Subs);
-  return Builder.createPartialApply(PartialApply->getLoc(), FunctionRef,
-                                 SILType::getPrimitiveObjectType(SubstCalleeTy),
-                                    PartialApply->getSubstitutions(), Args,
-                                    PartialApply->getType());
+  return Builder.createPartialApply(
+      PartialApply->getLoc(), FunctionRef,
+      SILType::getPrimitiveObjectType(SubstCalleeTy),
+      PartialApply->getSubstitutions(), Args, PartialApply->getType(),
+      PartialApply->canAllocOnStack());
 }
 
 static void

@@ -283,7 +283,8 @@ static ApplySite replaceWithSpecializedCallee(ApplySite AI,
     SILType PTy = SILType::getPrimitiveObjectType(ReInfo.getSpecializedType());
     auto *NewPAI =
       Builder.createPartialApply(Loc, Callee, PTy, {}, Arguments,
-                                 SILType::getPrimitiveObjectType(NewPAType));
+                                 SILType::getPrimitiveObjectType(NewPAType),
+                                 PAI->canAllocOnStack());
     PAI->replaceAllUsesWith(NewPAI);
     return NewPAI;
   }
@@ -508,11 +509,9 @@ void swift::trySpecializeApplyOfGeneric(
     for (auto &Op : PAI->getArgumentOperands()) {
       Arguments.push_back(Op.get());
     }
-    auto *NewPAI = Builder.createPartialApply(PAI->getLoc(), FRI,
-                                      PAI->getSubstCalleeSILType(),
-                                      {},
-                                      Arguments,
-                                      PAI->getType());
+    auto *NewPAI = Builder.createPartialApply(
+        PAI->getLoc(), FRI, PAI->getSubstCalleeSILType(), {}, Arguments,
+        PAI->getType(), PAI->canAllocOnStack());
     PAI->replaceAllUsesWith(NewPAI);
     DeadApplies.insert(PAI);
     return;

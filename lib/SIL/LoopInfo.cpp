@@ -76,6 +76,48 @@ bool SILLoop::canDuplicate(SILInstruction *I) const {
     return false;
   }
 
+  if (auto *Closure = dyn_cast<PartialApplyInst>(I)) {
+    if (Closure->canAllocOnStack()) {
+      for (auto *UI : Closure->getUses()) {
+        if (auto *Dealloc = dyn_cast<DeallocRefInst>(UI->getUser())) {
+          assert(Dealloc->canAllocOnStack());
+          if (!contains(Dealloc->getParent()))
+            return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  if (auto *AllocRef = dyn_cast<AllocRefInst>(I)) {
+    if (AllocRef->canAllocOnStack()) {
+      for (auto *UI : AllocRef->getUses()) {
+        auto *Dealloc = dyn_cast<DeallocRefInst>(UI->getUser());
+        if (Dealloc && Dealloc->canAllocOnStack()) {
+          if (!contains(Dealloc->getParent()))
+            return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  if (auto *DeallocRef = dyn_cast<DeallocRefInst>(I)) {
+    if (DeallocRef->canAllocOnStack()) {
+      // The matching alloc_ref or partial_apply must be in the loop.
+      if (auto *Alloc = dyn_cast<AllocRefInst>(DeallocRef->getOperand())) {
+        assert(Alloc->canAllocOnStack());
+        return contains(Alloc->getParent());
+      }
+      if (auto *Closure = dyn_cast<PartialApplyInst>(DeallocRef->getOperand())) {
+        assert(Closure->canAllocOnStack());
+        return contains(Closure->getParent());
+      }
+      return false;
+    }
+    return true;
+  }
+
   assert(I->isTriviallyDuplicatable() &&
          "Code here must match isTriviallyDuplicatable in SILInstruction");
   return true;

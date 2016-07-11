@@ -950,6 +950,15 @@ bool SILInstruction::isTriviallyDuplicatable() const {
     return false;
   }
 
+  if (auto *Closure = dyn_cast<PartialApplyInst>(this))
+    return !Closure->canAllocOnStack();
+
+  if (auto *DeallocRef = dyn_cast<DeallocRefInst>(this))
+    return !DeallocRef->canAllocOnStack();
+
+  if (auto *AllocRef = dyn_cast<AllocRefInst>(this))
+    return !AllocRef->canAllocOnStack();
+
   if (isa<OpenExistentialAddrInst>(this) ||
       isa<OpenExistentialRefInst>(this) ||
       isa<OpenExistentialMetatypeInst>(this)) {
