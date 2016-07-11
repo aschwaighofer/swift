@@ -191,8 +191,7 @@ public:
                    llvm::SmallVectorImpl<SILValue> &Args) const {
     if (auto Closure = dyn_cast<PartialApplyInst>(getClosure()))
       return B.createPartialApply(Closure->getLoc(), V, V->getType(), {},
-                                  Args, Closure->getType(),
-                                  Closure->canAllocOnStack());
+                                  Args, Closure->getType());
 
     assert(isa<ThinToThickFunctionInst>(getClosure()) &&
            "We only support partial_apply and thin_to_thick_function");
