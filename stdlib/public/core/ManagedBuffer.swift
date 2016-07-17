@@ -12,14 +12,6 @@
 
 import SwiftShims
 
-/// A common base class for classes that need to be non-`@objc`,
-/// recognizably in the type system.
-///
-/// - SeeAlso: `isUniquelyReferenced`
-public class NonObjectiveCBase {
-  public init() {}
-}
-
 /// A base class of `ManagedBuffer<Header, Element>`, used during
 /// instance creation.
 ///
@@ -28,7 +20,7 @@ public class NonObjectiveCBase {
 /// `header` property is as-yet uninitialized, and therefore
 /// `ManagedProtoBuffer` does not offer access to the as-yet
 /// uninitialized `header` property of `ManagedBuffer`.
-public class ManagedProtoBuffer<Header, Element> : NonObjectiveCBase {
+public class ManagedProtoBuffer<Header, Element> {
   /// The actual number of elements that can be stored in this object.
   ///
   /// This header may be nontrivial to compute; it is usually a good
@@ -491,34 +483,6 @@ internal func isUniquelyReferencedOrPinnedNonObjC<T : AnyObject>(_ object: inout
   return _isUniqueOrPinned(&object)
 }
 
-/// Returns `true` iff `object` is a non-`@objc` class instance with a single
-/// strong reference.
-///
-/// * Does *not* modify `object`; the use of `inout` is an
-///   implementation artifact.
-/// * Weak references do not affect the result of this function.
-///
-/// Useful for implementing the copy-on-write optimization for the
-/// deep storage of value types:
-///
-///     mutating func modifyMe(_ arg: X) {
-///       if isUniquelyReferenced(&myStorage) {
-///         myStorage.modifyInPlace(arg)
-///       }
-///       else {
-///         myStorage = myStorage.createModified(arg)
-///       }
-///     }
-///
-/// This function is safe to use for `mutating` functions in
-/// multithreaded code because a false positive would imply that there
-/// is already a user-level data race on the value being mutated.
-public func isUniquelyReferenced<T : NonObjectiveCBase>(
-  _ object: inout T
-) -> Bool {
-  return _isUnique(&object)
-}
-
 /// Returns `true` iff `object` is a non-`@objc` class instance with
 /// a single strong reference.
 ///
@@ -554,3 +518,13 @@ extension ManagedBufferPointer {
     Builtin.unreachable()
   }
 }
+
+@available(*, unavailable, renamed: "isUniquelyReferencedNonObjC")
+public func isUniquelyReferenced<T>(
+  _ object: inout T
+) -> Bool {
+  Builtin.unreachable()
+}
+
+@available(*, unavailable, message: "use isUniquelyReferencedNonObjC instead")
+public class NonObjectiveCBase {}

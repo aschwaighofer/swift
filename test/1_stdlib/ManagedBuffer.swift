@@ -19,15 +19,6 @@ import StdlibUnittest
 import Foundation
 #endif
 
-// Check that `NonObjectiveCBase` can be subclassed and the subclass can be
-// created.
-public class SubclassOfNonObjectiveCBase : NonObjectiveCBase {
-  public override init() {}
-}
-func createSubclassOfNonObjectiveCBase() {
-  _ = SubclassOfNonObjectiveCBase()
-}
-
 // Check that the generic parameters are called 'Header' and 'Element'.
 protocol TestProtocol1 {}
 
@@ -243,16 +234,6 @@ tests.test("ManagedBufferPointer") {
     expectEqual(val.count.value, 0)
     expectEqual(val.capacity, 99)
   }
-}
-
-tests.test("isUniquelyReferenced") {
-  var s = TestManagedBuffer<LifetimeTracked>.create(0)
-  expectTrue(isUniquelyReferenced(&s))
-  var s2 = s
-  expectFalse(isUniquelyReferenced(&s))
-  expectFalse(isUniquelyReferenced(&s2))
-  _fixLifetime(s)
-  _fixLifetime(s2)
 }
 
 tests.test("isUniquelyReferencedNonObjC") {
