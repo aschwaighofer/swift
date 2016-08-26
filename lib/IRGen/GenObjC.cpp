@@ -35,6 +35,7 @@
 
 #include "CallEmission.h"
 #include "Explosion.h"
+#include "GenCall.h"
 #include "GenClass.h"
 #include "GenFunc.h"
 #include "GenHeap.h"
@@ -46,6 +47,7 @@
 #include "IRGenFunction.h"
 #include "IRGenModule.h"
 #include "Linking.h"
+#include "NativeConventionSchema.h"
 #include "ScalarTypeInfo.h"
 #include "StructLayout.h"
 
@@ -767,6 +769,8 @@ static llvm::Function *emitObjCPartialApplicationForwarder(IRGenModule &IGM,
     llvm::Function::Create(fwdTy, llvm::Function::InternalLinkage,
                            MANGLE_AS_STRING(OBJC_PARTIAL_APPLY_THUNK_SYM),
                            &IGM.Module);
+  fwd->setCallingConv(
+      expandCallingConv(IGM, SILFunctionTypeRepresentation::Thick));
 
   auto initialAttrs = IGM.constructInitialAttributes();
   // Merge initialAttrs with attrs.
@@ -842,7 +846,8 @@ static llvm::Function *emitObjCPartialApplicationForwarder(IRGenModule &IGM,
     SILType appliedResultTy = origMethodType->getSILResult();
     indirectedResultTI =
       &cast<LoadableTypeInfo>(IGM.getTypeInfo(appliedResultTy));
-    if (indirectedResultTI->getSchema().requiresIndirectResult(IGM)) {
+    NativeConventionSchema nativeSchema(IGM, appliedResultTy, true);
+    if (nativeSchema.requiresIndirect()) {
       indirectedDirectResult = params.claimNext();
     }
   }
@@ -868,7 +873,8 @@ static llvm::Function *emitObjCPartialApplicationForwarder(IRGenModule &IGM,
     auto schema = ti.getSchema();
 
     // Load the indirectly passed parameter.
-    if (schema.requiresIndirectParameter(IGM)) {
+    NativeConventionSchema nativeSchema(IGM, info.getSILType(), false);
+    if (nativeSchema.requiresIndirect()) {
       Address paramAddr = ti.getAddressForPointer(params.claimNext());
       ti.loadAsTake(subIGF, paramAddr, translatedParams);
       continue;
@@ -920,7 +926,7 @@ static llvm::Function *emitObjCPartialApplicationForwarder(IRGenModule &IGM,
     cleanup();
     auto &callee = emission.getCallee();
     auto resultType = callee.getOrigFunctionType()->getSILResult();
-    subIGF.emitScalarReturn(resultType, result);
+    subIGF.emitScalarReturn(resultType, result, true /*isSwiftCCReturn*/);
   }
   
   return fwd;

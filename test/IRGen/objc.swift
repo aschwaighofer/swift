@@ -38,7 +38,7 @@ struct id {
 // Class and methods are [objc] by inheritance.
 class MyBlammo : Blammo {
   func foo() {}
-// CHECK:  define hidden void @_TFC4objc8MyBlammo3foofT_T_([[MYBLAMMO]]*) {{.*}} {
+// CHECK:  define hidden swiftcc void @_TFC4objc8MyBlammo3foofT_T_([[MYBLAMMO]]* swiftself) {{.*}} {
 // CHECK:    call {{.*}} @swift_rt_swift_release
 // CHECK:    ret void
 }
@@ -46,7 +46,7 @@ class MyBlammo : Blammo {
 // Class and methods are [objc] by inheritance.
 class Test2 : Gizmo {
   func foo() {}
-// CHECK:  define hidden void @_TFC4objc5Test23foofT_T_([[TEST2]]*) {{.*}} {
+// CHECK:  define hidden swiftcc void @_TFC4objc5Test23foofT_T_([[TEST2]]* swiftself) {{.*}} {
 // CHECK:    call {{.*}} @objc_release
 // CHECK:    ret void
 
@@ -71,7 +71,7 @@ class Octogenarian : Contrarian {
 @_silgen_name("unknown")
 func unknown(_ x: id) -> id
 
-// CHECK:    define hidden %objc_object* @_TF4objc5test0{{.*}}(%objc_object*)
+// CHECK:    define hidden swiftcc %objc_object* @_TF4objc5test0{{.*}}(%objc_object*)
 // CHECK-NOT:  call {{.*}} @swift_unknownRetain
 // CHECK:      call {{.*}} @swift_unknownRetain
 // CHECK-NOT:  call {{.*}} @swift_unknownRelease
@@ -86,7 +86,7 @@ func test0(_ arg: id) -> id {
 }
 
 func test1(_ cell: Blammo) {}
-// CHECK:  define hidden void @_TF4objc5test1{{.*}}([[BLAMMO]]*) {{.*}} {
+// CHECK:  define hidden swiftcc void @_TF4objc5test1{{.*}}([[BLAMMO]]*) {{.*}} {
 // CHECK:    call {{.*}} @swift_rt_swift_release
 // CHECK:    ret void
 
@@ -124,7 +124,7 @@ func test10(_ g: Gizmo, r: Rect) {
 // Force the emission of the Rect metadata.
 func test11_helper<T>(_ t: T) {}
 // NSRect's metadata needs to be uniqued at runtime using getForeignTypeMetadata.
-// CHECK-LABEL: define hidden void @_TF4objc6test11FVSC4RectT_
+// CHECK-LABEL: define hidden swiftcc void @_TF4objc6test11FVSC4RectT_
 // CHECK:         call %swift.type* @swift_getForeignTypeMetadata({{.*}} @_TMVSC4Rect
 func test11(_ r: Rect) { test11_helper(r) }
 
