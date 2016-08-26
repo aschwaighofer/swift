@@ -65,6 +65,7 @@ struct MagicMirrorData;
 
 struct String;
 
+SWIFT_CC(swift)
 extern "C" void swift_stringFromUTF8InRawMemory(String *out,
                                                 const char *start,
                                                 intptr_t len);
@@ -1157,6 +1158,7 @@ MagicMirror::MagicMirror(HeapObject *owner,
 ///
 /// This function consumes 'value', following Swift's +1 convention for "in"
 /// arguments.
+SWIFT_CC(swift)
 MirrorReturn swift::swift_reflectAny(OpaqueValue *value, const Metadata *T) {
   const Metadata *mirrorType;
   const OpaqueValue *cMirrorValue;

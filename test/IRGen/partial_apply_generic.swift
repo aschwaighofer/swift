@@ -37,9 +37,9 @@ var x = seq ~> split
 // Indirect return
 //
 
-// CHECK-LABEL: define internal { i8*, %swift.refcounted* } @_TPA__TF21partial_apply_generic5split{{.*}}(%V21partial_apply_generic5Spoon* noalias nocapture, %swift.refcounted*)
+// CHECK-LABEL: define internal swiftcc { i8*, %swift.refcounted* } @_TPA__TF21partial_apply_generic5split{{.*}}(%V21partial_apply_generic5Spoon* noalias nocapture, %swift.refcounted* swiftself)
 // CHECK:         [[REABSTRACT:%.*]] = bitcast %V21partial_apply_generic5Spoon* %0 to %swift.opaque*
-// CHECK:         tail call { i8*, %swift.refcounted* } @_TF21partial_apply_generic5split{{.*}}(%swift.opaque* noalias nocapture [[REABSTRACT]],
+// CHECK:         tail call swiftcc { i8*, %swift.refcounted* } @_TF21partial_apply_generic5split{{.*}}(%swift.opaque* noalias nocapture [[REABSTRACT]],
 
 struct HugeStruct { var a, b, c, d: Int }
 struct S {
@@ -48,10 +48,10 @@ struct S {
 
 let s = S()
 var y = s.hugeStructReturn
-// CHECK-LABEL: define internal void @_TPA__TFV21partial_apply_generic1S16hugeStructReturnfVS_10HugeStructS1_(%V21partial_apply_generic10HugeStruct* noalias nocapture sret, %V21partial_apply_generic10HugeStruct* noalias nocapture dereferenceable(32), %swift.refcounted*) #0 {
+// CHECK-LABEL: define internal swiftcc { i64, i64, i64, i64 } @_TPA__TFV21partial_apply_generic1S16hugeStructReturnfVS_10HugeStructS1_(i64, i64, i64, i64, %swift.refcounted* swiftself) #0 {
 // CHECK: entry:
-// CHECK:   tail call void @_TFV21partial_apply_generic1S16hugeStructReturnfVS_10HugeStructS1_(%V21partial_apply_generic10HugeStruct* noalias nocapture sret %0, %V21partial_apply_generic10HugeStruct* noalias nocapture dereferenceable(32) %1) #0
-// CHECK:   ret void
+// CHECK:   %5 = tail call swiftcc { i64, i64, i64, i64 } @_TFV21partial_apply_generic1S16hugeStructReturnfVS_10HugeStructS1_(i64 %0, i64 %1, i64 %2, i64 %3)
+// CHECK:   ret { i64, i64, i64, i64 } %5
 // CHECK: }
 
 //

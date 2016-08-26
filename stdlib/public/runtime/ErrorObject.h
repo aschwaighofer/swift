@@ -212,6 +212,7 @@ extern "C" void swift_unexpectedError(SwiftError *object)
 #if SWIFT_OBJC_INTEROP
 
 /// Initialize an Error box to make it usable as an NSError instance.
+SWIFT_CC(swift)
 SWIFT_RUNTIME_EXPORT
 extern "C" id swift_bridgeErrorToNSError(SwiftError *errorObject);
 

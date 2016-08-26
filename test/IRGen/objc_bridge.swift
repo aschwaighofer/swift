@@ -164,7 +164,7 @@ class Bas : NSObject {
   // CHECK: define internal void @_TToFC11objc_bridge3Bass13nsstrRealPropCSo8NSString([[OPAQUE:.*]]*, i8*, [[OPAQUE:.*]]*) unnamed_addr {{.*}} {
   var nsstrRealProp : NSString
 
-  // CHECK: define hidden %CSo8NSString* @_TFC11objc_bridge3Basg13nsstrFakePropCSo8NSString(%C11objc_bridge3Bas*) {{.*}} {
+  // CHECK: define hidden swiftcc %CSo8NSString* @_TFC11objc_bridge3Basg13nsstrFakePropCSo8NSString(%C11objc_bridge3Bas* swiftself) {{.*}} {
   // CHECK: define internal void @_TToFC11objc_bridge3Bass13nsstrFakePropCSo8NSString([[OPAQUE:.*]]*, i8*, [[OPAQUE:.*]]*) unnamed_addr {{.*}} {
   var nsstrFakeProp : NSString {
     get {
