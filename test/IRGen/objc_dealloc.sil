@@ -73,7 +73,7 @@ bb0(%0 : $SwiftGizmo):
   // CHECK: [[SGIZMOVAL:%[a-zA-Z0-9]+]] = bitcast [[OPAQUE]]* %0 to [[SGIZMO]]*
 
   // Call to onDestruct()
-  // CHECK: call void @_TF12objc_dealloc10onDestructFT_T_()
+  // CHECK: call swiftcc void @_TF12objc_dealloc10onDestructFT_T_()
 
   // function_ref objc_dealloc.onDestruct () -> ()
   %1 = function_ref @_TF12objc_dealloc10onDestructFT_T_ : $@convention(thin) () -> () // user: %2
