@@ -85,7 +85,7 @@ public func innerIfConfig() {
 }
 
 
-// CHECK-LABEL: define{{( protected)?}} void @_TF11local_types8callTestFT_T_() {{.*}} {
+// CHECK-LABEL: define{{( protected)?}} swiftcc void @_TF11local_types8callTestFT_T_() {{.*}} {
 public func callTest() {
   test()
 } // CHECK: {{^[}]$}}

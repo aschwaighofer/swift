@@ -16,63 +16,63 @@ import gizmo
 // CHECK-LABEL: define{{( protected)?}} i32 @main
 // CHECK:         call %swift.type* @_TMaOSC16NSRuncingOptions()
 
-// CHECK: define hidden i16 @_TF12objc_ns_enum22imported_enum_inject_aFT_OSC16NSRuncingOptions()
+// CHECK: define hidden swiftcc i16 @_TF12objc_ns_enum22imported_enum_inject_aFT_OSC16NSRuncingOptions()
 // CHECK:   ret i16 123
 func imported_enum_inject_a() -> NSRuncingOptions {
   return .mince
 }
 
-// CHECK: define hidden i16 @_TF12objc_ns_enum22imported_enum_inject_bFT_OSC16NSRuncingOptions()
+// CHECK: define hidden swiftcc i16 @_TF12objc_ns_enum22imported_enum_inject_bFT_OSC16NSRuncingOptions()
 // CHECK:   ret i16 4567
 func imported_enum_inject_b() -> NSRuncingOptions {
   return .quinceSliced
 }
 
-// CHECK: define hidden i16 @_TF12objc_ns_enum22imported_enum_inject_cFT_OSC16NSRuncingOptions()
+// CHECK: define hidden swiftcc i16 @_TF12objc_ns_enum22imported_enum_inject_cFT_OSC16NSRuncingOptions()
 // CHECK:   ret i16 5678
 func imported_enum_inject_c() -> NSRuncingOptions {
   return .quinceJulienned
 }
 
-// CHECK: define hidden i16 @_TF12objc_ns_enum22imported_enum_inject_dFT_OSC16NSRuncingOptions()
+// CHECK: define hidden swiftcc i16 @_TF12objc_ns_enum22imported_enum_inject_dFT_OSC16NSRuncingOptions()
 // CHECK:   ret i16 6789
 func imported_enum_inject_d() -> NSRuncingOptions {
   return .quinceDiced
 }
 
-// CHECK: define hidden i32 @_TF12objc_ns_enum30imported_enum_inject_radixed_aFT_OSC16NSRadixedOptions() {{.*}} {
+// CHECK: define hidden swiftcc i32 @_TF12objc_ns_enum30imported_enum_inject_radixed_aFT_OSC16NSRadixedOptions() {{.*}} {
 // -- octal 0755
 // CHECK:   ret i32 493
 func imported_enum_inject_radixed_a() -> NSRadixedOptions {
   return .octal
 }
 
-// CHECK: define hidden i32 @_TF12objc_ns_enum30imported_enum_inject_radixed_bFT_OSC16NSRadixedOptions() {{.*}} {
+// CHECK: define hidden swiftcc i32 @_TF12objc_ns_enum30imported_enum_inject_radixed_bFT_OSC16NSRadixedOptions() {{.*}} {
 // -- hex 0xFFFF
 // CHECK:   ret i32 65535
 func imported_enum_inject_radixed_b() -> NSRadixedOptions {
   return .hex
 }
 
-// CHECK: define hidden i32 @_TF12objc_ns_enum31imported_enum_inject_negative_aFT_OSC17NSNegativeOptions() {{.*}} {
+// CHECK: define hidden swiftcc i32 @_TF12objc_ns_enum31imported_enum_inject_negative_aFT_OSC17NSNegativeOptions() {{.*}} {
 // CHECK:   ret i32 -1
 func imported_enum_inject_negative_a() -> NSNegativeOptions {
   return .foo
 }
 
-// CHECK: define hidden i32 @_TF12objc_ns_enum31imported_enum_inject_negative_bFT_OSC17NSNegativeOptions() {{.*}} {
+// CHECK: define hidden swiftcc i32 @_TF12objc_ns_enum31imported_enum_inject_negative_bFT_OSC17NSNegativeOptions() {{.*}} {
 // CHECK:   ret i32 -2147483648
 func imported_enum_inject_negative_b() -> NSNegativeOptions {
   return .bar
 }
 
-// CHECK: define hidden i32 @_TF12objc_ns_enum40imported_enum_inject_negative_unsigned_aFT_OSC25NSNegativeUnsignedOptions() {{.*}} {
+// CHECK: define hidden swiftcc i32 @_TF12objc_ns_enum40imported_enum_inject_negative_unsigned_aFT_OSC25NSNegativeUnsignedOptions() {{.*}} {
 // CHECK:   ret i32 -1
 func imported_enum_inject_negative_unsigned_a() -> NSNegativeUnsignedOptions {
   return .foo
 }
 
-// CHECK: define hidden i32 @_TF12objc_ns_enum40imported_enum_inject_negative_unsigned_bFT_OSC25NSNegativeUnsignedOptions() {{.*}} {
+// CHECK: define hidden swiftcc i32 @_TF12objc_ns_enum40imported_enum_inject_negative_unsigned_bFT_OSC25NSNegativeUnsignedOptions() {{.*}} {
 // CHECK:   ret i32 -2147483648
 func imported_enum_inject_negative_unsigned_b() -> NSNegativeUnsignedOptions {
   return .bar
@@ -92,13 +92,13 @@ use_metadata(NSRuncingOptions.mince)
   case Foo = -1, Bar, Bas
 }
 
-// CHECK-LABEL: define hidden i64 @_TF12objc_ns_enum16objc_enum_injectFT_OS_14ExportedToObjC()
+// CHECK-LABEL: define hidden swiftcc i64 @_TF12objc_ns_enum16objc_enum_injectFT_OS_14ExportedToObjC()
 // CHECK:         ret i64 -1
 func objc_enum_inject() -> ExportedToObjC {
   return .Foo
 }
 
-// CHECK-LABEL: define hidden i64 @_TF12objc_ns_enum16objc_enum_switchFOS_14ExportedToObjCSi(i64)
+// CHECK-LABEL: define hidden swiftcc i64 @_TF12objc_ns_enum16objc_enum_switchFOS_14ExportedToObjCSi(i64)
 // CHECK:         switch i64 %0, label {{%.*}} [
 // CHECK:           i64 -1, label {{%.*}}
 // CHECK:           i64  0, label {{%.*}}
@@ -125,7 +125,7 @@ func objc_enum_switch(_ x: ExportedToObjC) -> Int {
   dynamic var prop: ExportedToObjC = .Foo
 }
 
-// CHECK-LABEL: define hidden void @_TF12objc_ns_enum22objc_enum_method_callsFCS_15ObjCEnumMethodsT_(%C12objc_ns_enum15ObjCEnumMethods*)
+// CHECK-LABEL: define hidden swiftcc void @_TF12objc_ns_enum22objc_enum_method_callsFCS_15ObjCEnumMethodsT_(%C12objc_ns_enum15ObjCEnumMethods*)
 func objc_enum_method_calls(_ x: ObjCEnumMethods) {
   
   // CHECK: call i64 bitcast (void ()* @objc_msgSend to i64 ([[OBJC_ENUM_METHODS]]*, i8*)*)

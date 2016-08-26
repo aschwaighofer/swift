@@ -3,7 +3,7 @@
 
 // This is deliberately not a SIL test so that we can test SILGen too.
 
-// CHECK-LABEL: define hidden void @_TF11c_functions14testOverloadedFT_T_
+// CHECK-LABEL: define hidden swiftcc void @_TF11c_functions14testOverloadedFT_T_
 func testOverloaded() {
   // CHECK: call void @_Z10overloadedv()
   overloaded()

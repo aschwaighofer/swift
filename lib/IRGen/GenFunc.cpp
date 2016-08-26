@@ -86,11 +86,12 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/ADT/StringSwitch.h"
 
-#include "IndirectTypeInfo.h"
 #include "EnumPayload.h"
 #include "Explosion.h"
+#include "FixedTypeInfo.h"
 #include "GenCall.h"
 #include "GenClass.h"
+#include "GenFunc.h"
 #include "GenHeap.h"
 #include "GenMeta.h"
 #include "GenObjC.h"
@@ -101,9 +102,9 @@
 #include "IRGenDebugInfo.h"
 #include "IRGenFunction.h"
 #include "IRGenModule.h"
-#include "FixedTypeInfo.h"
+#include "IndirectTypeInfo.h"
+#include "NativeConventionSchema.h"
 #include "ScalarTypeInfo.h"
-#include "GenFunc.h"
 #include "Signature.h"
 #include "IRGenMangler.h"
 
@@ -719,6 +720,8 @@ static llvm::Function *emitPartialApplicationForwarder(IRGenModule &IGM,
   llvm::Function *fwd =
     llvm::Function::Create(fwdTy, llvm::Function::InternalLinkage,
                            llvm::StringRef(thunkName), &IGM.Module);
+  fwd->setCallingConv(
+      expandCallingConv(IGM, SILFunctionTypeRepresentation::Thick));
 
   auto initialAttrs = IGM.constructInitialAttributes();
   // Merge initialAttrs with outAttrs.
@@ -740,8 +743,8 @@ static llvm::Function *emitPartialApplicationForwarder(IRGenModule &IGM,
     GenericContextScope scope(IGM, origType->getGenericSignature());
     
     // Forward the indirect return values.
-    auto &resultTI = IGM.getTypeInfo(outType->getSILResult());
-    if (resultTI.getSchema().requiresIndirectResult(IGM))
+    NativeConventionSchema nativeSchema(IGM, outType->getSILResult(), true);
+    if (nativeSchema.requiresIndirect())
       args.add(origParams.claimNext());
     for (unsigned i : indices(origType->getIndirectResults())) {
       SILResultInfo result = origType->getIndirectResults()[i];
@@ -753,14 +756,15 @@ static llvm::Function *emitPartialApplicationForwarder(IRGenModule &IGM,
     
     // Reemit the parameters as unsubstituted.
     for (unsigned i = 0; i < outType->getParameters().size(); ++i) {
-      Explosion arg;
       auto origParamInfo = origType->getParameters()[i];
       auto &ti = IGM.getTypeInfoForLowered(origParamInfo.getType());
       auto schema = ti.getSchema();
       
       // Forward the address of indirect value params.
-      if (!isIndirectParameter(origParamInfo.getConvention())
-          && schema.requiresIndirectParameter(IGM)) {
+      NativeConventionSchema nativeSchemaOrigParam(
+          IGM, origParamInfo.getSILType(), false);
+      bool isIndirectParam = origParamInfo.isIndirect();
+      if (!isIndirectParam && nativeSchemaOrigParam.requiresIndirect()) {
         auto addr = origParams.claimNext();
         if (addr->getType() != ti.getStorageType()->getPointerTo())
           addr = subIGF.Builder.CreateBitCast(addr,
@@ -768,10 +772,36 @@ static llvm::Function *emitPartialApplicationForwarder(IRGenModule &IGM,
         args.add(addr);
         continue;
       }
-      
-      emitApplyArgument(subIGF, origParamInfo,
-                        outType->getParameters()[i],
-                        origParams, args);
+
+      auto outTypeParamInfo = outType->getParameters()[i];
+      // Indirect parameters need no mapping through the native calling
+      // convention.
+      if (isIndirectParam) {
+        emitApplyArgument(subIGF, origParamInfo, outTypeParamInfo, origParams,
+                          args);
+        continue;
+      }
+
+      // Map from the native calling convention into the explosion schema.
+      NativeConventionSchema nativeSchemaOutTypeParam(
+          IGM, outTypeParamInfo.getSILType(), false);
+      Explosion nativeParam;
+      origParams.transferInto(nativeParam, nativeSchemaOutTypeParam.size());
+      Explosion nonNativeParam = nativeSchemaOutTypeParam.mapFromNative(
+          subIGF.IGM, subIGF, nativeParam, outTypeParamInfo.getSILType());
+      assert(nativeParam.empty());
+
+      // Emit unsubstituted argument for call.
+      Explosion nonNativeApplyArg;
+      emitApplyArgument(subIGF, origParamInfo, outTypeParamInfo, nonNativeParam,
+                        nonNativeApplyArg);
+      assert(nonNativeParam.empty());
+      // Map back from the explosion scheme to the native calling convention for
+      // the call.
+      Explosion nativeApplyArg = nativeSchemaOrigParam.mapIntoNative(
+          subIGF.IGM, subIGF, nonNativeApplyArg, origParamInfo.getSILType());
+      assert(nonNativeApplyArg.empty());
+      nativeApplyArg.transferInto(args, nativeApplyArg.size());
     }
   }
 
@@ -1062,7 +1092,6 @@ static llvm::Function *emitPartialApplicationForwarder(IRGenModule &IGM,
 
   // Okay, this is where the callee context goes.
   } else if (fnContext) {
-    // TODO: swift_context marker.
     args.add(fnContext);
 
   // Pass a placeholder for thin function calls.
@@ -1078,7 +1107,6 @@ static llvm::Function *emitPartialApplicationForwarder(IRGenModule &IGM,
   // Pass down the error result.
   if (origType->hasErrorResult()) {
     llvm::Value *errorResultPtr = origParams.claimNext();
-    // TODO: swift_error marker.
     args.add(errorResultPtr);
   }
 
@@ -1100,9 +1128,9 @@ static llvm::Function *emitPartialApplicationForwarder(IRGenModule &IGM,
     call->setCallingConv(staticFnPtr->getCallingConv());
   } else {
     // Otherwise, use the default attributes for the dynamic type.
-    // TODO: Currently all indirect function values use some variation of the
-    // "C" calling convention, but that may change.
     call->setAttributes(origAttrs);
+    // Use the calling convention of the partially applied function type.
+    call->setCallingConv(expandCallingConv(IGM, origType->getRepresentation()));
   }
   if (addressesToDeallocate.empty() && !needsAllocas &&
       (!consumesContext || !dependsOnContextLifetime))
@@ -1288,7 +1316,12 @@ void irgen::emitFunctionPartialApplication(IRGenFunction &IGF,
   // to capture), and the dest ownership semantics match the parameter's,
   // skip building the box and thunk and just take the pointer as
   // context.
-  if (!origType->isPolymorphic() &&
+  // TODO: We can only do this and use swiftself if all our swiftcc emit the
+  // last parameter that fits into a register as swiftself.
+  // We should get this optimization back using the @convention(closure) whose
+  // box argument should just be swift self.
+  if (false &&
+      !origType->isPolymorphic() &&
       hasSingleSwiftRefcountedContext == Yes
       && outType->getCalleeConvention() == *singleRefcountedConvention) {
     assert(args.size() == 1);
