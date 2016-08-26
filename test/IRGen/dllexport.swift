@@ -35,15 +35,15 @@ open class d {
 // CHECK-DAG-OPT: @_TFC9dllexport1dcfT_S0_ = dllexport alias void (), void ()* @_swift_dead_method_stub
 // CHECK-DAG-OPT: @_TFC9dllexport1ccfT_S0_ = dllexport alias void (), void ()* @_swift_dead_method_stub
 // CHECK-DAG-OPT: @_TFC9dllexport1cCfT_S0_ = dllexport alias void (), void ()* @_swift_dead_method_stub
-// CHECK-DAG: define dllexport %swift.refcounted* @_TFC9dllexport1cd(%C9dllexport1c*{{.*}})
-// CHECK-DAG-NO-OPT: define dllexport %C9dllexport1c* @_TFC9dllexport1ccfT_S0_(%C9dllexport1c*)
-// CHECK-DAG-NO-OPT: define dllexport %C9dllexport1c* @_TFC9dllexport1cCfT_S0_(%swift.type*)
-// CHECK-DAG: define dllexport i8* @_TF9dllexportau2ciCS_1c()
-// CHECK-DAG-NO-OPT: define dllexport void @_TFC9dllexport1dP33_C57BA610BA35E21738CC992438E660E91mfT_T_(%C9dllexport1d*)
-// CHECK-DAG-NO-OPT: define dllexport void @_TFC9dllexport1dD(%C9dllexport1d*)
-// CHECK-DAG: define dllexport %swift.refcounted* @_TFC9dllexport1dd(%C9dllexport1d*{{.*}})
+// CHECK-DAG: define dllexport swiftcc %swift.refcounted* @_TFC9dllexport1cd(%C9dllexport1c*{{.*}})
+// CHECK-DAG-NO-OPT: define dllexport swiftcc %C9dllexport1c* @_TFC9dllexport1ccfT_S0_(%C9dllexport1c*)
+// CHECK-DAG-NO-OPT: define dllexport swiftcc %C9dllexport1c* @_TFC9dllexport1cCfT_S0_(%swift.type*)
+// CHECK-DAG: define dllexport swiftcc i8* @_TF9dllexportau2ciCS_1c()
+// CHECK-DAG-NO-OPT: define dllexport swiftcc void @_TFC9dllexport1dP33_C57BA610BA35E21738CC992438E660E91mfT_T_(%C9dllexport1d*)
+// CHECK-DAG-NO-OPT: define dllexport swiftcc void @_TFC9dllexport1dD(%C9dllexport1d*)
+// CHECK-DAG: define dllexport swiftcc %swift.refcounted* @_TFC9dllexport1dd(%C9dllexport1d*{{.*}})
 // CHECK-DAG: define dllexport %swift.type* @_TMaC9dllexport1c()
 // CHECK-DAG: define dllexport %swift.type* @_TMaC9dllexport1d()
-// CHECK-DAG-NO-OPT: define dllexport %C9dllexport1d* @_TFC9dllexport1dcfT_S0_(%C9dllexport1d*)
-// CHECK-DAG-OPT: define dllexport void @_TFC9dllexport1dD(%C9dllexport1d*)
+// CHECK-DAG-NO-OPT: define dllexport swiftcc %C9dllexport1d* @_TFC9dllexport1dcfT_S0_(%C9dllexport1d*)
+// CHECK-DAG-OPT: define dllexport swiftcc void @_TFC9dllexport1dD(%C9dllexport1d*)
 
