@@ -10,7 +10,7 @@ struct A {
 func test(_ x : A) {
   var _ = x
 }
-// CHECK:    define hidden void @_TF7structs4test
+// CHECK:    define hidden {{.*}}void @_TF7structs4test
 // CHECK: [[X_DBG:%.*]] = alloca
 // CHECK: call void @llvm.dbg.declare(metadata {{.*}}* [[X_DBG]], metadata [[X_MD:!.*]], metadata
 // CHECK: ![[A_DI:.*]] = !DICompositeType(tag: DW_TAG_structure_type, name: "A",{{.*}}identifier
