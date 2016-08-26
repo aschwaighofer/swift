@@ -197,7 +197,7 @@ bb0(%0 : $SinglePayloadNontrivial):
   return %v : $()
 }
 
-// CHECK-LABEL: define{{( protected)?}} void @single_payload_nontrivial_copy_destroy(i64)
+// CHECK-LABEL: define{{( protected)?}} swiftcc void @single_payload_nontrivial_copy_destroy(i64)
 // CHECK:      switch i64 %0, label [[PRESENT:%.*]] [
 // CHECK-NEXT:   i64 0, label [[NOT_PRESENT:%.*]]
 // CHECK-NEXT:   i64 2, label [[NOT_PRESENT]]

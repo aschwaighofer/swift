@@ -471,9 +471,12 @@ static id _swift_bridgeErrorToNSError_(SwiftError *errorObject) {
   return ns;
 }
 
+SWIFT_CC(swift)
 SWIFT_RUNTIME_EXPORT
-extern "C" auto *_swift_bridgeErrorToNSError = _swift_bridgeErrorToNSError_;
+//extern "C" auto *_swift_bridgeErrorToNSError = _swift_bridgeErrorToNSError_;
+extern "C" id (*_swift_bridgeErrorToNSError)(SwiftError*) = _swift_bridgeErrorToNSError_;
 
+SWIFT_CC(swift)
 id
 swift::swift_bridgeErrorToNSError(SwiftError *errorObject) {
   return _swift_bridgeErrorToNSError(errorObject);

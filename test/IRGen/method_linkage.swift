@@ -5,42 +5,42 @@
 // into their vtables.
 
 class Base {
-  // CHECK: define hidden void @_TFC14method_linkage4Base{{.*}}3foofT_T_
+  // CHECK: define hidden swiftcc void @_TFC14method_linkage4Base{{.*}}3foofT_T_
   @inline(never)
   fileprivate func foo() {
   }
 
-  // CHECK: define internal void @_TFC14method_linkage4Base{{.*}}3barfT_T_
+  // CHECK: define internal swiftcc void @_TFC14method_linkage4Base{{.*}}3barfT_T_
   @inline(never)
   fileprivate final func bar() {
   }
 
-  // CHECK: define hidden void @_TFC14method_linkage4Base{{.*}}5otherfT_T_
+  // CHECK: define hidden swiftcc void @_TFC14method_linkage4Base{{.*}}5otherfT_T_
   @inline(never)
   fileprivate func other() {
   }
 }
 class Derived : Base {
-  // CHECK: define hidden void @_TFC14method_linkage7Derived{{.*}}3foofT_T_
+  // CHECK: define hidden swiftcc void @_TFC14method_linkage7Derived{{.*}}3foofT_T_
   @inline(never)
   fileprivate final override func foo() {
   }
 }
 
 extension Base {
-  // CHECK: define internal void @_TFC14method_linkage4Base{{.*}}7extfuncfT_T_
+  // CHECK: define internal swiftcc void @_TFC14method_linkage4Base{{.*}}7extfuncfT_T_
   @inline(never)
   fileprivate func extfunc() {
   }
 }
 
 public class PublicClass {
-  // CHECK: define{{( protected)?}} void @_TFC14method_linkage11PublicClass{{.*}}4pfoofT_T_
+  // CHECK: define{{( protected)?}} swiftcc void @_TFC14method_linkage11PublicClass{{.*}}4pfoofT_T_
   @inline(never)
   fileprivate func pfoo() {
   }
 
-  // CHECK: define{{( protected)?}} void @_TFC14method_linkage11PublicClass4pbarfT_T_
+  // CHECK: define{{( protected)?}} swiftcc void @_TFC14method_linkage11PublicClass4pbarfT_T_
   @inline(never)
   internal func pbar() {
   }
