@@ -665,7 +665,7 @@ void SILGenFunction::emitArtificialTopLevel(ClassDecl *mainClass) {
                   getASTContext());
 
     auto NSApplicationMainFn
-      = SGM.M.getOrCreateFunction(mainClass, "NSApplicationMain",
+      = SGM.M.getOrCreateFunction(mainClass, "NSApplicationMainSwift",
                                   SILLinkage::PublicExternal,
                                   NSApplicationMainType,
                                   IsBare, IsTransparent, IsNotFragile);

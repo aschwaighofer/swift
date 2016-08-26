@@ -135,7 +135,7 @@ XCT_EXPORT XCTestCase *_XCTCurrentTestCase(void);
 XCT_EXPORT SWIFT_CC(swift) NS_RETURNS_RETAINED
 XCTestCase *_XCTCurrentTestCaseBridge(void);
 
-NS_RETURNS_RETAINED XCTestCase *_XCTCurrentTestCaseBridge(void)
+SWIFT_CC(swift) NS_RETURNS_RETAINED XCTestCase *_XCTCurrentTestCaseBridge(void)
 {
     return [_XCTCurrentTestCase() retain];
 }
@@ -153,7 +153,8 @@ NS_RETURNS_RETAINED XCTestCase *_XCTCurrentTestCaseBridge(void)
 // NS_RELEASES_ARGUMENT, but clang doesn't realize that a block parameter
 // should be treated as an Objective-C parameter here.)
 
-XCT_EXPORT NS_RETURNS_RETAINED NSDictionary *_XCTRunThrowableBlockBridge(void (^block)());
+XCT_EXPORT SWIFT_CC(swift) NS_RETURNS_RETAINED
+NSDictionary *_XCTRunThrowableBlockBridge(void (^block)());
 
 SWIFT_CC(swift) NS_RETURNS_RETAINED
 NSDictionary *_XCTRunThrowableBlockBridge(void (^block)())
