@@ -5,6 +5,6 @@
 
 func foo<T: AnyObject>(_ x: T) -> T { return x }
 
-// CHECK-LABEL: define hidden %objc_object* @_TF23generic_class_anyobject3barFPs9AnyObject_PS0__(%objc_object*)
-// CHECK:         call %objc_object* @_TF23generic_class_anyobject3foo
+// CHECK-LABEL: define hidden swiftcc %objc_object* @_TF23generic_class_anyobject3barFPs9AnyObject_PS0__(%objc_object*)
+// CHECK:         call swiftcc %objc_object* @_TF23generic_class_anyobject3foo
 func bar(_ x: AnyObject) -> AnyObject { return foo(x) }
