@@ -23,14 +23,14 @@ struct Spoon : Runcible {
 }
 
 struct Owl<T : Runcible, U> {
-  // CHECK: define hidden void @_TFV16associated_types3Owl3eat{{.*}}(%swift.opaque*
+  // CHECK: define hidden swiftcc void @_TFV16associated_types3Owl3eat{{.*}}(%swift.opaque*
   func eat(_ what: T.RuncerType.Runcee, and: T.RuncerType, with: T) { }
 }
 
 class Pussycat<T : Runcible, U> {
   init() {} 
 
-  // CHECK: define hidden void @_TFC16associated_types8Pussycat3eat{{.*}}(%swift.opaque* noalias nocapture, %swift.opaque* noalias nocapture, %swift.opaque* noalias nocapture, %C16associated_types8Pussycat*)
+  // CHECK: define hidden swiftcc void @_TFC16associated_types8Pussycat3eat{{.*}}(%swift.opaque* noalias nocapture, %swift.opaque* noalias nocapture, %swift.opaque* noalias nocapture, %C16associated_types8Pussycat* swiftself)
   func eat(_ what: T.RuncerType.Runcee, and: T.RuncerType, with: T) { }
 }
 
@@ -69,7 +69,7 @@ protocol FastRuncible {
 func testFastRuncible<T: Runcible, U: FastRuncible where T.RuncerType == U.RuncerType>(_ t: T, u: U) {
   U.RuncerType.Runcee.accelerate()
 }
-// CHECK: define hidden void @_TF16associated_types16testFastRuncibleu0_RxS_8Runcible_S_12FastRunciblewx10RuncerTypezw_10RuncerTyperFTx1uq__T_(%swift.opaque* noalias nocapture, %swift.opaque* noalias nocapture, %swift.type* %T, %swift.type* %U, i8** %T.Runcible, i8** %U.FastRuncible)
+// CHECK: define hidden swiftcc void @_TF16associated_types16testFastRuncibleu0_RxS_8Runcible_S_12FastRunciblewx10RuncerTypezw_10RuncerTyperFTx1uq__T_(%swift.opaque* noalias nocapture, %swift.opaque* noalias nocapture, %swift.type* %T, %swift.type* %U, i8** %T.Runcible, i8** %U.FastRuncible)
 //   1. Get the type metadata for U.RuncerType.Runcee.
 //     1a. Get the type metadata for U.RuncerType.
 //         Note that we actually look things up in T, which is going to prove unfortunate.
@@ -99,5 +99,5 @@ func testFastRuncible<T: Runcible, U: FastRuncible where T.RuncerType == U.Runce
 //   3. Perform the actual call.
 // CHECK-NEXT: [[T0:%.*]] = load i8*, i8** %T.RuncerType.Runcee.Speedy,
 // CHECK-NEXT: [[T1:%.*]] = bitcast i8* [[T0]] to void (%swift.type*, %swift.type*, i8**)*
-// CHECK-NEXT: call void [[T1]](%swift.type* %T.RuncerType.Runcee, %swift.type* %T.RuncerType.Runcee, i8** %T.RuncerType.Runcee.Speedy)
+// CHECK-NEXT: call swiftcc void [[T1]](%swift.type* swiftself %T.RuncerType.Runcee, %swift.type* %T.RuncerType.Runcee, i8** %T.RuncerType.Runcee.Speedy)
 

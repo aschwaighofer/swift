@@ -40,26 +40,26 @@
   subscript (i : Int) -> SomeObject {
     // CHECK: define internal [[OPAQUE0:%.*]]* @_TToFC15objc_subscripts10SomeObjectg9subscriptFSiS0_([[OPAQUE1]]*, i8*, i64) unnamed_addr
     get {
-      // CHECK: call %C15objc_subscripts10SomeObject* @_TFC15objc_subscripts10SomeObjectg9subscriptFSiS0_
+      // CHECK: call swiftcc %C15objc_subscripts10SomeObject* @_TFC15objc_subscripts10SomeObjectg9subscriptFSiS0_
       return self
     }
 
     // CHECK-LABEL: define internal void @_TToFC15objc_subscripts10SomeObjects9subscriptFSiS0_
     set {
-      // CHECK: void @_TFC15objc_subscripts10SomeObjects9subscriptFSiS0_
+      // CHECK: swiftcc void @_TFC15objc_subscripts10SomeObjects9subscriptFSiS0_
     }
   }
 
   subscript (s : SomeObject) -> Int {
   // CHECK-LABEL: define internal i64 @_TToFC15objc_subscripts10SomeObjectg9subscriptFS0_Si
     get {
-      // CHECK: call i64 @_TFC15objc_subscripts10SomeObjectg9subscriptFS0_Si
+      // CHECK: call swiftcc i64 @_TFC15objc_subscripts10SomeObjectg9subscriptFS0_Si
       return 5
     }
 
     // CHECK-LABEL: define internal void @_TToFC15objc_subscripts10SomeObjects9subscriptFS0_Si
     set {
-      // CHECK: call void @_TFC15objc_subscripts10SomeObjects9subscriptFS0_Si
+      // CHECK: call swiftcc void @_TFC15objc_subscripts10SomeObjects9subscriptFS0_Si
     }
   }
 }
