@@ -5,12 +5,12 @@
 // 2. the witness thunk
 // Both should not inline the testit function and should set the noinline-attribute for llvm.
 
-// CHECK-LABEL: define hidden i32 @_TFV{{.*}}testit
-// CHECK: call i32 @_TTS{{.*}}testit{{.*}} #[[ATTR:[0-9]+]]
+// CHECK-LABEL: define hidden swiftcc i32 @_TFV{{.*}}testit
+// CHECK: call swiftcc i32 @_TTS{{.*}}testit{{.*}} #[[ATTR:[0-9]+]]
 // CHECK: ret
 
-// CHECK-LABEL: define hidden i32 @_TTW{{.*}}testit
-// CHECK: call i32 @_TTS{{.*}}testit{{.*}} #[[ATTR]]
+// CHECK-LABEL: define hidden swiftcc i32 @_TTW{{.*}}testit
+// CHECK: call swiftcc i32 @_TTS{{.*}}testit{{.*}} #[[ATTR]]
 // CHECK: ret
 
 // CHECK: attributes #[[ATTR]] = { noinline }

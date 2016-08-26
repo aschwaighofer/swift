@@ -1326,7 +1326,7 @@ extern "C" const FullOpaqueMetadata METADATA_SYM(BO);        // Builtin.UnknownO
 struct HeapMetadataHeaderPrefix {
   /// Destroy the object, returning the allocated size of the object
   /// or 0 if the object shouldn't be deallocated.
-  void (*destroy)(HeapObject *);
+  SWIFT_CC(swift) void (*destroy)(SWIFT_CONTEXT HeapObject *);
 };
 
 /// The header present on all heap metadata.
@@ -1543,7 +1543,7 @@ struct TargetNominalTypeDescriptor {
 };
 using NominalTypeDescriptor = TargetNominalTypeDescriptor<InProcess>;
 
-typedef void (*ClassIVarDestroyer)(HeapObject *);
+typedef SWIFT_CC(swift) void (*ClassIVarDestroyer)(SWIFT_CONTEXT HeapObject *);
 
 /// The structure of all class metadata.  This structure is embedded
 /// directly within the class's heap metadata structure and therefore
@@ -3486,6 +3486,7 @@ std::string nameForMetadata(const Metadata *type,
 
 /// Return the superclass, if any.  The result is nullptr for root
 /// classes and class protocol types.
+SWIFT_CC(swift)
 SWIFT_RUNTIME_STDLIB_INTERFACE
 extern "C"
 const Metadata *_swift_class_getSuperclass(const Metadata *theClass);

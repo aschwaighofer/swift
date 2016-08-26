@@ -27,10 +27,10 @@ namespace swift {
 struct HeapObject;
 }
 
-SWIFT_RUNTIME_EXPORT
+SWIFT_CC(swift) SWIFT_RUNTIME_EXPORT
 extern "C" void swift_leaks_startTrackingObjects(const char *)
     __attribute__((__noinline__, __used__));
-SWIFT_RUNTIME_EXPORT
+SWIFT_CC(swift) SWIFT_RUNTIME_EXPORT
 extern "C" int swift_leaks_stopTrackingObjects(const char *)
     __attribute__((__noinline__, __used__));
 SWIFT_RUNTIME_EXPORT

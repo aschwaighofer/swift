@@ -316,7 +316,7 @@ class GenericGizmo<T> : Gizmo {
 
   var array : [T] = []
 }
-// CHECK: define hidden [[LLVM_PTRSIZE_INT]] @_TFC13objc_subclass12GenericGizmog1xSi(
+// CHECK: define hidden swiftcc [[LLVM_PTRSIZE_INT]] @_TFC13objc_subclass12GenericGizmog1xSi(
 
 var sg = SwiftGizmo()
 sg.duplicate()

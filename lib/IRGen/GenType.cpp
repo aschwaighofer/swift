@@ -152,7 +152,8 @@ void LoadableTypeInfo::addScalarToAggLowering(IRGenModule &IGM,
                                               SwiftAggLowering &lowering,
                                               llvm::Type *type, Size offset,
                                               Size storageSize) {
-  lowering.addTypedData(type, offset.asCharUnits(), storageSize.asCharUnits());
+  lowering.addTypedData(type, offset.asCharUnits(),
+                        offset.asCharUnits() + storageSize.asCharUnits());
 }
 
 static llvm::Constant *asSizeConstant(IRGenModule &IGM, Size size) {
@@ -549,7 +550,7 @@ namespace {
     void addToAggLowering(IRGenModule &IGM, SwiftAggLowering &lowering,
                           Size offset) const override {
       lowering.addOpaqueData(offset.asCharUnits(),
-                             getFixedSize().asCharUnits());
+                             (offset + getFixedSize()).asCharUnits());
     }
     
     void packIntoEnumPayload(IRGenFunction &IGF,
@@ -1746,15 +1747,6 @@ llvm::PointerType *IRGenModule::isSingleIndirectValue(SILType type) {
   getSchema(type, schema);
   if (schema.size() == 1 && schema.begin()->isAggregate())
     return schema.begin()->getAggregateType()->getPointerTo(0);
-  return nullptr;
-}
-
-/// Determine whether this type requires an indirect result.
-llvm::PointerType *IRGenModule::requiresIndirectResult(SILType type) {
-  auto &ti = getTypeInfo(type);
-  ExplosionSchema schema = ti.getSchema();
-  if (schema.requiresIndirectResult(*this))
-    return ti.getStorageType()->getPointerTo();
   return nullptr;
 }
 

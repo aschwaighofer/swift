@@ -11,10 +11,10 @@ class CustomDeallocator {
   }
 }
 
-// CHECK:    define hidden void @_TFC10deallocate17CustomDeallocatorD([[CD:%.*]]*
-// CHECK:      [[T0:%.*]] = call [[OBJECT:%.*]]* @_TFC10deallocate17CustomDeallocatord(
+// CHECK:    define hidden swiftcc void @_TFC10deallocate17CustomDeallocatorD([[CD:%.*]]* swiftself
+// CHECK:      [[T0:%.*]] = call swiftcc [[OBJECT:%.*]]* @_TFC10deallocate17CustomDeallocatord(
 // CHECK-NEXT: [[T1:%.*]] = bitcast [[OBJECT]]* [[T0]] to [[CD]]*
-// CHECK-NEXT: [[T3:%.*]] = call { i64, i64 } @_TFC10deallocate17CustomDeallocator29__getInstanceSizeAndAlignMaskfT_TSiSi_([[CD]]* [[T1]])
+// CHECK-NEXT: [[T3:%.*]] = call swiftcc { i64, i64 } @_TFC10deallocate17CustomDeallocator29__getInstanceSizeAndAlignMaskfT_TSiSi_([[CD]]* [[T1]])
 // CHECK-NEXT: [[SIZE:%.*]] = extractvalue { i64, i64 } [[T3]], 0
 // CHECK-NEXT: [[ALIGNMASK:%.*]] = extractvalue { i64, i64 } [[T3]], 1
 // CHECK-NEXT: [[T4:%.*]] = bitcast [[CD]]* [[T1]] to [[OBJECT]]*
