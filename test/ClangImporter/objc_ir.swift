@@ -18,7 +18,7 @@ import ObjCIRExtras
 // CHECK: @"\01L_selector_data(method:separateExtMethod:)" = private global [26 x i8] c"method:separateExtMethod:\00", section "__TEXT,__objc_methname,cstring_literals"
 
 // Instance method invocation
-// CHECK: define hidden void @_TF7objc_ir15instanceMethodsFCSo1BT_([[B]]*
+// CHECK: define hidden swiftcc void @_TF7objc_ir15instanceMethodsFCSo1BT_([[B]]*
 func instanceMethods(_ b: B) {
   // CHECK: load i8*, i8** @"\01L_selector(method:withFloat:)"
   // CHECK: call i32 bitcast (void ()* @objc_msgSend to i32
@@ -28,7 +28,7 @@ func instanceMethods(_ b: B) {
   i = i + b.method(1, with: 2.5 as Double)
 }
 
-// CHECK: define hidden void @_TF7objc_ir16extensionMethodsFT1bCSo1B_T_
+// CHECK: define hidden swiftcc void @_TF7objc_ir16extensionMethodsFT1bCSo1B_T_
 func extensionMethods(b b: B) {
   // CHECK:      load i8*, i8** @"\01L_selector(method:separateExtMethod:)", align 8
   // CHECK:      [[T0:%.*]] = call i8* bitcast (void ()* @objc_msgSend to i8*
@@ -38,7 +38,7 @@ func extensionMethods(b b: B) {
   b.method(1, separateExtMethod:1.5)
 }
 
-// CHECK: define hidden void @_TF7objc_ir19initCallToAllocInitFT1iVs5Int32_T_
+// CHECK: define hidden swiftcc void @_TF7objc_ir19initCallToAllocInitFT1iVs5Int32_T_
 func initCallToAllocInit(i i: CInt) {
   // CHECK: call {{.*}} @_TFCSo1BCfT3intVs5Int32_GSQS__
  
@@ -49,7 +49,7 @@ func initCallToAllocInit(i i: CInt) {
 // CHECK: call [[OPAQUE:%.*]]* @objc_allocWithZone
 
 // Indexed subscripting
-// CHECK: define hidden void @_TF7objc_ir19indexedSubscriptingFT1bCSo1B3idxSi1aCSo1A_T_
+// CHECK: define hidden swiftcc void @_TF7objc_ir19indexedSubscriptingFT1bCSo1B3idxSi1aCSo1A_T_
 func indexedSubscripting(b b: B, idx: Int, a: A) {
   // CHECK: load i8*, i8** @"\01L_selector(setObject:atIndexedSubscript:)", align 8
   b[idx] = a
@@ -58,7 +58,7 @@ func indexedSubscripting(b b: B, idx: Int, a: A) {
   var a2 = b[idx] as! A
 }
 
-// CHECK: define hidden void @_TF7objc_ir17keyedSubscriptingFT1bCSo1B3idxCSo1A1aS1__T_
+// CHECK: define hidden swiftcc void @_TF7objc_ir17keyedSubscriptingFT1bCSo1B3idxCSo1A1aS1__T_
 func keyedSubscripting(b b: B, idx: A, a: A) {
   // CHECK: load i8*, i8** @"\01L_selector(setObject:forKeyedSubscript:)"
   b[a] = a
@@ -66,7 +66,7 @@ func keyedSubscripting(b b: B, idx: A, a: A) {
   var a2 = b[a] as! A
 }
 
-// CHECK: define hidden void @_TF7objc_ir14propertyAccessFT1bCSo1B_T_
+// CHECK: define hidden swiftcc void @_TF7objc_ir14propertyAccessFT1bCSo1B_T_
 func propertyAccess(b b: B) {
    // CHECK: load i8*, i8** @"\01L_selector(counter)"
    // CHECK: load i8*, i8** @"\01L_selector(setCounter:)"
@@ -79,7 +79,7 @@ func propertyAccess(b b: B) {
    B.sharedCounter = B.sharedCounter + 1
 }
 
-// CHECK: define hidden [[B]]* @_TF7objc_ir8downcastFT1aCSo1A_CSo1B(
+// CHECK: define hidden swiftcc [[B]]* @_TF7objc_ir8downcastFT1aCSo1A_CSo1B(
 func downcast(a a: A) -> B {
   // CHECK: [[CLASS:%.*]] = load %objc_class*, %objc_class** @"OBJC_CLASS_REF_$_B"
   // CHECK: [[T0:%.*]] = call %objc_class* @swift_rt_swift_getInitializedObjCClass(%objc_class* [[CLASS]])
@@ -88,12 +88,12 @@ func downcast(a a: A) -> B {
   return a as! B
 }
 
-// CHECK: define hidden void @_TF7objc_ir19almostSubscriptableFT3as1CSo19AlmostSubscriptable1aCSo1A_T_
+// CHECK: define hidden swiftcc void @_TF7objc_ir19almostSubscriptableFT3as1CSo19AlmostSubscriptable1aCSo1A_T_
 func almostSubscriptable(as1 as1: AlmostSubscriptable, a: A) {
   as1.objectForKeyedSubscript(a)
 }
 
-// CHECK: define hidden void @_TF7objc_ir13protocolTypesFT1aCSo7NSMince1bPSo9NSRuncing__T_(%CSo7NSMince*, %objc_object*) {{.*}} {
+// CHECK: define hidden swiftcc void @_TF7objc_ir13protocolTypesFT1aCSo7NSMince1bPSo9NSRuncing__T_(%CSo7NSMince*, %objc_object*) {{.*}} {
 func protocolTypes(a a: NSMince, b: NSRuncing) {
   // - (void)eatWith:(id <NSRuncing>)runcer;
   a.eat(with: b)
@@ -101,7 +101,7 @@ func protocolTypes(a a: NSMince, b: NSRuncing) {
   // CHECK: call void bitcast (void ()* @objc_msgSend to void ([[OPAQUE:%.*]]*, i8*, i8*)*)([[OPAQUE:%.*]]* {{%.*}}, i8* [[SEL]], i8* {{%.*}})
 }
 
-// CHECK-LABEL: define hidden void @_TF7objc_ir6getsetFT1pPSo8FooProto__T_(%objc_object*) {{.*}} {
+// CHECK-LABEL: define hidden swiftcc void @_TF7objc_ir6getsetFT1pPSo8FooProto__T_(%objc_object*) {{.*}} {
 func getset(p p: FooProto) {
   // CHECK: load i8*, i8** @"\01L_selector(bar)"
   // CHECK: load i8*, i8** @"\01L_selector(setBar:)"
@@ -109,7 +109,7 @@ func getset(p p: FooProto) {
   p.bar = prop
 }
 
-// CHECK-LABEL: define hidden %swift.type* @_TF7objc_ir16protocolMetatypeFT1pPSo8FooProto__PMPS0__(%objc_object*) {{.*}} {
+// CHECK-LABEL: define hidden swiftcc %swift.type* @_TF7objc_ir16protocolMetatypeFT1pPSo8FooProto__PMPS0__(%objc_object*) {{.*}} {
 func protocolMetatype(p: FooProto) -> FooProto.Type {
   // CHECK: = call %swift.type* @swift_getObjectType(%objc_object* %0)
   // CHECK-NOT: {{retain|release}}
@@ -126,7 +126,7 @@ class Impl: FooProto, AnotherProto {
   @objc var bar: Int32 = 0
 }
 
-// CHECK-LABEL: define hidden %swift.type* @_TF7objc_ir27protocolCompositionMetatypeFT1pCS_4Impl_PMPSo12AnotherProtoSo8FooProto_(%C7objc_ir4Impl*) {{.*}} {
+// CHECK-LABEL: define hidden swiftcc %swift.type* @_TF7objc_ir27protocolCompositionMetatypeFT1pCS_4Impl_PMPSo12AnotherProtoSo8FooProto_(%C7objc_ir4Impl*) {{.*}} {
 func protocolCompositionMetatype(p: Impl) -> (FooProto & AnotherProto).Type {
   // CHECK: = getelementptr inbounds %C7objc_ir4Impl, %C7objc_ir4Impl* %0, i32 0, i32 0, i32 0
   // CHECK-NOT: {{retain|release}}
@@ -139,7 +139,7 @@ func protocolCompositionMetatype(p: Impl) -> (FooProto & AnotherProto).Type {
   return type
 } // CHECK: }
 
-// CHECK-LABEL: define hidden %swift.type* @_TF7objc_ir28protocolCompositionMetatype2FT1pCS_4Impl_PMPSo12AnotherProtoSo8FooProto_(%C7objc_ir4Impl*) {{.*}} {
+// CHECK-LABEL: define hidden swiftcc %swift.type* @_TF7objc_ir28protocolCompositionMetatype2FT1pCS_4Impl_PMPSo12AnotherProtoSo8FooProto_(%C7objc_ir4Impl*) {{.*}} {
 func protocolCompositionMetatype2(p: Impl) -> (FooProto & AnotherProto).Type {
   // CHECK: = getelementptr inbounds %C7objc_ir4Impl, %C7objc_ir4Impl* %0, i32 0, i32 0, i32 0
   // CHECK-NOT: {{retain|release}}
@@ -152,7 +152,7 @@ func protocolCompositionMetatype2(p: Impl) -> (FooProto & AnotherProto).Type {
   return type
 } // CHECK: }
 
-// CHECK-LABEL: define hidden void @_TF7objc_ir17pointerPropertiesFCSo14PointerWrapperT_(%CSo14PointerWrapper*) {{.*}} {
+// CHECK-LABEL: define hidden swiftcc void @_TF7objc_ir17pointerPropertiesFCSo14PointerWrapperT_(%CSo14PointerWrapper*) {{.*}} {
 func pointerProperties(_ obj: PointerWrapper) {
   // CHECK: load i8*, i8** @"\01L_selector(setVoidPtr:)"
   // CHECK: load i8*, i8** @"\01L_selector(setIntPtr:)"
@@ -162,10 +162,10 @@ func pointerProperties(_ obj: PointerWrapper) {
   obj.idPtr = nil as AutoreleasingUnsafeMutablePointer?
 }
 
-// CHECK-LABEL: define hidden void @_TF7objc_ir20customFactoryMethodsFT_T_() {{.*}} {
+// CHECK-LABEL: define hidden swiftcc void @_TF7objc_ir20customFactoryMethodsFT_T_() {{.*}} {
 func customFactoryMethods() {
-  // CHECK: call %CSo13SwiftNameTest* @_TTOFCSo13SwiftNameTestCfT10dummyParamT__S_
-  // CHECK: call %CSo13SwiftNameTest* @_TTOFCSo13SwiftNameTestCfT2ccGSqP___S_
+  // CHECK: call swiftcc %CSo13SwiftNameTest* @_TTOFCSo13SwiftNameTestCfT10dummyParamT__S_
+  // CHECK: call swiftcc %CSo13SwiftNameTest* @_TTOFCSo13SwiftNameTestCfT2ccGSqP___S_
   _ = SwiftNameTest(dummyParam: ())
   _ = SwiftNameTest(cc: nil)
 
@@ -177,13 +177,13 @@ func customFactoryMethods() {
   _ = SwiftNameTest.xx(nil, bb: nil)
 
   do {
-    // CHECK: call %CSo18SwiftNameTestError* @_TTOFCSo18SwiftNameTestErrorCfzT5errorT__S_
-    // CHECK: call %CSo18SwiftNameTestError* @_TTOFCSo18SwiftNameTestErrorCfzT2aaGSqP__5errorT__S_
-    // CHECK: call %CSo18SwiftNameTestError* @_TTOFCSo18SwiftNameTestErrorCfzT2aaGSqP__5errorT_5blockFT_T__S_
-    // CHECK: call %CSo18SwiftNameTestError* @_TTOFCSo18SwiftNameTestErrorCfzT5errorT_5blockFT_T__S_
-    // CHECK: call %CSo18SwiftNameTestError* @_TTOFCSo18SwiftNameTestErrorCfzT2aaGSqP___S_
-    // CHECK: call %CSo18SwiftNameTestError* @_TTOFCSo18SwiftNameTestErrorCfzT2aaGSqP__5blockFT_T__S_
-    // CHECK: call %CSo18SwiftNameTestError* @_TTOFCSo18SwiftNameTestErrorCfzT5blockFT_T__S_
+    // CHECK: call swiftcc %CSo18SwiftNameTestError* @_TTOFCSo18SwiftNameTestErrorCfzT5errorT__S_
+    // CHECK: call swiftcc %CSo18SwiftNameTestError* @_TTOFCSo18SwiftNameTestErrorCfzT2aaGSqP__5errorT__S_
+    // CHECK: call swiftcc %CSo18SwiftNameTestError* @_TTOFCSo18SwiftNameTestErrorCfzT2aaGSqP__5errorT_5blockFT_T__S_
+    // CHECK: call swiftcc %CSo18SwiftNameTestError* @_TTOFCSo18SwiftNameTestErrorCfzT5errorT_5blockFT_T__S_
+    // CHECK: call swiftcc %CSo18SwiftNameTestError* @_TTOFCSo18SwiftNameTestErrorCfzT2aaGSqP___S_
+    // CHECK: call swiftcc %CSo18SwiftNameTestError* @_TTOFCSo18SwiftNameTestErrorCfzT2aaGSqP__5blockFT_T__S_
+    // CHECK: call swiftcc %CSo18SwiftNameTestError* @_TTOFCSo18SwiftNameTestErrorCfzT5blockFT_T__S_
     _ = try SwiftNameTestError(error: ())
     _ = try SwiftNameTestError(aa: nil, error: ())
     _ = try SwiftNameTestError(aa: nil, error: (), block: {})
@@ -205,46 +205,46 @@ func customFactoryMethods() {
   }
 }
 
-// CHECK-LABEL: define linkonce_odr hidden %CSo13SwiftNameTest* @_TTOFCSo13SwiftNameTestCfT10dummyParamT__S_
+// CHECK-LABEL: define linkonce_odr hidden swiftcc %CSo13SwiftNameTest* @_TTOFCSo13SwiftNameTestCfT10dummyParamT__S_
 // CHECK: load i8*, i8** @"\01L_selector(b)"
 // CHECK: }
 
-// CHECK-LABEL: define linkonce_odr hidden %CSo13SwiftNameTest* @_TTOFCSo13SwiftNameTestCfT2ccGSqP___S_
+// CHECK-LABEL: define linkonce_odr hidden swiftcc %CSo13SwiftNameTest* @_TTOFCSo13SwiftNameTestCfT2ccGSqP___S_
 // CHECK: load i8*, i8** @"\01L_selector(c:)"
 // CHECK: }
 
-// CHECK-LABEL: define linkonce_odr hidden %CSo18SwiftNameTestError* @_TTOFCSo18SwiftNameTestErrorCfzT5errorT__S_
+// CHECK-LABEL: define linkonce_odr hidden swiftcc %CSo18SwiftNameTestError* @_TTOFCSo18SwiftNameTestErrorCfzT5errorT__S_
 // CHECK: load i8*, i8** @"\01L_selector(err1:)"
 // CHECK: }
 
-// CHECK-LABEL: define linkonce_odr hidden %CSo18SwiftNameTestError* @_TTOFCSo18SwiftNameTestErrorCfzT2aaGSqP__5errorT__S_
+// CHECK-LABEL: define linkonce_odr hidden swiftcc %CSo18SwiftNameTestError* @_TTOFCSo18SwiftNameTestErrorCfzT2aaGSqP__5errorT__S_
 // CHECK: load i8*, i8** @"\01L_selector(err2:error:)"
 // CHECK: }
 
-// CHECK-LABEL: define linkonce_odr hidden %CSo18SwiftNameTestError* @_TTOFCSo18SwiftNameTestErrorCfzT2aaGSqP__5errorT_5blockFT_T__S_
+// CHECK-LABEL: define linkonce_odr hidden swiftcc %CSo18SwiftNameTestError* @_TTOFCSo18SwiftNameTestErrorCfzT2aaGSqP__5errorT_5blockFT_T__S_
 // CHECK: load i8*, i8** @"\01L_selector(err3:error:callback:)"
 // CHECK: }
 
-// CHECK-LABEL: define linkonce_odr hidden %CSo18SwiftNameTestError* @_TTOFCSo18SwiftNameTestErrorCfzT5errorT_5blockFT_T__S_
+// CHECK-LABEL: define linkonce_odr hidden swiftcc %CSo18SwiftNameTestError* @_TTOFCSo18SwiftNameTestErrorCfzT5errorT_5blockFT_T__S_
 // CHECK: load i8*, i8** @"\01L_selector(err4:callback:)"
 // CHECK: }
 
-// CHECK-LABEL: define linkonce_odr hidden %CSo18SwiftNameTestError* @_TTOFCSo18SwiftNameTestErrorCfzT2aaGSqP___S_
+// CHECK-LABEL: define linkonce_odr hidden swiftcc %CSo18SwiftNameTestError* @_TTOFCSo18SwiftNameTestErrorCfzT2aaGSqP___S_
 // CHECK: load i8*, i8** @"\01L_selector(err5:error:)"
 // CHECK: }
 
-// CHECK-LABEL: define linkonce_odr hidden %CSo18SwiftNameTestError* @_TTOFCSo18SwiftNameTestErrorCfzT2aaGSqP__5blockFT_T__S_
+// CHECK-LABEL: define linkonce_odr hidden swiftcc %CSo18SwiftNameTestError* @_TTOFCSo18SwiftNameTestErrorCfzT2aaGSqP__5blockFT_T__S_
 // CHECK: load i8*, i8** @"\01L_selector(err6:error:callback:)"
 // CHECK: }
 
-// CHECK-LABEL: define linkonce_odr hidden %CSo18SwiftNameTestError* @_TTOFCSo18SwiftNameTestErrorCfzT5blockFT_T__S_
+// CHECK-LABEL: define linkonce_odr hidden swiftcc %CSo18SwiftNameTestError* @_TTOFCSo18SwiftNameTestErrorCfzT5blockFT_T__S_
 // CHECK: load i8*, i8** @"\01L_selector(err7:callback:)"
 // CHECK: }
 
-// CHECK-LABEL: define hidden void @_TF7objc_ir29customFactoryMethodsInheritedFT_T_() {{.*}} {
+// CHECK-LABEL: define hidden swiftcc void @_TF7objc_ir29customFactoryMethodsInheritedFT_T_() {{.*}} {
 func customFactoryMethodsInherited() {
-  // CHECK: call %CSo16SwiftNameTestSub* @_TTOFCSo16SwiftNameTestSubCfT10dummyParamT__S_
-  // CHECK: call %CSo16SwiftNameTestSub* @_TTOFCSo16SwiftNameTestSubCfT2ccGSqP___S_
+  // CHECK: call swiftcc %CSo16SwiftNameTestSub* @_TTOFCSo16SwiftNameTestSubCfT10dummyParamT__S_
+  // CHECK: call swiftcc %CSo16SwiftNameTestSub* @_TTOFCSo16SwiftNameTestSubCfT2ccGSqP___S_
   _ = SwiftNameTestSub(dummyParam: ())
   _ = SwiftNameTestSub(cc: nil)
 
@@ -256,13 +256,13 @@ func customFactoryMethodsInherited() {
   _ = SwiftNameTestSub.xx(nil, bb: nil)
 
   do {
-    // CHECK: call %CSo21SwiftNameTestErrorSub* @_TTOFCSo21SwiftNameTestErrorSubCfzT5errorT__S_
-    // CHECK: call %CSo21SwiftNameTestErrorSub* @_TTOFCSo21SwiftNameTestErrorSubCfzT2aaGSqP__5errorT__S_
-    // CHECK: call %CSo21SwiftNameTestErrorSub* @_TTOFCSo21SwiftNameTestErrorSubCfzT2aaGSqP__5errorT_5blockFT_T__S_
-    // CHECK: call %CSo21SwiftNameTestErrorSub* @_TTOFCSo21SwiftNameTestErrorSubCfzT5errorT_5blockFT_T__S_
-    // CHECK: call %CSo21SwiftNameTestErrorSub* @_TTOFCSo21SwiftNameTestErrorSubCfzT2aaGSqP___S_
-    // CHECK: call %CSo21SwiftNameTestErrorSub* @_TTOFCSo21SwiftNameTestErrorSubCfzT2aaGSqP__5blockFT_T__S_
-    // CHECK: call %CSo21SwiftNameTestErrorSub* @_TTOFCSo21SwiftNameTestErrorSubCfzT5blockFT_T__S_
+    // CHECK: call swiftcc %CSo21SwiftNameTestErrorSub* @_TTOFCSo21SwiftNameTestErrorSubCfzT5errorT__S_
+    // CHECK: call swiftcc %CSo21SwiftNameTestErrorSub* @_TTOFCSo21SwiftNameTestErrorSubCfzT2aaGSqP__5errorT__S_
+    // CHECK: call swiftcc %CSo21SwiftNameTestErrorSub* @_TTOFCSo21SwiftNameTestErrorSubCfzT2aaGSqP__5errorT_5blockFT_T__S_
+    // CHECK: call swiftcc %CSo21SwiftNameTestErrorSub* @_TTOFCSo21SwiftNameTestErrorSubCfzT5errorT_5blockFT_T__S_
+    // CHECK: call swiftcc %CSo21SwiftNameTestErrorSub* @_TTOFCSo21SwiftNameTestErrorSubCfzT2aaGSqP___S_
+    // CHECK: call swiftcc %CSo21SwiftNameTestErrorSub* @_TTOFCSo21SwiftNameTestErrorSubCfzT2aaGSqP__5blockFT_T__S_
+    // CHECK: call swiftcc %CSo21SwiftNameTestErrorSub* @_TTOFCSo21SwiftNameTestErrorSubCfzT5blockFT_T__S_
     _ = try SwiftNameTestErrorSub(error: ())
     _ = try SwiftNameTestErrorSub(aa: nil, error: ())
     _ = try SwiftNameTestErrorSub(aa: nil, error: (), block: {})
@@ -284,39 +284,39 @@ func customFactoryMethodsInherited() {
   }
 }
 
-// CHECK-LABEL: define linkonce_odr hidden %CSo16SwiftNameTestSub* @_TTOFCSo16SwiftNameTestSubCfT10dummyParamT__S_
+// CHECK-LABEL: define linkonce_odr hidden swiftcc %CSo16SwiftNameTestSub* @_TTOFCSo16SwiftNameTestSubCfT10dummyParamT__S_
 // CHECK: load i8*, i8** @"\01L_selector(b)"
 // CHECK: }
 
-// CHECK-LABEL: define linkonce_odr hidden %CSo16SwiftNameTestSub* @_TTOFCSo16SwiftNameTestSubCfT2ccGSqP___S_
+// CHECK-LABEL: define linkonce_odr hidden swiftcc %CSo16SwiftNameTestSub* @_TTOFCSo16SwiftNameTestSubCfT2ccGSqP___S_
 // CHECK: load i8*, i8** @"\01L_selector(c:)"
 // CHECK: }
 
-// CHECK-LABEL: define linkonce_odr hidden %CSo21SwiftNameTestErrorSub* @_TTOFCSo21SwiftNameTestErrorSubCfzT5errorT__S_
+// CHECK-LABEL: define linkonce_odr hidden swiftcc %CSo21SwiftNameTestErrorSub* @_TTOFCSo21SwiftNameTestErrorSubCfzT5errorT__S_
 // CHECK: load i8*, i8** @"\01L_selector(err1:)"
 // CHECK: }
 
-// CHECK-LABEL: define linkonce_odr hidden %CSo21SwiftNameTestErrorSub* @_TTOFCSo21SwiftNameTestErrorSubCfzT2aaGSqP__5errorT__S_
+// CHECK-LABEL: define linkonce_odr hidden swiftcc %CSo21SwiftNameTestErrorSub* @_TTOFCSo21SwiftNameTestErrorSubCfzT2aaGSqP__5errorT__S_
 // CHECK: load i8*, i8** @"\01L_selector(err2:error:)"
 // CHECK: }
 
-// CHECK-LABEL: define linkonce_odr hidden %CSo21SwiftNameTestErrorSub* @_TTOFCSo21SwiftNameTestErrorSubCfzT2aaGSqP__5errorT_5blockFT_T__S_
+// CHECK-LABEL: define linkonce_odr hidden swiftcc %CSo21SwiftNameTestErrorSub* @_TTOFCSo21SwiftNameTestErrorSubCfzT2aaGSqP__5errorT_5blockFT_T__S_
 // CHECK: load i8*, i8** @"\01L_selector(err3:error:callback:)"
 // CHECK: }
 
-// CHECK-LABEL: define linkonce_odr hidden %CSo21SwiftNameTestErrorSub* @_TTOFCSo21SwiftNameTestErrorSubCfzT5errorT_5blockFT_T__S_
+// CHECK-LABEL: define linkonce_odr hidden swiftcc %CSo21SwiftNameTestErrorSub* @_TTOFCSo21SwiftNameTestErrorSubCfzT5errorT_5blockFT_T__S_
 // CHECK: load i8*, i8** @"\01L_selector(err4:callback:)"
 // CHECK: }
 
-// CHECK-LABEL: define linkonce_odr hidden %CSo21SwiftNameTestErrorSub* @_TTOFCSo21SwiftNameTestErrorSubCfzT2aaGSqP___S_
+// CHECK-LABEL: define linkonce_odr hidden swiftcc %CSo21SwiftNameTestErrorSub* @_TTOFCSo21SwiftNameTestErrorSubCfzT2aaGSqP___S_
 // CHECK: load i8*, i8** @"\01L_selector(err5:error:)"
 // CHECK: }
 
-// CHECK-LABEL: define linkonce_odr hidden %CSo21SwiftNameTestErrorSub* @_TTOFCSo21SwiftNameTestErrorSubCfzT2aaGSqP__5blockFT_T__S_
+// CHECK-LABEL: define linkonce_odr hidden swiftcc %CSo21SwiftNameTestErrorSub* @_TTOFCSo21SwiftNameTestErrorSubCfzT2aaGSqP__5blockFT_T__S_
 // CHECK: load i8*, i8** @"\01L_selector(err6:error:callback:)"
 // CHECK: }
 
-// CHECK-LABEL: define linkonce_odr hidden %CSo21SwiftNameTestErrorSub* @_TTOFCSo21SwiftNameTestErrorSubCfzT5blockFT_T__S_
+// CHECK-LABEL: define linkonce_odr hidden swiftcc %CSo21SwiftNameTestErrorSub* @_TTOFCSo21SwiftNameTestErrorSubCfzT5blockFT_T__S_
 // CHECK: load i8*, i8** @"\01L_selector(err7:callback:)"
 // CHECK: }
 

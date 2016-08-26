@@ -12,7 +12,7 @@ import Newtype
 // Witness table for synthesized ClosedEnums : _ObjectiveCBridgeable.
 // CHECK: @_TWPVSC10ClosedEnums21_ObjectiveCBridgeable7Newtype = linkonce_odr
 
-// CHECK-LABEL: define %CSo8NSString* @_TF7newtype14getErrorDomainFT_VSC11ErrorDomain()
+// CHECK-LABEL: define swiftcc %CSo8NSString* @_TF7newtype14getErrorDomainFT_VSC11ErrorDomain()
 public func getErrorDomain() -> ErrorDomain {
   // CHECK: load %CSo8NSString*, %CSo8NSString** getelementptr inbounds (%VSC11ErrorDomain, %VSC11ErrorDomain* {{.*}}@SNTErrOne
   return .one
@@ -102,7 +102,7 @@ public func compareABIs() {
   // CHECK: declare void @takeMyABIOldTypeNonNullNS(%0*)
 }
 
-// OPT-LABEL: define i1 @_TF7newtype12compareInitsFT_Sb
+// OPT-LABEL: define swiftcc i1 @_TF7newtype12compareInitsFT_Sb
 public func compareInits() -> Bool {
   let mf = MyInt(rawValue: 1)
   let mfNoLabel = MyInt(1)
@@ -134,7 +134,7 @@ public func anchor() -> Bool {
 class ObjCTest {
   // CHECK-LABEL: define hidden %0* @_TToFC7newtype8ObjCTest19optionalPassThroughfGSqVSC11ErrorDomain_GSqS1__
   // CHECK: [[CASTED:%.+]] = ptrtoint %0* %2 to i{{32|64}}
-  // CHECK: [[RESULT:%.+]] = call i{{32|64}} @_TFC7newtype8ObjCTest19optionalPassThroughfGSqVSC11ErrorDomain_GSqS1__(i{{32|64}} [[CASTED]], %C7newtype8ObjCTest* {{%.+}})
+  // CHECK: [[RESULT:%.+]] = call swiftcc i{{32|64}} @_TFC7newtype8ObjCTest19optionalPassThroughfGSqVSC11ErrorDomain_GSqS1__(i{{32|64}} [[CASTED]], %C7newtype8ObjCTest* swiftself {{%.+}})
   // CHECK: [[OPAQUE_RESULT:%.+]] = inttoptr i{{32|64}} [[RESULT]] to %0*
   // CHECK: ret %0* [[OPAQUE_RESULT]]
   // CHECK: {{^}$}}
@@ -147,7 +147,7 @@ class ObjCTest {
   }
 
   // CHECK-LABEL: define hidden i32 @_TToFC7newtype8ObjCTest18integerPassThroughfVSC5MyIntS1_
-  // CHECK: [[RESULT:%.+]] = call i32 @_TFC7newtype8ObjCTest18integerPassThroughfVSC5MyIntS1_(i32 %2, %C7newtype8ObjCTest* {{%.+}})
+  // CHECK: [[RESULT:%.+]] = call swiftcc i32 @_TFC7newtype8ObjCTest18integerPassThroughfVSC5MyIntS1_(i32 %2, %C7newtype8ObjCTest* swiftself {{%.+}})
   // CHECK: ret i32 [[RESULT]]
   // CHECK: {{^}$}}
 
