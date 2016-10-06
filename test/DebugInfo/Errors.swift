@@ -1,4 +1,5 @@
 // RUN: %target-swift-frontend %s -emit-ir -g -o - | %FileCheck %s
+// REQUIRES: rdar_24489517
 class Obj {}
 
 enum MyError : Error {
