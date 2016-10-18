@@ -152,14 +152,14 @@ public struct ResilientStructWithMethod {
 
 // Corner case -- type is address-only in SIL, but empty in IRGen
 
-// CHECK-LABEL: define{{( protected)?}} void @_TF17struct_resilience29partialApplyOfResilientMethodFT1rVS_25ResilientStructWithMethod_T_(%V17struct_resilience25ResilientStructWithMethod* noalias nocapture)
+// CHECK-LABEL: define{{( protected)?}} swiftcc void @_TF17struct_resilience29partialApplyOfResilientMethodFT1rVS_25ResilientStructWithMethod_T_(%V17struct_resilience25ResilientStructWithMethod* noalias nocapture)
 public func partialApplyOfResilientMethod(r: ResilientStructWithMethod) {
   _ = r.method
 }
 
 // Type is address-only in SIL, and resilient in IRGen
 
-// CHECK-LABEL: define{{( protected)?}} void @_TF17struct_resilience29partialApplyOfResilientMethodFT1sV16resilient_struct4Size_T_(%swift.opaque* noalias nocapture)
+// CHECK-LABEL: define{{( protected)?}} swiftcc void @_TF17struct_resilience29partialApplyOfResilientMethodFT1sV16resilient_struct4Size_T_(%swift.opaque* noalias nocapture)
 public func partialApplyOfResilientMethod(s: Size) {
   _ = s.method
 }
