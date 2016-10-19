@@ -64,6 +64,11 @@ struct MyError : Error {
 % for cols in [2,3,4]:
 % TestType = ctype[type] + str(cols)
 
+// arm64 isel crashes when passing float3.
+% if cols == 3:
+#if !arch(arm64)
+% end
+
 extension ${TestType} : Equatable {}
 public func ==(_ x: ${TestType}, _ y: ${TestType}) -> Bool {
   for i in 0..<${cols} {
@@ -133,6 +138,11 @@ func ==(lhs: Struct${TestType}, rhs: Struct${TestType}) -> Bool {
   }
 % end
 
+// arm64 isel crashes when passing float3.
+% if cols == 3:
+#endif
+% end
+
 % end
 % end
 
@@ -161,6 +171,10 @@ func clobber${FuncName}(
 
 % for type in scalar_types:
 % for cols in [2,3,4]:
+// arm64 isel crashes when passing float3.
+% if cols == 3:
+#if !arch(arm64)
+% end
 % for typePrefix in [ '', 'Enum', 'Struct']:
 % TestType = typePrefix + ctype[type] + str(cols)
 
@@ -650,6 +664,10 @@ tests.test("${TestType}/RetAndParamWitnessMethod${FuncName}") {
 
 % end
 
+% end
+// arm64 isel crashes when passing float3.
+% if cols == 3:
+#endif
 % end
 % end
 % end
