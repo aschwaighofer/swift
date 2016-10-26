@@ -1318,8 +1318,10 @@ void irgen::emitFunctionPartialApplication(IRGenFunction &IGF,
   // to capture), and the dest ownership semantics match the parameter's,
   // skip building the box and thunk and just take the pointer as
   // context.
-  // TODO: We can only do this and use swiftself if all our swiftcc emit the last parameter that fits
-  // into a register as swiftself.
+  // TODO: We can only do this and use swiftself if all our swiftcc emit the
+  // last parameter that fits into a register as swiftself.
+  // We should get this optimization back using the @convention(closure) whose
+  // box argument should just be swift self.
   if (false &&
       !origType->isPolymorphic() &&
       hasSingleSwiftRefcountedContext == Yes
