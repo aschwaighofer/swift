@@ -1093,7 +1093,6 @@ static llvm::Function *emitPartialApplicationForwarder(IRGenModule &IGM,
 
   // Okay, this is where the callee context goes.
   } else if (fnContext) {
-    // TODO: swift_context marker.
     args.add(fnContext);
 
   // Pass a placeholder for thin function calls.
@@ -1109,7 +1108,6 @@ static llvm::Function *emitPartialApplicationForwarder(IRGenModule &IGM,
   // Pass down the error result.
   if (origType->hasErrorResult()) {
     llvm::Value *errorResultPtr = origParams.claimNext();
-    // TODO: swift_error marker.
     args.add(errorResultPtr);
   }
 
