@@ -3147,6 +3147,8 @@ void IRGenSILFunction::visitStoreInst(swift::StoreInst *i) {
 /// Emit the artificial error result argument.
 void IRGenSILFunction::emitErrorResultVar(SILResultInfo ErrorInfo,
                                           DebugValueInst *DbgValue) {
+  // TODO: This does not work with the swifterror attribute. Disable for now.
+  return;
   auto ErrorResultSlot = getErrorResultSlot(ErrorInfo.getSILType());
   SILDebugVariable Var = DbgValue->getVarInfo();
   auto Storage = emitShadowCopy(ErrorResultSlot.getAddress(), getDebugScope(),
