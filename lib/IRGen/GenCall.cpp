@@ -164,6 +164,13 @@ static void addSwiftSelfAttributes(IRGenModule &IGM,
 static void addSwiftErrorAttributes(IRGenModule &IGM,
                                     llvm::AttributeSet &attrs,
                                     unsigned argIndex) {
+  // Don't add the swifterror attribute on ABI that don't pass it in a register.
+  // We create a shadow stack location of the swifterror parameter for the
+  // debugger on such platforms and so we can't mark the parameter with a
+  // swifterror attribute.
+  if (!IGM.IsSwiftErrorInRegister)
+    return;
+
   static const llvm::Attribute::AttrKind attrKinds[] = {
     llvm::Attribute::SwiftError,
   };
@@ -2094,7 +2101,13 @@ Address IRGenFunction::getErrorResultSlot(SILType errorType) {
     auto addr = builder.CreateAlloca(errorTI.getStorageType(), nullptr,
                                      "swifterror");
     addr->setAlignment(errorTI.getFixedAlignment().getValue());
-    addr->setSwiftError(true);
+
+    // Only add the swifterror attribute on ABIs that pass it in a register.
+    // We create a shadow stack location of the swifterror parameter for the
+    // debugger on platforms that pass swifterror by reference and so we can't
+    // mark the parameter with a swifterror attribute for these.
+    if (IGM.IsSwiftErrorInRegister)
+      addr->setSwiftError(true);
 
     // Initialize at the alloca point.
     auto nullError = llvm::ConstantPointerNull::get(
