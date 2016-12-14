@@ -302,6 +302,8 @@ function(_compile_swift_files
       set(module_file "${module_dir}/${SWIFTFILE_MODULE_NAME}.swiftmodule")
       set(module_doc_file "${module_dir}/${SWIFTFILE_MODULE_NAME}.swiftdoc")
       list(APPEND module_command
+          "-Xllvm"
+          "-disable-alloc-stack-hoisting"
           "-emit-module"
           "-o" "${module_file}")
     endif()

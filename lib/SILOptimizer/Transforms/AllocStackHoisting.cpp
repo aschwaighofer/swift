@@ -20,6 +20,7 @@
 #include "swift/SIL/SILInstruction.h"
 #include "swift/SIL/SILArgument.h"
 
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 
 using namespace swift;
@@ -388,9 +389,15 @@ static bool hoistAllocStackInstructions(SILFunction *F) {
   return true;
 }
 
+llvm::cl::opt<bool> DisableAllocStackHoisting(
+    "disable-alloc-stack-hoisting", llvm::cl::init(false),
+    llvm::cl::desc("disable alloc_stack hoisting"));
+
 namespace {
 class AllocStackHoisting : public SILFunctionTransform {
   void run() override {
+    if (DisableAllocStackHoisting)
+      return;
     auto *F = getFunction();
     bool Changed = hoistAllocStackInstructions(F);
     if (Changed) {
