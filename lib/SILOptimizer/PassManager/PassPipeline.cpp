@@ -413,6 +413,9 @@ static void addSILDebugInfoGeneratorPipeline(SILPassPipelinePlan &P) {
 static void addIRGenPreparePipeline(SILPassPipelinePlan &P) {
   P.startPipeline(ExecutionKind::OneIteration, "IRGen Preparation");
   // Insert SIL passes to run during IRGen.
+  // Hoist generic alloc_stack instructions to the entry block to enable better
+  // llvm-ir generation for dynamic alloca instructions.
+  P.addAllocStackHoisting();
 }
 
 SILPassPipelinePlan SILPassPipelinePlan::getIRGenPreparePassPipeline() {
