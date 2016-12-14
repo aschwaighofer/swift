@@ -409,6 +409,14 @@ static void addSILDebugInfoGeneratorPipeline(SILPassPipelinePlan &P) {
   P.addSILDebugInfoGenerator();
 }
 
+/// Non-mandatory passes that should run as preparation for IRGen.
+static void addIRGenPreparePipeline(SILPassPipelinePlan &P) {
+  P.startPipeline(ExecutionKind::OneIteration, "IRGen Preparation");
+  // Hoist generic alloc_stack instructions to the entry block to enable better
+  // llvm-ir generation for dynamic alloca instructions.
+  P.addAllocStackHoisting();
+}
+
 SILPassPipelinePlan
 SILPassPipelinePlan::getPerformancePassPipeline(SILOptions Options) {
   SILPassPipelinePlan P;
@@ -438,6 +446,8 @@ SILPassPipelinePlan::getPerformancePassPipeline(SILOptions Options) {
   addLowLevelPassPipeline(P);
 
   addLateLoopOptPassPipeline(P);
+
+  addIRGenPreparePipeline(P);
 
   // Has only an effect if the -gsil option is specified.
   addSILDebugInfoGeneratorPipeline(P);
