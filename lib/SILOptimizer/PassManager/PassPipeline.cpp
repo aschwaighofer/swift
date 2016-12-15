@@ -417,6 +417,12 @@ static void addIRGenPreparePipeline(SILPassPipelinePlan &P) {
   P.addAllocStackHoisting();
 }
 
+SILPassPipelinePlan SILPassPipelinePlan::getIRGenPreparePassPipeline() {
+  SILPassPipelinePlan P;
+  addIRGenPreparePipeline(P);
+  return P;
+}
+
 SILPassPipelinePlan
 SILPassPipelinePlan::getPerformancePassPipeline(SILOptions Options) {
   SILPassPipelinePlan P;
@@ -446,8 +452,6 @@ SILPassPipelinePlan::getPerformancePassPipeline(SILOptions Options) {
   addLowLevelPassPipeline(P);
 
   addLateLoopOptPassPipeline(P);
-
-  addIRGenPreparePipeline(P);
 
   // Has only an effect if the -gsil option is specified.
   addSILDebugInfoGeneratorPipeline(P);

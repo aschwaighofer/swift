@@ -241,6 +241,12 @@ SILPassManager::SILPassManager(SILModule *M, llvm::StringRef Stage) :
   }
 }
 
+SILPassManager::SILPassManager(SILModule *M, irgen::IRGenModule *IRMod,
+                               llvm::StringRef Stage)
+    : SILPassManager(M, Stage) {
+  this->IRMod = IRMod;
+}
+
 bool SILPassManager::continueTransforming() {
   return Mod->getStage() == SILStage::Raw ||
          NumPassesRun < SILNumOptPassesToRun;

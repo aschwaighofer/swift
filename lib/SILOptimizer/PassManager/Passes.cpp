@@ -107,6 +107,13 @@ void swift::runSILOptimizationPasses(SILModule &Module) {
   }
 }
 
+void swift::runIRGenPreparePasses(SILModule &Module,
+                                  irgen::IRGenModule &IRModule) {
+  SILPassManager PM(&Module, &IRModule);
+  PM.executePassPipelinePlan(
+      SILPassPipelinePlan::getIRGenPreparePassPipeline());
+}
+
 void swift::runSILPassesForOnone(SILModule &Module) {
   // Verify the module, if required.
   if (Module.getOptions().VerifyAll)

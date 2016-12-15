@@ -32,12 +32,19 @@ class SILModuleTransform;
 class SILOptions;
 class SILTransform;
 
+namespace irgen {
+class IRGenModule;
+}
+
 /// \brief The SIL pass manager.
 class SILPassManager {
   using ExecutionKind = SILPassPipelinePlan::ExecutionKind;
 
   /// The module that the pass manager will transform.
   SILModule *Mod;
+
+  /// An optional IRGenModule associated with this PassManager.
+  irgen::IRGenModule *IRMod;
 
   /// The list of transformations to run.
   llvm::SmallVector<SILTransform *, 16> Transformations;
@@ -97,6 +104,8 @@ public:
   /// in Analysis.def.
   SILPassManager(SILModule *M, llvm::StringRef Stage = "");
 
+  SILPassManager(SILModule *M, irgen::IRGenModule *IRMod, llvm::StringRef Stage = "");
+
   const SILOptions &getOptions() const;
 
   /// \brief Searches for an analysis of type T in the list of registered
@@ -112,6 +121,10 @@ public:
 
   /// \returns the module that the pass manager owns.
   SILModule *getModule() { return Mod; }
+
+  /// \returns the associated IGenModule or null if this is not an IRGen
+  /// pass manager.
+  irgen::IRGenModule *getIRGenModule() { return IRMod; }
 
   /// \brief Run the transformations on the module.
   void run();

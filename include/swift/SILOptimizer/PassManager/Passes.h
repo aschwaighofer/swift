@@ -23,6 +23,10 @@ namespace swift {
   class SILOptions;
   class SILTransform;
 
+  namespace irgen {
+    class IRGenModule;
+  }
+
   /// \brief Run all the SIL diagnostic passes on \p M.
   ///
   /// \returns true if the diagnostic passes produced an error
@@ -33,6 +37,10 @@ namespace swift {
 
   /// \brief Run all SIL passes for -Onone on module \p M.
   void runSILPassesForOnone(SILModule &M);
+
+  /// \brief Run the IRGen preparation SIL pipeline. Passes have acces to the
+  /// IRGenModule.
+  void runIRGenPreparePasses(SILModule &M, irgen::IRGenModule &IRMod);
 
   /// \brief Run the SIL ownership eliminator pass on \p M.
   bool runSILOwnershipEliminatorPass(SILModule &M);

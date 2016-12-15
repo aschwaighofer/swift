@@ -29,6 +29,7 @@
 #include "swift/ClangImporter/ClangImporter.h"
 #include "swift/LLVMPasses/PassesFwd.h"
 #include "swift/LLVMPasses/Passes.h"
+#include "swift/SILOptimizer/PassManager/Passes.h"
 #include "clang/Basic/TargetInfo.h"
 #include "llvm/Bitcode/BitcodeWriterPass.h"
 #include "llvm/Bitcode/ReaderWriter.h"
@@ -619,6 +620,9 @@ static std::unique_ptr<llvm::Module> performIRGeneration(IRGenOptions &Opts,
                   LLVMContext, ModuleName, Opts.getSingleOutputFilename());
 
   initLLVMModule(IGM);
+
+  // Run SIL level IRGen preparation passes.
+  runIRGenPreparePasses(*SILMod, IGM);
   
   {
     SharedTimer timer("IRGen");
@@ -769,6 +773,7 @@ static void performParallelIRGeneration(IRGenOptions &Opts,
 
   auto &Ctx = M->getASTContext();
   // Create an IRGenModule for each source file.
+  bool DidRunSILCodeGenPreparePasses = false;
   for (auto *File : M->getFiles()) {
     auto nextSF = dyn_cast<SourceFile>(File);
     if (!nextSF || nextSF->ASTStage < SourceFile::TypeChecked)
@@ -796,6 +801,12 @@ static void performParallelIRGeneration(IRGenOptions &Opts,
     IGMcreated = true;
 
     initLLVMModule(*IGM);
+    if (!DidRunSILCodeGenPreparePasses) {
+      // Run SIL level IRGen preparation passes on the module the first time
+      // around.
+      runIRGenPreparePasses(*SILMod, *IGM);
+      DidRunSILCodeGenPreparePasses = true;
+    }
   }
   
   if (!IGMcreated) {
