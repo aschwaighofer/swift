@@ -20,12 +20,20 @@
 #include "swift/SIL/SILInstruction.h"
 #include "swift/SIL/SILArgument.h"
 
+#include "IRGenModule.h"
+#include "NonFixedTypeInfo.h"
+
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 
 using namespace swift;
 
+llvm::cl::opt<bool> SILUseStackSlotMerging(
+    "sil-merge-stack-slots", llvm::cl::init(true),
+    llvm::cl::desc("Merge generic alloc_stack instructions"));
+
 /// Hoist generic alloc_stack instructions to the entry basic block and merge
-/// alloc_stack instructions if there users span non-overlapping live-ranges.
+/// alloc_stack instructions if their users span non-overlapping live-ranges.
 ///
 /// This helps avoid llvm.stacksave/stackrestore intrinsic calls during code
 /// generation. IRGen will only dynamic alloca instructions if the alloc_stack
@@ -36,16 +44,18 @@ using namespace swift;
 
 /// An alloc_stack instructions is hoistable if it is of generic type and the
 /// type parameter is not dependent on an opened type.
-static bool isHoistable(AllocStackInst *Inst) {
-  auto Type = Inst->getType();
+static bool isHoistable(AllocStackInst *Inst, irgen::IRGenModule &Mod) {
+  auto SILTy = Inst->getType();
   // We don't need to hoist types that have reference semantics no dynamic
   // alloca will be generated as they are fixed size.
-  // Note that no harm is done in hoisting fixed size types (such as a struct
-  // that has a generic reference type) because we would allocate the storage
-  // for in the entry block anyway (the fixed sized llvm alloca is in they entry
-  // block).
-  if (!Type.hasArchetype() || Type.hasReferenceSemantics())
+  if (!SILTy.hasArchetype() || SILTy.hasReferenceSemantics())
     return false;
+
+  // Only hoist types that are dynamically sized.
+  auto &TI = Mod.getTypeInfo(SILTy);
+  if (TI.isFixedSize())
+    return false;
+
   // Don't hoist generics with opened archetypes. We would have to hoist the
   // open archetype instruction which might not be possible.
   if (!Inst->getTypeDependentOperands().empty())
@@ -53,37 +63,6 @@ static bool isHoistable(AllocStackInst *Inst) {
   return true;
 }
 
-/// Collect generic alloc_stack instructions in the function that we can hoist.
-/// We can hoist generic alloc_stack instructions if they are not dependent on a
-/// another instruction that we would have to hoist.
-/// A generic alloc_stack could reference an opened archetype that was not
-/// opened in the entry block.
-static void collectHoistableAllocStackInstructions(
-    SILFunction *F, SmallVectorImpl<AllocStackInst *> &AllocStackToHoist,
-    SmallVectorImpl<SILInstruction *> &DeallocPoints) {
-  for (auto &BB : *F) {
-    for (auto &Inst : BB) {
-      // Terminators that are function exits are our dealloc_stack
-      // insertion points.
-      if (auto *Term = dyn_cast<TermInst>(&Inst)) {
-        if (Term->isFunctionExiting())
-          DeallocPoints.push_back(Term);
-        continue;
-      }
-
-      auto *ASI = dyn_cast<AllocStackInst>(&Inst);
-      if (!ASI) {
-        continue;
-      }
-      if (isHoistable(ASI)) {
-        DEBUG(llvm::dbgs() << "Hoisting     " << Inst);
-        AllocStackToHoist.push_back(ASI);
-      } else {
-        DEBUG(llvm::dbgs() << "Not hoisting " << Inst);
-      }
-    }
-  }
-}
 /// A partition of alloc_stack instructions.
 ///
 /// Initially, a partition contains alloc_stack instructions of one type.
@@ -332,15 +311,72 @@ void MergeStackSlots::mergeSlots() {
   }
 }
 
-static const bool UseStackSlotMerging = true;
+
+namespace {
+/// Hoist alloc_stack instructions to the entry block and merge them.
+class HoistAllocStack {
+  /// The function to process.
+  SILFunction *F;
+  /// The current IRGenModule.
+  irgen::IRGenModule &IRGenMod;
+
+  SmallVector<AllocStackInst *, 16> AllocStackToHoist;
+  SmallVector<SILInstruction *, 8> FunctionExits;
+
+public:
+  HoistAllocStack(SILFunction *F, irgen::IRGenModule &Mod)
+      : F(F), IRGenMod(Mod) {}
+
+  /// Try to hoist generic alloc_stack instructions to the entry block.
+  /// Returns true if the function was changed.
+  bool run();
+
+private:
+  /// Collect generic alloc_stack instructions that can be moved to the entry
+  /// block.
+  void collectHoistableInstructions();
+
+  /// Move the hoistable alloc_stack instructions to the entry block.
+  void hoist();
+};
+}
+
+/// Collect generic alloc_stack instructions in the current function can be
+/// hoisted.
+/// We can hoist generic alloc_stack instructions if they are not dependent on a
+/// another instruction that we would have to hoist.
+/// A generic alloc_stack could reference an opened archetype that was not
+/// opened in the entry block.
+void HoistAllocStack::collectHoistableInstructions() {
+  for (auto &BB : *F) {
+    for (auto &Inst : BB) {
+      // Terminators that are function exits are our dealloc_stack
+      // insertion points.
+      if (auto *Term = dyn_cast<TermInst>(&Inst)) {
+        if (Term->isFunctionExiting())
+          FunctionExits.push_back(Term);
+        continue;
+      }
+
+      auto *ASI = dyn_cast<AllocStackInst>(&Inst);
+      if (!ASI) {
+        continue;
+      }
+      if (isHoistable(ASI, IRGenMod)) {
+        DEBUG(llvm::dbgs() << "Hoisting     " << Inst);
+        AllocStackToHoist.push_back(ASI);
+      } else {
+        DEBUG(llvm::dbgs() << "Not hoisting " << Inst);
+      }
+    }
+  }
+}
 
 /// Hoist the alloc_stack instructions to the entry block and sink the
 /// dealloc_stack instructions to the function exists.
-static void hoistAllocStackInstructions(
-    SILFunction *F, SmallVectorImpl<AllocStackInst *> &AllocStackToHoist,
-    SmallVectorImpl<SILInstruction *> &FunctionExits) {
+void HoistAllocStack::hoist() {
 
-  if (UseStackSlotMerging) {
+  if (SILUseStackSlotMerging) {
     MergeStackSlots Merger(AllocStackToHoist, FunctionExits);
     Merger.mergeSlots();
   } else {
@@ -351,38 +387,25 @@ static void hoistAllocStackInstructions(
       AllocStack->removeFromParent();
       EntryBB->push_front(AllocStack);
       // Delete dealloc_stacks.
-      SmallVector<DeallocStackInst *, 16> DeallocStacksToDelete;
-      for (auto *U : AllocStack->getUses()) {
-        if (auto *DeallocStack = dyn_cast<DeallocStackInst>(U->getUser()))
-          DeallocStacksToDelete.push_back(DeallocStack);
-      }
-      for (auto *D : DeallocStacksToDelete)
-        D->eraseFromParent();
+      eraseDeallocStacks(AllocStack);
     }
     // Insert dealloc_stack in the exit blocks.
-    for (auto *Exit : FunctionExits) {
-      SILBuilder Builder(Exit);
-      for (auto *AllocStack : AllocStackToHoist) {
-        Builder.createDeallocStack(AllocStack->getLoc(), AllocStack);
-      }
+    for (auto *AllocStack : AllocStackToHoist) {
+      insertDeallocStackAtEndOf(FunctionExits, AllocStack);
     }
   }
 }
 
 /// Try to hoist generic alloc_stack instructions to the entry block.
 /// Returns true if the function was changed.
-static bool hoistAllocStackInstructions(SILFunction *F) {
-  // Collect hoistable generic alloc_stack instructions.
-  SmallVector<AllocStackInst *, 16> AllocStackInstToHoist;
-  SmallVector<SILInstruction *, 8> DeallocPoints;
-  collectHoistableAllocStackInstructions(F, AllocStackInstToHoist,
-                                         DeallocPoints);
+bool HoistAllocStack::run() {
+  collectHoistableInstructions();
 
   // Nothing to hoist?
-  if (AllocStackInstToHoist.empty())
+  if (AllocStackToHoist.empty())
     return false;
 
-  hoistAllocStackInstructions(F, AllocStackInstToHoist, DeallocPoints);
+  hoist();
   return true;
 }
 
@@ -390,7 +413,9 @@ namespace {
 class AllocStackHoisting : public SILFunctionTransform {
   void run() override {
     auto *F = getFunction();
-    bool Changed = hoistAllocStackInstructions(F);
+    auto *Mod = getIRGenModule();
+    assert(Mod && "This pass must be run as part of an IRGen pipeline");
+    bool Changed = HoistAllocStack(F, *Mod).run();
     if (Changed) {
       PM->invalidateAnalysis(F, SILAnalysis::InvalidationKind::Instructions);
     }
