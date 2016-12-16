@@ -597,6 +597,27 @@ static void initLLVMModule(const IRGenModule &IGM) {
   Module->setDataLayout(IGM.DataLayout.getStringRepresentation());
 }
 
+std::pair<std::unique_ptr<IRGenerator>, std::unique_ptr<IRGenModule>>
+createIRGenModule(SILModule *SILMod, llvm::LLVMContext &LLVMContext) {
+
+  IRGenOptions Opts;
+  IRGenerator *irgen = new IRGenerator(Opts, *SILMod);
+  auto targetMachine = irgen->createTargetMachine();
+  if (!targetMachine)
+    return std::make_pair(std::unique_ptr<IRGenerator>(nullptr),
+                          std::unique_ptr<IRGenModule>(nullptr));
+
+  // Create the IR emitter.
+  IRGenModule *IGM =
+      new IRGenModule(*irgen, std::move(targetMachine), nullptr, LLVMContext,
+                      "dummymodule", Opts.getSingleOutputFilename());
+
+  initLLVMModule(*IGM);
+
+  return std::make_pair(std::unique_ptr<IRGenerator>(irgen),
+                        std::unique_ptr<IRGenModule>(IGM));
+}
+
 /// Generates LLVM IR, runs the LLVM passes and produces the output file.
 /// All this is done in a single thread.
 static std::unique_ptr<llvm::Module> performIRGeneration(IRGenOptions &Opts,

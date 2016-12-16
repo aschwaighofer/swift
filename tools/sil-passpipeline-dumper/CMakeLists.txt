@@ -4,6 +4,7 @@ add_swift_host_tool(sil-passpipeline-dumper
     swiftFrontend
     swiftSILGen
     swiftSILOptimizer
+    swiftIRGen
     swiftSerialization
     swiftClangImporter
   LLVM_COMPONENT_DEPENDS

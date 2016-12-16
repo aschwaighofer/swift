@@ -2,6 +2,7 @@ add_swift_host_tool(sil-func-extractor
   SILFunctionExtractor.cpp
   LINK_LIBRARIES
     swiftFrontend
+    swiftIRGen
     swiftSILGen
     swiftSILOptimizer
     swiftSerialization

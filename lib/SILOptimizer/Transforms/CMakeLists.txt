@@ -1,7 +1,6 @@
 set(TRANSFORMS_SOURCES
   Transforms/ARCCodeMotion.cpp
   Transforms/AllocBoxToStack.cpp
-  Transforms/AllocStackHoisting.cpp
   Transforms/ArrayCountPropagation.cpp
   Transforms/ArrayElementValuePropagation.cpp
   Transforms/AssumeSingleThreaded.cpp

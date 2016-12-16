@@ -29,6 +29,7 @@
 #include "swift/Serialization/SerializedModuleLoader.h"
 #include "swift/Serialization/SerializedSILLoader.h"
 #include "swift/Serialization/SerializationOptions.h"
+#include "swift/IRGen/IRGen.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
@@ -318,7 +319,8 @@ int main(int argc, char **argv) {
   } else if (OptimizationGroup == OptGroup::Performance) {
     runSILOptimizationPasses(*CI.getSILModule());
   } else {
-    runCommandLineSelectedPasses(CI.getSILModule());
+    auto *SILMod = CI.getSILModule();
+    runCommandLineSelectedPasses(SILMod);
   }
 
   if (EmitSIB) {
