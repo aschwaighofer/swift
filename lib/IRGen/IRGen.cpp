@@ -27,6 +27,7 @@
 #include "swift/Basic/Timer.h"
 #include "swift/Basic/Version.h"
 #include "swift/ClangImporter/ClangImporter.h"
+#include "swift/IRGen/IRGenPublic.h"
 #include "swift/LLVMPasses/PassesFwd.h"
 #include "swift/LLVMPasses/Passes.h"
 #include "swift/SILOptimizer/PassManager/Passes.h"
@@ -597,15 +598,15 @@ static void initLLVMModule(const IRGenModule &IGM) {
   Module->setDataLayout(IGM.DataLayout.getStringRepresentation());
 }
 
-std::pair<std::unique_ptr<IRGenerator>, std::unique_ptr<IRGenModule>>
-createIRGenModule(SILModule *SILMod, llvm::LLVMContext &LLVMContext) {
+std::pair<IRGenerator *, IRGenModule *>
+swift::irgen::createIRGenModule(SILModule *SILMod,
+                                llvm::LLVMContext &LLVMContext) {
 
   IRGenOptions Opts;
   IRGenerator *irgen = new IRGenerator(Opts, *SILMod);
   auto targetMachine = irgen->createTargetMachine();
   if (!targetMachine)
-    return std::make_pair(std::unique_ptr<IRGenerator>(nullptr),
-                          std::unique_ptr<IRGenModule>(nullptr));
+    return std::make_pair(nullptr, nullptr);
 
   // Create the IR emitter.
   IRGenModule *IGM =
@@ -614,8 +615,7 @@ createIRGenModule(SILModule *SILMod, llvm::LLVMContext &LLVMContext) {
 
   initLLVMModule(*IGM);
 
-  return std::make_pair(std::unique_ptr<IRGenerator>(irgen),
-                        std::unique_ptr<IRGenModule>(IGM));
+  return std::make_pair(irgen, IGM);
 }
 
 /// Generates LLVM IR, runs the LLVM passes and produces the output file.

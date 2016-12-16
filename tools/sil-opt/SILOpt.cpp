@@ -20,6 +20,7 @@
 #include "swift/AST/DiagnosticsFrontend.h"
 #include "swift/AST/SILOptions.h"
 #include "swift/Basic/LLVMInitialize.h"
+#include "swift/Basic/LLVMContext.h"
 #include "swift/Frontend/DiagnosticVerifier.h"
 #include "swift/Frontend/Frontend.h"
 #include "swift/Frontend/PrintingDiagnosticConsumer.h"
@@ -29,7 +30,7 @@
 #include "swift/Serialization/SerializedModuleLoader.h"
 #include "swift/Serialization/SerializedSILLoader.h"
 #include "swift/Serialization/SerializationOptions.h"
-#include "swift/IRGen/IRGen.h"
+#include "swift/IRGen/IRGenPublic.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
@@ -170,8 +171,8 @@ AssumeUnqualifiedOwnershipWhenParsing(
     "assume-parsing-unqualified-ownership-sil", llvm::cl::Hidden, llvm::cl::init(false),
     llvm::cl::desc("Assume all parsed functions have unqualified ownership"));
 
-static void runCommandLineSelectedPasses(SILModule *Module) {
-  SILPassManager PM(Module);
+static void runCommandLineSelectedPasses(SILModule *Module, irgen::IRGenModule *IRGenMod) {
+  SILPassManager PM(Module, IRGenMod);
   PM.executePassPipelinePlan(SILPassPipelinePlan::getPassPipelineForKinds(
       SILPassPipelinePlan::ExecutionKind::UntilFixPoint, Passes));
   if (Module->getOptions().VerifyAll)
@@ -320,7 +321,12 @@ int main(int argc, char **argv) {
     runSILOptimizationPasses(*CI.getSILModule());
   } else {
     auto *SILMod = CI.getSILModule();
-    runCommandLineSelectedPasses(SILMod);
+    {
+      auto T = irgen::createIRGenModule(SILMod, getGlobalLLVMContext());
+      runCommandLineSelectedPasses(SILMod, T.second);
+      delete T.first;
+      delete T.second;
+    }
   }
 
   if (EmitSIB) {

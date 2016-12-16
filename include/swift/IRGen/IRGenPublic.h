@@ -19,15 +19,15 @@ namespace llvm {
 namespace swift {
 class SILModule;
 
-namespace IRGen {
+namespace irgen {
   class IRGenerator;
   class IRGenModule;
 
-/// Create an IRGen module.
-std::pair<std::unique_ptr<IRGenerator>, std::unique_ptr<IRGenModule>>
-createIRGenModule(SILModule *SILMod, llvm::LLVMContext &LLVMContext);
+  /// Create an IRGen module.
+  std::pair<IRGenerator *, IRGenModule *>
+  createIRGenModule(SILModule *SILMod, llvm::LLVMContext &LLVMContext);
 
-} // end namespace IRGen
+} // end namespace irgen
 } // end namespace swift
 
 #endif
