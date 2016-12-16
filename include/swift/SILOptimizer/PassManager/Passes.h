@@ -38,10 +38,6 @@ namespace swift {
   /// \brief Run all SIL passes for -Onone on module \p M.
   void runSILPassesForOnone(SILModule &M);
 
-  /// \brief Run the IRGen preparation SIL pipeline. Passes have acces to the
-  /// IRGenModule.
-  void runIRGenPreparePasses(SILModule &M, irgen::IRGenModule &IRMod);
-
   /// \brief Run the SIL ownership eliminator pass on \p M.
   bool runSILOwnershipEliminatorPass(SILModule &M);
 
@@ -82,6 +78,7 @@ namespace swift {
   StringRef PassKindID(PassKind Kind);
 
 #define PASS(ID, NAME, DESCRIPTION) SILTransform *create##ID();
+#define IRGEN_PASS(ID, NAME, DESCRIPTION)
 #include "Passes.def"
 
 } // end namespace swift

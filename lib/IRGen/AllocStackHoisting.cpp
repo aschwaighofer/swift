@@ -12,6 +12,7 @@
 
 #define DEBUG_TYPE "alloc-stack-hoisting"
 
+#include "swift/IRGen/IRGenSILPasses.h"
 #include "swift/SILOptimizer/Analysis/Analysis.h"
 #include "swift/SILOptimizer/PassManager/Passes.h"
 #include "swift/SILOptimizer/PassManager/Transforms.h"
@@ -424,6 +425,6 @@ class AllocStackHoisting : public SILFunctionTransform {
 };
 } // end anonymous namespace
 
-SILTransform *swift::createAllocStackHoisting() {
+SILFunctionTransform *irgen::createAllocStackHoisting() {
   return new AllocStackHoisting();
 }

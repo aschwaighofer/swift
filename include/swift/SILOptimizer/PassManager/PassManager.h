@@ -99,12 +99,19 @@ class SILPassManager {
   /// same function.
   bool RestartPipeline = false;
 
+
+  /// The IRGen SIL passes. These have to be dynamically added by IRGen.
+  llvm::DenseMap<unsigned, SILFunctionTransform *> IRGenPasses;
+
 public:
   /// C'tor. It creates and registers all analysis passes, which are defined
   /// in Analysis.def.
   SILPassManager(SILModule *M, llvm::StringRef Stage = "");
 
-  SILPassManager(SILModule *M, irgen::IRGenModule *IRMod, llvm::StringRef Stage = "");
+  /// C'tor. It creates an IRGen pass manager. Passes can query for the
+  /// IRGenModule.
+  SILPassManager(SILModule *M, irgen::IRGenModule *IRMod,
+                 llvm::StringRef Stage = "");
 
   const SILOptions &getOptions() const;
 
@@ -234,6 +241,15 @@ public:
       }
       execute(Pipeline.ExecutionKind);
     }
+  }
+
+  void registerIRGenPass(PassKind Kind, SILFunctionTransform *Transform) {
+    assert(IRGenPasses.find(unsigned(Kind)) == IRGenPasses.end() &&
+           "Pass already registered");
+    assert(
+        IRMod &&
+        "Attempting to register an IRGen pass with a non-IRGen pass manager");
+    IRGenPasses[unsigned(Kind)] = Transform;
   }
 
 private:

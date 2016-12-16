@@ -547,6 +547,9 @@ void SILPassManager::run() {
 
 /// D'tor.
 SILPassManager::~SILPassManager() {
+  assert(IRGenPasses.empty() && "Must add IRGen SIL passes that were "
+                                "registered to the list of transformations");
+
   // Free all transformations.
   for (auto *T : Transformations)
     delete T;
@@ -639,6 +642,15 @@ void SILPassManager::addPass(PassKind Kind) {
     SILTransform *T = swift::create##ID();                                     \
     T->setPassKind(PassKind::ID);                                              \
     Transformations.push_back(T);                                              \
+    break;                                                                     \
+  }
+#define IRGEN_PASS(ID, NAME, DESCRIPTION)                                      \
+  case PassKind::ID: {                                                         \
+    SILTransform *T = IRGenPasses[unsigned(Kind)];                             \
+    assert(T && "Missing IRGen pass?");                                        \
+    T->setPassKind(PassKind::ID);                                              \
+    Transformations.push_back(T);                                              \
+    IRGenPasses.erase(unsigned(Kind));                                         \
     break;                                                                     \
   }
 #include "swift/SILOptimizer/PassManager/Passes.def"

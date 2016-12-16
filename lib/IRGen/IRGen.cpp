@@ -28,9 +28,12 @@
 #include "swift/Basic/Version.h"
 #include "swift/ClangImporter/ClangImporter.h"
 #include "swift/IRGen/IRGenPublic.h"
+#include "swift/IRGen/IRGenSILPasses.h"
 #include "swift/LLVMPasses/PassesFwd.h"
 #include "swift/LLVMPasses/Passes.h"
 #include "swift/SILOptimizer/PassManager/Passes.h"
+#include "swift/SILOptimizer/PassManager/PassManager.h"
+#include "swift/SILOptimizer/PassManager/PassPipeline.h"
 #include "clang/Basic/TargetInfo.h"
 #include "llvm/Bitcode/BitcodeWriterPass.h"
 #include "llvm/Bitcode/ReaderWriter.h"
@@ -62,7 +65,6 @@
 #include "llvm/Transforms/ObjCARC.h"
 #include "llvm/Object/ObjectFile.h"
 #include "IRGenModule.h"
-
 #include <thread>
 
 using namespace swift;
@@ -611,11 +613,28 @@ swift::irgen::createIRGenModule(SILModule *SILMod,
   // Create the IR emitter.
   IRGenModule *IGM =
       new IRGenModule(*irgen, std::move(targetMachine), nullptr, LLVMContext,
-                      "dummymodule", Opts.getSingleOutputFilename());
+                      "", Opts.getSingleOutputFilename());
 
   initLLVMModule(*IGM);
 
-  return std::make_pair(irgen, IGM);
+  return std::pair<IRGenerator *, IRGenModule *>(irgen, IGM);
+}
+
+void swift::irgen::deleteIRGenModule(
+    std::pair<IRGenerator *, IRGenModule *> &IRGenPair) {
+  delete IRGenPair.second;
+  delete IRGenPair.first;
+}
+
+/// \brief Run the IRGen preparation SIL pipeline. Passes have access to the
+/// IRGenModule.
+static void runIRGenPreparePasses(SILModule &Module,
+                                  irgen::IRGenModule &IRModule) {
+  SILPassManager PM(&Module, &IRModule);
+  PM.registerIRGenPass(swift::PassKind::AllocStackHoisting,
+                       createAllocStackHoisting());
+  PM.executePassPipelinePlan(
+      SILPassPipelinePlan::getIRGenPreparePassPipeline());
 }
 
 /// Generates LLVM IR, runs the LLVM passes and produces the output file.
