@@ -49,10 +49,10 @@ static bool isHoistable(AllocStackInst *Inst, irgen::IRGenModule &Mod) {
   auto SILTy = Inst->getType();
   // We don't need to hoist types that have reference semantics no dynamic
   // alloca will be generated as they are fixed size.
-  if (!SILTy.hasArchetype() || SILTy.hasReferenceSemantics())
+  if (SILTy.hasReferenceSemantics())
     return false;
 
-  // Only hoist types that are dynamically sized.
+  // Only hoist types that are dynamically sized (generics and resilient types).
   auto &TI = Mod.getTypeInfo(SILTy);
   if (TI.isFixedSize())
     return false;
