@@ -162,7 +162,7 @@ func pointerProperties(_ obj: PointerWrapper) {
   obj.idPtr = nil as AutoreleasingUnsafeMutablePointer?
 }
 
-// CHECK-LABEL: define hidden void @_TF7objc_ir16strangeSelectorsFCSo13SwiftNameTestT_(%CSo13SwiftNameTest*) {{.*}} {
+// CHECK-LABEL: define hidden swiftcc void @_TF7objc_ir16strangeSelectorsFCSo13SwiftNameTestT_(%CSo13SwiftNameTest*) {{.*}} {
 func strangeSelectors(_ obj: SwiftNameTest) {
   // CHECK: load i8*, i8** @"\01L_selector(:b:)"
   obj.empty(a: 0, b: 0)
@@ -170,9 +170,9 @@ func strangeSelectors(_ obj: SwiftNameTest) {
 
 // CHECK-LABEL: define hidden swiftcc void @_TF7objc_ir20customFactoryMethodsFT_T_() {{.*}} {
 func customFactoryMethods() {
-  // CHECK: call swifcc %CSo13SwiftNameTest* @_TTOFCSo13SwiftNameTestCfT10dummyParamT__S_
-  // CHECK: call swifcc %CSo13SwiftNameTest* @_TTOFCSo13SwiftNameTestCfT2ccGSqP___S_
-  // CHECK: call swifcc %CSo13SwiftNameTest* @_TTOFCSo13SwiftNameTestCfT5emptyVs5Int32_S_
+  // CHECK: call swiftcc %CSo13SwiftNameTest* @_TTOFCSo13SwiftNameTestCfT10dummyParamT__S_
+  // CHECK: call swiftcc %CSo13SwiftNameTest* @_TTOFCSo13SwiftNameTestCfT2ccGSqP___S_
+  // CHECK: call swiftcc %CSo13SwiftNameTest* @_TTOFCSo13SwiftNameTestCfT5emptyVs5Int32_S_
   _ = SwiftNameTest(dummyParam: ())
   _ = SwiftNameTest(cc: nil)
   _ = SwiftNameTest(empty: 0)
