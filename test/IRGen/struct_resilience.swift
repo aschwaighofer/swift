@@ -32,12 +32,7 @@ public func functionWithResilientTypes(_ s: Size, f: (Size) -> Size) -> Size {
 // CHECK: [[STRUCT_LOC:%.*]] = call %swift.opaque* [[initializeWithCopy]](%swift.opaque* [[STRUCT_ADDR]], %swift.opaque* %1, %swift.type* [[METADATA]])
 
 // CHECK: [[FN:%.*]] = bitcast i8* %2 to void (%swift.opaque*, %swift.opaque*, %swift.refcounted*)*
-// CHECK: call swiftcc void [[FN]](%swift.opaque* noalias nocapture sret %0, %swift.opaque* noalias nocapture [[BUFFER]], %swift.refcounted* swiftself %3)
-
-// CHECK: [[WITNESS_PTR:%.*]] = getelementptr inbounds i8*, i8** [[VWT]], i32 3
-// CHECK: [[WITNESS:%.*]] = load i8*, i8** [[WITNESS_PTR]]
-// CHECK: [[deallocateBuffer:%.*]] = bitcast i8* [[WITNESS]]
-// CHECK: call void [[deallocateBuffer]]([[BUFFER_TYPE]]* [[RESULT]], %swift.type* [[METADATA]])
+// CHECK: call swiftcc void [[FN]](%swift.opaque* noalias nocapture sret %0, %swift.opaque* noalias nocapture [[STRUCT_ADDR]], %swift.refcounted* swiftself %3)
 
 // CHECK: [[WITNESS_PTR:%.*]] = getelementptr inbounds i8*, i8** [[VWT]], i32 4
 // CHECK: [[WITNESS:%.*]] = load i8*, i8** [[WITNESS_PTR]]
