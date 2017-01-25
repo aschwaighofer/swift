@@ -230,6 +230,7 @@ _typeByMangledName(const llvm::StringRef typeName) {
 /// implementation of _typeByName(). The human readable name returned
 /// by swift_getTypeName() is non-unique, so we used mangled names
 /// internally.
+SWIFT_CC(swift)
 SWIFT_RUNTIME_EXPORT
 const Metadata *
 swift_getTypeByMangledName(const char *typeName, size_t typeNameLength) {
