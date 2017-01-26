@@ -18,7 +18,7 @@ func call_methods<T: P, U>(_ x: T, y: S, z: U) {
   // CHECK: [[STATIC_METHOD_ADDR:%.*]] = getelementptr inbounds i8*, i8** %T.P, i32 1
   // CHECK: [[STATIC_METHOD_PTR:%.*]] = load i8*, i8** [[STATIC_METHOD_ADDR]], align 8
   // CHECK: [[STATIC_METHOD:%.*]] = bitcast i8* [[STATIC_METHOD_PTR]] to void (%swift.type*, %swift.type*, i8**)*
-  // CHECK: call swiftcc void [[STATIC_METHOD]](%swift.type* %T, %swift.type* %T, i8** %T.P)
+  // CHECK: call swiftcc void [[STATIC_METHOD]](%swift.type* swiftself %T, %swift.type* %T, i8** %T.P)
   T.concrete_static_method()
 
   // CHECK: [[CONCRETE_METHOD_PTR:%.*]] = load i8*, i8** %T.P, align 8

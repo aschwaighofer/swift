@@ -219,7 +219,7 @@ func class_generic_field_struct_fields<T : ClassBound>
   return (x.x, x.y, x.z)
 }
 
-// CHECK-LABEL: define hidden swiftcc void @_T022class_bounded_generics0A29_protocol_field_struct_fields{{[_0-9a-zA-Z]*}}F(<{ %Si, %P22class_bounded_generics10ClassBound_, %Si }>* noalias nocapture sret, %V22class_bounded_generics24ClassProtocolFieldStruct* noalias nocapture dereferenceable({{.*}}))
+// CHECK-LABEL: define hidden swiftcc { i64, %objc_object*, i8**, i64 } @_T022class_bounded_generics0A29_protocol_field_struct_fields{{[_0-9a-zA-Z]*}}F(i64, %objc_object*, i8**, i64)
 func class_protocol_field_struct_fields
 (_ x:ClassProtocolFieldStruct) -> (Int, ClassBound, Int) {
   return (x.x, x.y, x.z)

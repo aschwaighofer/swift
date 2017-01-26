@@ -42,7 +42,7 @@ func b<T : Ordinable>(seq seq: T) -> (Int) -> Int {
 // CHECK:   [[BOX:%.*]] = load %swift.refcounted*, %swift.refcounted** [[BOXADDR]], align 8
 // CHECK:   call void @swift_rt_swift_retain(%swift.refcounted* [[BOX]])
 // CHECK:   call void @swift_rt_swift_release(%swift.refcounted* %1)
-// CHECK:   [[RES:%.*]] = tail call swiftcc 64 @_T07closure1bSiSicx3seq_tAA9OrdinableRzlFSiSicfU_(i64 %0, %swift.refcounted* [[BOX]], %swift.type* [[TYPE]], i8** [[WITNESS]])
+// CHECK:   [[RES:%.*]] = tail call swiftcc i64 @_T07closure1bSiSicx3seq_tAA9OrdinableRzlFSiSicfU_(i64 %0, %swift.refcounted* [[BOX]], %swift.type* [[TYPE]], i8** [[WITNESS]])
 // CHECK:   ret i64 [[RES]]
 // CHECK: }
 
