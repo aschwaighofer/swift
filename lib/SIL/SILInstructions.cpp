@@ -1642,9 +1642,9 @@ MarkUninitializedBehaviorInst::MarkUninitializedBehaviorInst(
 }
 
 OpenExistentialAddrInst::OpenExistentialAddrInst(
-    SILDebugLocation DebugLoc, SILValue Operand, SILType SelfTy)
-    : UnaryInstructionBase(DebugLoc, Operand, SelfTy) {
-}
+    SILDebugLocation DebugLoc, SILValue Operand, SILType SelfTy,
+    OpenedExistentialAccess AccessKind)
+    : UnaryInstructionBase(DebugLoc, Operand, SelfTy), ForAccess(AccessKind) {}
 
 OpenExistentialRefInst::OpenExistentialRefInst(
     SILDebugLocation DebugLoc, SILValue Operand, SILType Ty)

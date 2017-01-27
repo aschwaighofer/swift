@@ -520,8 +520,10 @@ namespace {
                         AccessKind accessKind) && override {
       assert(base.getType().isExistentialType() &&
              "base for open existential component must be an existential");
-      auto addr = gen.B.createOpenExistentialAddr(loc, base.getLValueAddress(),
-                                           getTypeOfRValue().getAddressType());
+      auto addr = gen.B.createOpenExistentialAddr(
+          loc, base.getLValueAddress(), getTypeOfRValue().getAddressType(),
+          accessKind == AccessKind::Read ? OpenedExistentialAccess::Immutable
+                                         : OpenedExistentialAccess::Mutable);
 
       if (base.hasCleanup()) {
         // Leave a cleanup to deinit the existential container.
