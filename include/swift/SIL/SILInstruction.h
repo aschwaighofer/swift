@@ -5591,6 +5591,10 @@ public:
 
 #undef FOREACH_IMPL_RETURN
 
+  SILArgumentConvention getArgumentConvention(unsigned index) const {
+    return getSubstCalleeConv().getSILArgumentConvention(index);
+  }
+
   static ApplySite getFromOpaqueValue(void *p) {
     return ApplySite(p);
   }
@@ -5639,10 +5643,6 @@ public:
 
   OperandValueArrayRef getArgumentsWithoutIndirectResults() const {
     return getArguments().slice(getNumIndirectSILResults());
-  }
-
-  SILArgumentConvention getArgumentConvention(unsigned index) const {
-    return getSubstCalleeConv().getSILArgumentConvention(index);
   }
 
   static FullApplySite getFromOpaqueValue(void *p) {
