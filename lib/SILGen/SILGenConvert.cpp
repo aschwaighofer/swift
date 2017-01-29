@@ -745,8 +745,7 @@ SILGenFunction::emitOpenExistential(
   case ExistentialRepresentation::Opaque: {
     assert(existentialType.isAddress());
     OpenedExistentialAccess allowedAccess =
-        accessKind == AccessKind::Read ? OpenedExistentialAccess::Immutable
-                                       : OpenedExistentialAccess::Mutable;
+        getOpenedExistentialAccessFor(accessKind);
     SILValue archetypeValue = B.createOpenExistentialAddr(
                                 loc, existentialValue.forward(*this),
                                 loweredOpenedType, allowedAccess);

@@ -1641,6 +1641,17 @@ MarkUninitializedBehaviorInst::MarkUninitializedBehaviorInst(
   }
 }
 
+OpenedExistentialAccess swift::getOpenedExistentialAccessFor(AccessKind access) {
+  switch (access) {
+  case AccessKind::Read:
+    return OpenedExistentialAccess::Immutable;
+  case AccessKind::ReadWrite:
+  case AccessKind::Write:
+    return OpenedExistentialAccess::Mutable;
+  }
+  llvm_unreachable("Uncovered covered switch?");
+}
+
 OpenExistentialAddrInst::OpenExistentialAddrInst(
     SILDebugLocation DebugLoc, SILValue Operand, SILType SelfTy,
     OpenedExistentialAccess AccessKind)
