@@ -2167,6 +2167,8 @@ public:
     auto isMutatingOrConsuming = [=](OpenExistentialAddrInst *OEI) -> bool {
       for (auto *use : OEI->getUses()) {
         auto *inst = use->getUser();
+        if (inst->isTypeDependentOperand(*use))
+          continue;
         switch (inst->getKind()) {
         case ValueKind::ApplyInst:
         case ValueKind::TryApplyInst:
