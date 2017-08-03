@@ -758,6 +758,10 @@ llvm::AttributeSet IRGenModule::constructInitialAttributes() {
                      llvm::AttributeSet::FunctionIndex, "target-features",
                      allFeatures);
   }
+  if (IRGen.Opts.OptimizeForSize)
+    attrsUpdated = attrsUpdated.addAttribute(LLVMContext,
+                                             llvm::AttributeSet::FunctionIndex,
+                                             llvm::Attribute::OptimizeForSize);
   return attrsUpdated;
 }
 
