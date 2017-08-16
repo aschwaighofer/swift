@@ -102,6 +102,8 @@ class SILPerformanceInliner {
     DefaultApplyLength = 10
   };
 
+  SILOptions::SILOptMode OptMode;
+
 #ifndef NDEBUG
   SILFunction *LastPrintedCaller = nullptr;
   void dumpCaller(SILFunction *Caller) {
@@ -143,8 +145,9 @@ class SILPerformanceInliner {
 
 public:
   SILPerformanceInliner(InlineSelection WhatToInline, DominanceAnalysis *DA,
-                        SILLoopAnalysis *LA)
-      : WhatToInline(WhatToInline), DA(DA), LA(LA), CBI(DA) {}
+                        SILLoopAnalysis *LA, SILOptions::SILOptMode OptMode)
+      : WhatToInline(WhatToInline), DA(DA), LA(LA), CBI(DA),
+        OptMode(OptMode) {}
 
   bool inlineCallsIntoFunction(SILFunction *F);
 };
@@ -255,6 +258,22 @@ bool SILPerformanceInliner::isProfitableToInline(FullApplySite AI,
                                                  ConstantTracker &callerTracker,
                                                  int &NumCallerBlocks,
                                                  bool IsGeneric) {
+  // Start with a base benefit.
+  int BaseBenefit = RemovedCallBenefit;
+
+  // Osize heuristic.
+  if (OptMode == SILOptions::SILOptMode::OptimizeForSize) {
+    // Don't inline into thunks.
+    if (AI.getFunction()->isThunk())
+      return false;
+
+    // Don't inline methods.
+    if (Callee->getRepresentation() == SILFunctionTypeRepresentation::Method)
+      return false;
+
+    BaseBenefit = BaseBenefit / 2;
+  }
+
   SILFunction *Callee = AI.getReferencedFunction();
   SILLoopInfo *LI = LA->get(Callee);
   ShortestPathAnalysis *SPA = getSPA(Callee, LI);
@@ -269,13 +288,9 @@ bool SILPerformanceInliner::isProfitableToInline(FullApplySite AI,
   int CalleeCost = 0;
   int Benefit = 0;
   
-  // Start with a base benefit.
-  int BaseBenefit = RemovedCallBenefit;
-  const SILOptions &Opts = Callee->getModule().getOptions();
-  
   // For some reason -Ounchecked can accept a higher base benefit without
   // increasing the code size too much.
-  if (Opts.Optimization == SILOptions::SILOptMode::OptimizeUnchecked)
+  if (OptMode == SILOptions::SILOptMode::OptimizeUnchecked)
     BaseBenefit *= 2;
 
   CallerWeight.updateBenefit(Benefit, BaseBenefit);
@@ -699,7 +714,8 @@ public:
       return;
     }
 
-    SILPerformanceInliner Inliner(WhatToInline, DA, LA);
+    auto OptMode = getFunction()->getModule().getOptions().Optimization;
+    SILPerformanceInliner Inliner(WhatToInline, DA, LA, OptMode);
 
     assert(getFunction()->isDefinition() &&
            "Expected only functions with bodies!");
