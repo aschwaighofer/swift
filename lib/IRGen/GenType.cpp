@@ -340,6 +340,184 @@ FixedTypeInfo::getSpareBitExtraInhabitantIndex(IRGenFunction &IGF,
   return phi;
 }
 
+static llvm::Value *computeExtraTagBytes(IRGenFunction &IGF, IRBuilder &Builder,
+                                         llvm::Value *size,
+                                         llvm::Value *numEmptyCases) {
+  // We can use the payload area with a tag bit set somewhere outside of the
+  // payload area to represent cases. See how many bytes we need to cover
+  // all the empty cases.
+
+  // Algorithm:
+  // unsigned numTags = 1;
+  // if (size >= 4)
+  //   // Assume that one tag bit is enough if the precise calculation overflows
+  //   // an int32.
+  //   numTags += 1;
+  // else {
+  //   unsigned bits = size * 8U;
+  //   unsigned casesPerTagBitValue = 1U << bits;
+  //   numTags += ((emptyCases + (casesPerTagBitValue - 1U)) >> bits);
+  // }
+  // return (numTags < 256 ? 1 :
+	// 				 numTags < 65536 ? 2 : 4);
+
+  auto &IGM = IGF.IGM;
+  auto &Ctx = Builder.getContext();
+	auto *int32Ty = IGM.Int32Ty;
+
+	auto *entryBB = Builder.GetInsertBlock();
+  auto *returnBB = llvm::BasicBlock::Create(Ctx);
+  auto *sizeLTFourBB = llvm::BasicBlock::Create(Ctx);
+
+  auto *sizeGTThree = Builder.CreateICmpUGT(size, asSizeConstant(IGM, Size(3)));
+  Builder.CreateCondBr(sizeGTThree, returnBB, sizeLTFourBB);
+
+  Builder.emitBlock(sizeLTFourBB);
+  size = Builder.CreateTrunc(size, int32Ty); // We know size < 4.
+
+  auto *one = llvm::ConstantInt::get(int32Ty, 1U);
+  auto *two = llvm::ConstantInt::get(int32Ty, 2U);
+  auto *four = llvm::ConstantInt::get(int32Ty, 4U);
+
+  auto *bits = Builder.CreateMul(size, llvm::ConstantInt::get(int32Ty, 8U));
+  auto *casesPerTagBitValue = Builder.CreateShl(one, bits);
+
+  auto *numTags = Builder.CreateSub(casesPerTagBitValue, one);
+  numTags = Builder.CreateAdd(numTags, numEmptyCases);
+  numTags = Builder.CreateLShr(numTags, bits);
+  numTags = Builder.CreateAdd(numTags, one);
+
+  auto *notLT256BB = llvm::BasicBlock::Create(Ctx);
+  auto *isLT256 =
+      Builder.CreateICmpULT(numTags, llvm::ConstantInt::get(int32Ty, 256U));
+  Builder.CreateCondBr(isLT256, returnBB, notLT256BB);
+
+  Builder.emitBlock(notLT256BB);
+  auto *isLT65536 =
+      Builder.CreateICmpULT(numTags, llvm::ConstantInt::get(int32Ty, 65536U));
+  numTags = Builder.CreateSelect(isLT65536, two, four);
+  Builder.CreateBr(returnBB);
+
+  Builder.emitBlock(returnBB);
+  auto *phi = Builder.CreatePHI(int32Ty, 3);
+  phi->addIncoming(one, entryBB);
+  phi->addIncoming(one, sizeLTFourBB);
+  phi->addIncoming(numTags, notLT256BB);
+	return phi;
+}
+
+llvm::Value *FixedTypeInfo::getEnumTagSinglePayload(IRGenFunction &IGF,
+                                                    llvm::Value *numEmptyCases,
+                                                    Address enumAddr,
+                                                    SILType T) const {
+  auto &IGM = IGF.IGM;
+  auto &Ctx = IGF.IGM.getLLVMContext();
+  auto &Builder = IGF.Builder;
+
+  auto *size = getSize(IGF, T);
+  auto fixedSize = getFixedSize().getValue();
+  auto *numExtraInhabitants =
+      llvm::ConstantInt::get(IGM.Int32Ty, getFixedExtraInhabitantCount(IGM));
+
+  auto *zero = llvm::ConstantInt::get(IGM.Int32Ty, 0U);
+  auto *one = llvm::ConstantInt::get(IGM.Int32Ty, 1U);
+  auto *four = llvm::ConstantInt::get(IGM.Int32Ty, 4U);
+  auto *eight = llvm::ConstantInt::get(IGM.Int32Ty, 8U);
+
+  auto *extraTagBitsBB = llvm::BasicBlock::Create(Ctx);
+  auto *noExtraTagBitsBB = llvm::BasicBlock::Create(Ctx);
+  auto *hasEmptyCasesBB = llvm::BasicBlock::Create(Ctx);
+  auto *singleCaseEnumBB = llvm::BasicBlock::Create(Ctx);
+
+  // No empty cases so we must be the payload.
+  auto *hasNoEmptyCases = Builder.CreateICmpEQ(zero, numEmptyCases);
+  Builder.CreateCondBr(hasNoEmptyCases, singleCaseEnumBB, hasEmptyCasesBB);
+
+  // Otherwise, check whether we need extra tag bits.
+  Builder.emitBlock(hasEmptyCasesBB);
+  auto *hasExtraTagBits =
+      Builder.CreateICmpUGT(numEmptyCases, numExtraInhabitants);
+  Builder.CreateCondBr(hasExtraTagBits, extraTagBitsBB, noExtraTagBitsBB);
+
+  // There are extra tag bits to check.
+  Builder.emitBlock(extraTagBitsBB);
+  llvm::Value *extraTagBits = Builder.CreateAlloca(IGM.Int32Ty, nullptr);
+  Builder.CreateStore(zero, extraTagBits, Alignment(0));
+
+  // Compute the number of extra tag bytes.
+	auto *emptyCases = Builder.CreateSub(numEmptyCases, numExtraInhabitants);
+  auto *numExtraTagBytes =
+      computeExtraTagBytes(IGF, Builder, size, emptyCases);
+
+  // Read the extra tag bytes.
+  auto *valueAddr =
+      Builder.CreateBitOrPointerCast(enumAddr.getAddress(), IGM.Int8PtrTy);
+  auto *extraTagBitsAddr =
+      Builder.CreateConstInBoundsGEP1_32(IGM.Int8Ty, valueAddr, fixedSize);
+
+  // TODO: big endian.
+  Builder.CreateMemCpy(
+      Builder.CreateBitOrPointerCast(extraTagBits, IGM.Int8PtrTy),
+      extraTagBitsAddr, numExtraTagBytes, 1);
+  extraTagBits = Builder.CreateLoad(extraTagBits, Alignment(0));
+
+  extraTagBitsBB = llvm::BasicBlock::Create(Ctx);
+  Builder.CreateCondBr(Builder.CreateICmpEQ(extraTagBits, zero),
+                       noExtraTagBitsBB, extraTagBitsBB);
+  Builder.emitBlock(extraTagBitsBB);
+
+  auto *truncSize = Builder.CreateTrunc(size, IGM.Int32Ty);
+  llvm::Value *caseIndexFromValue = Builder.CreateAlloca(IGM.Int32Ty, nullptr);
+  Builder.CreateStore(zero, caseIndexFromValue, Alignment(0));
+
+  auto *caseIndexFromExtraTagBits = Builder.CreateSelect(
+      Builder.CreateICmpUGE(truncSize, four), zero,
+      Builder.CreateShl(Builder.CreateSub(extraTagBits, one),
+                        Builder.CreateMul(eight, truncSize)));
+
+  // TODO: big endian.
+  Builder.CreateMemCpy(
+      Builder.CreateBitOrPointerCast(caseIndexFromValue, IGM.Int8PtrTy),
+      valueAddr, std::min(Size(4U).getValue(), fixedSize), 1);
+  caseIndexFromValue = Builder.CreateLoad(caseIndexFromValue, Alignment(0));
+
+  auto *result = Builder.CreateAdd(
+      numExtraInhabitants,
+      Builder.CreateOr(caseIndexFromValue, caseIndexFromExtraTagBits));
+  Builder.CreateRet(result);
+
+  // Extra tag bits were considered and zero or there are not extra tag
+  // bits.
+  Builder.emitBlock(noExtraTagBitsBB);
+
+  // If there are extra inhabitants, see whether the payload is valid.
+  if (mayHaveExtraInhabitants(IGM)) {
+    auto *result = getExtraInhabitantIndex(IGF, enumAddr, T);
+    Builder.CreateRet(result);
+  } else {
+    Builder.CreateBr(singleCaseEnumBB);
+  }
+
+  Builder.emitBlock(singleCaseEnumBB);
+
+  // Otherweise, we have a valid payload.
+  return llvm::ConstantInt::get(IGF.IGM.Int32Ty, -1);
+}
+
+void FixedTypeInfo::storeEnumTagSinglePayload(IRGenFunction &IGF,
+                                              llvm::Value *whichCase,
+                                              llvm::Value *numEmptyCases,
+                                              Address enumAddr,
+                                              SILType T) const {
+  // TODO: implement outside of runtime.
+  auto metadata = IGF.emitTypeMetadataRefForLayout(T);
+  auto opaqueAddr =
+      IGF.Builder.CreateBitCast(enumAddr.getAddress(), IGF.IGM.OpaquePtrTy);
+
+  IGF.Builder.CreateCall(IGF.IGM.getStoreEnumTagSinglePayloadFn(),
+                         {opaqueAddr, metadata, whichCase, numEmptyCases});
+}
+
 void
 FixedTypeInfo::storeSpareBitExtraInhabitant(IRGenFunction &IGF,
                                             llvm::Value *index,

@@ -713,6 +713,21 @@ static OpaqueValue *tuple_initializeBufferWithTakeOfBuffer(ValueBuffer *dest,
   return tuple_projectBuffer<IsPOD, IsInline>(dest, metatype);
 }
 
+template <bool IsPOD, bool IsInline>
+static int tuple_getEnumTagSinglePayload(const OpaqueValue *tuple,
+                                         unsigned numEmptyCases,
+                                         const Metadata *self) {
+  // TODO:
+  return 0;
+}
+
+template <bool IsPOD, bool IsInline>
+static void tuple_storeEnumTagSinglePayload(OpaqueValue *tuple, int whichCase,
+                                             unsigned numEmptyCases,
+                                             const Metadata *metatype) {
+  // TODO:
+}
+
 static void tuple_storeExtraInhabitant(OpaqueValue *tuple,
                                        int index,
                                        const Metadata *_metatype) {
@@ -1038,6 +1053,23 @@ static OpaqueValue *pod_direct_initializeWithCopy(OpaqueValue *dest,
 #define pod_direct_assignWithTake pod_direct_initializeWithCopy
 #define pod_indirect_assignWithTake pod_direct_initializeWithCopy
 
+static int pod_direct_getEnumTagSinglePayload(const OpaqueValue *object,
+                                              unsigned numEmptyCases,
+                                              const Metadata *self) {
+  // TODO:
+  return 0;
+}
+static void pod_direct_storeEnumTagSinglePayload(OpaqueValue *object,
+                                                 int whichCase,
+                                                 unsigned numEmptyCases,
+                                                 const Metadata *self) {
+  // TODO:
+  return;
+}
+
+#define pod_indirect_getEnumTagSinglePayload pod_direct_getEnumTagSinglePayload
+#define pod_indirect_storeEnumTagSinglePayload \
+  pod_direct_storeEnumTagSinglePayload
 
 static constexpr uint64_t sizeWithAlignmentMask(uint64_t size,
                                                 uint64_t alignmentMask) {

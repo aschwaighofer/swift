@@ -130,8 +130,29 @@ public:
   llvm::Constant *getStaticStride(IRGenModule &IGM) const override {
     return nullptr;
   }
-};
 
+  llvm::Value *getEnumTagSinglePayload(IRGenFunction &IGF,
+                                       llvm::Value *numEmptyCases,
+                                       Address enumAddr,
+                                       SILType T) const override {
+    auto metadata = IGF.emitTypeMetadataRefForLayout(T);
+    auto opaqueAddr = IGF.Builder.CreateBitCast(enumAddr.getAddress(),
+                                                IGF.IGM.OpaquePtrTy);
+
+    return IGF.Builder.CreateCall(IGF.IGM.getGetEnumCaseSinglePayloadFn(),
+                                  {opaqueAddr, metadata, numEmptyCases});
+  }
+  void storeEnumTagSinglePayload(IRGenFunction &IGF, llvm::Value *whichCase,
+                                 llvm::Value *numEmptyCases, Address enumAddr,
+                                 SILType T) const override {
+    auto metadata = IGF.emitTypeMetadataRefForLayout(T);
+    auto opaqueAddr = IGF.Builder.CreateBitCast(enumAddr.getAddress(),
+                                                IGF.IGM.OpaquePtrTy);
+
+    IGF.Builder.CreateCall(IGF.IGM.getStoreEnumTagSinglePayloadFn(),
+                           {opaqueAddr, metadata, whichCase, numEmptyCases});
+  }
+};
 }
 }
 
