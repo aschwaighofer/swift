@@ -118,11 +118,13 @@ void swift::swift_storeEnumTagSinglePayload(OpaqueValue *value,
 
   auto *payloadWitnesses = payload->getValueWitnesses();
   auto size = payloadWitnesses->getSize();
+  auto numExtraInhabitants = payloadWitnesses->getNumExtraInhabitants();
   auto storeExtraInhabitant =
       (static_cast<const ExtraInhabitantsValueWitnessTable *>(payloadWitnesses)
            ->storeExtraInhabitant);
 
-  storeEnumTagSinglePayloadImpl(value, whichCase, emptyCases, payload);
+  storeEnumTagSinglePayloadImpl(value, whichCase, emptyCases, payload, size,
+                                numExtraInhabitants, storeExtraInhabitant);
 }
 
 void

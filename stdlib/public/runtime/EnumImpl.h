@@ -114,9 +114,6 @@ inline int getEnumTagSinglePayloadImpl(
   // If there are extra inhabitants, see whether the payload is valid.
   if (payloadNumExtraInhabitants > 0) {
     return getExtraInhabitantIndex(enumAddr, payload);
-    //return static_cast<const ExtraInhabitantsValueWitnessTable *>(
-    //           payloadWitnesses)
-    //    ->getExtraInhabitantIndex(enumAddr, payload);
   }
 
   // Otherwise, we have always have a valid payload.
@@ -127,7 +124,7 @@ inline void storeEnumTagSinglePayloadImpl(
     OpaqueValue *value, int whichCase, unsigned emptyCases,
     const Metadata *payload, size_t payloadSize,
     size_t payloadNumExtraInhabitants,
-    void (*storeExtraInhabitant)(const OpaqueValue *, int whichCase,
+    void (*storeExtraInhabitant)(OpaqueValue *, int whichCase,
                                  const Metadata *)) {
 
   auto *valueAddr = reinterpret_cast<uint8_t *>(value);
@@ -159,8 +156,6 @@ inline void storeEnumTagSinglePayloadImpl(
 
     // Store the extra inhabitant.
     storeExtraInhabitant(value, whichCase, payload);
-    // static_cast<const ExtraInhabitantsValueWitnessTable *>(payloadWitnesses)
-    //    ->storeExtraInhabitant(value, whichCase, payload);
     return;
   }
 

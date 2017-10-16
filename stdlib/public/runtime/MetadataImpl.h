@@ -752,8 +752,8 @@ struct FixedSizeBufferValueWitnesses<Impl, Size, Alignment,
     : BufferValueWitnesses<Impl, Size, Alignment> {
 
   static int getEnumTagSinglePayload(const OpaqueValue *enumAddr,
-                                          unsigned numEmptyCases,
-                                          const Metadata *self) {
+                                     unsigned numEmptyCases,
+                                     const Metadata *self) {
     return getEnumTagSinglePayloadImpl(enumAddr, numEmptyCases, self, Size,
                                        Impl::numExtraInhabitants,
                                        Impl::getExtraInhabitantIndex);
@@ -762,7 +762,9 @@ struct FixedSizeBufferValueWitnesses<Impl, Size, Alignment,
   static void storeEnumTagSinglePayload(OpaqueValue *enumAddr, int whichCase,
                                         unsigned numEmptyCases,
                                         const Metadata *self) {
-    return;
+    return storeEnumTagSinglePayloadImpl(enumAddr, whichCase, numEmptyCases,
+                                         self, Size, Impl::numExtraInhabitants,
+                                         Impl::storeExtraInhabitant);
   }
 };
 
@@ -783,7 +785,8 @@ struct FixedSizeBufferValueWitnesses<Impl, Size, Alignment,
   static void storeEnumTagSinglePayload(OpaqueValue *enumAddr, int whichCase,
                                         unsigned numEmptyCases,
                                         const Metadata *self) {
-    return;
+    return storeEnumTagSinglePayloadImpl(enumAddr, whichCase, numEmptyCases,
+                                         self, Size, 0, nullptr);
   }
 };
 
@@ -932,8 +935,9 @@ struct NonFixedValueWitnesses :
   static void storeEnumTagSinglePayload(OpaqueValue *enumAddr, int whichCase,
                                         unsigned numEmptyCases,
                                         const Metadata *self) {
-    auto *payloadWitnesses = payload->getValueWitnesses();
+    auto *payloadWitnesses = self->getValueWitnesses();
     auto size = payloadWitnesses->getSize();
+    auto numExtraInhabitants = payloadWitnesses->getNumExtraInhabitants();
     auto storeExtraInhabitant =
         (static_cast<const ExtraInhabitantsValueWitnessTable *>(
              payloadWitnesses)
