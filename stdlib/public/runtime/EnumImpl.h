@@ -44,6 +44,18 @@ static inline void small_memcpy(void *dest, const void *src, unsigned count) {
   }
 }
 
+static inline void small_memset(void *dest, uint8_t value, unsigned count) {
+  if (count == 1) {
+    memset(dest, value, 1);
+  } else if (count == 2) {
+    memset(dest, value, 2);
+  } else if (count == 4) {
+    memset(dest, value, 4);
+  } else {
+    swift::crash("Tagbyte values should be 1, 2 or 4.");
+  }
+}
+
 inline unsigned getNumTagBytes(size_t size, unsigned emptyCases,
                                unsigned payloadCases) {
   // We can use the payload area with a tag bit set somewhere outside of the
@@ -100,11 +112,12 @@ inline int getEnumTagSinglePayloadImpl(
       unsigned caseIndexFromValue = 0;
 #if defined(__BIG_ENDIAN__)
       unsigned numPayloadTagBytes = std::min(size_t(4), payloadSize);
-      memcpy(reinterpret_cast<uint8_t *>(&caseIndexFromValue) + 4 -
+      small_memcpy(reinterpret_cast<uint8_t *>(&caseIndexFromValue) + 4 -
                  numPayloadTagBytes,
              valueAddr, numPayloadTagBytes);
 #else
-      memcpy(&caseIndexFromValue, valueAddr, std::min(size_t(4), payloadSize));
+      small_memcpy(&caseIndexFromValue, valueAddr,
+                   std::min(size_t(4), payloadSize));
 #endif
       return (caseIndexFromExtraTagBits | caseIndexFromValue) +
              payloadNumExtraInhabitants;
@@ -146,7 +159,7 @@ inline void storeEnumTagSinglePayloadImpl(
         *((char *)(extraTagBitAddr)) = 0;
       } else {
         // Zero the buffer.
-        memset(extraTagBitAddr, 0, numExtraTagBytes);
+        small_memset(extraTagBitAddr, 0, numExtraTagBytes);
       }
     }
 
@@ -174,19 +187,15 @@ inline void storeEnumTagSinglePayloadImpl(
     // Store into the value.
 #if defined(__BIG_ENDIAN__)
   unsigned numPayloadTagBytes = std::min(size_t(4), payloadSize);
-  memcpy(valueAddr,
+  small_memcpy(valueAddr,
          reinterpret_cast<uint8_t *>(&payloadIndex) + 4 - numPayloadTagBytes,
          numPayloadTagBytes);
-  if (payloadSize > 4)
-    memset(valueAddr + 4, 0, payloadSize - 4);
-  memcpy(extraTagBitAddr,
+  small_memcpy(extraTagBitAddr,
          reinterpret_cast<uint8_t *>(&extraTagIndex) + 4 - numExtraTagBytes,
          numExtraTagBytes);
 #else
-  memcpy(valueAddr, &payloadIndex, std::min(size_t(4), payloadSize));
-  if (payloadSize > 4)
-    memset(valueAddr + 4, 0, payloadSize - 4);
-  memcpy(extraTagBitAddr, &extraTagIndex, numExtraTagBytes);
+  small_memcpy(valueAddr, &payloadIndex, std::min(size_t(4), payloadSize));
+  small_memcpy(extraTagBitAddr, &extraTagIndex, numExtraTagBytes);
 #endif
 }
 

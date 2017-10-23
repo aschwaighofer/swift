@@ -45,6 +45,7 @@
 #include "WeakTypeInfo.h"
 #include "NativeConventionSchema.h"
 #include "IRGenMangler.h"
+#include "NonFixedTypeInfo.h"
 
 using namespace swift;
 using namespace irgen;
@@ -687,6 +688,30 @@ void FixedTypeInfo::storeEnumTagSinglePayload(IRGenFunction &IGF,
   Builder.CreateBr(returnBB);
 
   Builder.emitBlock(returnBB);
+}
+
+llvm::Value *irgen::emitGetEnumTagSinglePayload(IRGenFunction &IGF,
+                                                llvm::Value *numEmptyCases,
+                                                Address enumAddr, SILType T) {
+  auto metadata = IGF.emitTypeMetadataRefForLayout(T);
+  auto opaqueAddr =
+      IGF.Builder.CreateBitCast(enumAddr.getAddress(), IGF.IGM.OpaquePtrTy);
+
+  return IGF.Builder.CreateCall(IGF.IGM.getGetEnumCaseSinglePayloadFn(),
+                                {opaqueAddr, metadata, numEmptyCases});
+}
+
+void irgen::emitStoreEnumTagSinglePayload(IRGenFunction &IGF,
+                                          llvm::Value *whichCase,
+                                          llvm::Value *numEmptyCases,
+                                          Address enumAddr,
+                                          SILType T) {
+  auto metadata = IGF.emitTypeMetadataRefForLayout(T);
+  auto opaqueAddr =
+      IGF.Builder.CreateBitCast(enumAddr.getAddress(), IGF.IGM.OpaquePtrTy);
+
+  IGF.Builder.CreateCall(IGF.IGM.getStoreEnumTagSinglePayloadFn(),
+                         {opaqueAddr, metadata, whichCase, numEmptyCases});
 }
 
 void
