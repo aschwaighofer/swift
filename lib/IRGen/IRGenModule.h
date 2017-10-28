@@ -267,7 +267,7 @@ public:
     return PrimaryIGM;
   }
   
-  bool hasMultipleIGMs() const { return GenModules.size() >= 2; }
+  bool hasMultipleIGMs() const;
   
   llvm::DenseMap<SourceFile *, IRGenModule *>::iterator begin() {
     return GenModules.begin();

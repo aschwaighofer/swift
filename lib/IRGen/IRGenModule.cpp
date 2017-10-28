@@ -58,6 +58,10 @@ using namespace swift;
 using namespace irgen;
 using llvm::Attribute;
 
+static llvm::cl::opt<bool>
+    DisableMultithreadedIRGen("disable-irgen-num-threads", llvm::cl::Hidden,
+                              llvm::cl::desc("Disable num-threads"));
+
 const unsigned DefaultAS = 0;
 
 /// A helper for creating LLVM struct types.
@@ -1175,8 +1179,12 @@ void IRGenerator::addGenModule(SourceFile *SF, IRGenModule *IGM) {
   Queue.push_back(IGM);
 }
 
+bool IRGenerator::hasMultipleIGMs() const {
+  return !DisableMultithreadedIRGen && GenModules.size() >= 2;
+}
+
 IRGenModule *IRGenerator::getGenModule(DeclContext *ctxt) {
-  if (GenModules.size() == 1 || !ctxt) {
+  if (DisableMultithreadedIRGen || GenModules.size() == 1 || !ctxt) {
     return getPrimaryIGM();
   }
   SourceFile *SF = ctxt->getParentSourceFile();
@@ -1189,7 +1197,7 @@ IRGenModule *IRGenerator::getGenModule(DeclContext *ctxt) {
 }
 
 IRGenModule *IRGenerator::getGenModule(SILFunction *f) {
-  if (GenModules.size() == 1) {
+  if (DisableMultithreadedIRGen || GenModules.size() == 1) {
     return getPrimaryIGM();
   }
 

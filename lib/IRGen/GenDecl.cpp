@@ -464,24 +464,28 @@ public:
 void IRGenModule::emitSourceFile(SourceFile &SF, unsigned StartElem) {
   PrettySourceFileEmission StackEntry(SF);
 
+  auto *IGM = this;
+  if (!IRGen.hasMultipleIGMs())
+    IGM = IRGen.getPrimaryIGM();
+
   // Emit types and other global decls.
   for (unsigned i = StartElem, e = SF.Decls.size(); i != e; ++i)
-    emitGlobalDecl(SF.Decls[i]);
+    IGM->emitGlobalDecl(SF.Decls[i]);
   for (auto *localDecl : SF.LocalTypeDecls)
-    emitGlobalDecl(localDecl);
+    IGM->emitGlobalDecl(localDecl);
 
   SF.forAllVisibleModules([&](swift::ModuleDecl::ImportedModule import) {
     swift::ModuleDecl *next = import.second;
     if (next->getName() == SF.getParentModule()->getName())
       return;
 
-    next->collectLinkLibraries([this](LinkLibrary linkLib) {
-      this->addLinkLibrary(linkLib);
+    next->collectLinkLibraries([=](LinkLibrary linkLib) {
+      IGM->addLinkLibrary(linkLib);
     });
   });
 
   if (ObjCInterop)
-    this->addLinkLibrary(LinkLibrary("objc", LibraryKind::Library));
+    IGM->addLinkLibrary(LinkLibrary("objc", LibraryKind::Library));
 }
 
 /// Collect elements of an already-existing global list with the given
