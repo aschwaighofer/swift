@@ -1689,7 +1689,7 @@ static SILValue emitRawApply(SILGenFunction &SGF,
   // Get the callee value.
   SILValue fnValue = substFnType->isCalleeConsumed()
     ? fn.forward(SGF)
-    : fn.getValue();
+    : fn.borrow(SGF, loc).getValue();
 
   SmallVector<SILValue, 4> argValues;
 
@@ -4372,9 +4372,11 @@ CallEmission::applyPartiallyAppliedSuperMethod(unsigned uncurryLevel,
                                                 functionTy);
     }
   }
+  auto calleeConvention = SGF.SGM.M.getOptions().EnableGuaranteedClosureContexts
+                              ? ParameterConvention::Direct_Guaranteed
+                              : ParameterConvention::Direct_Owned;
   auto closureTy = SILGenBuilder::getPartialApplyResultType(
-      constantInfo.getSILType(), 1, SGF.B.getModule(), subs,
-      ParameterConvention::Direct_Owned);
+      constantInfo.getSILType(), 1, SGF.B.getModule(), subs, calleeConvention);
 
   auto &module = SGF.getFunction().getModule();
 
@@ -5572,11 +5574,14 @@ static ManagedValue emitDynamicPartialApply(SILGenFunction &SGF,
                                             SILValue self,
                                          CanAnyFunctionType foreignFormalType,
                                          CanAnyFunctionType nativeFormalType) {
-  auto partialApplyTy = SILBuilder::getPartialApplyResultType(method->getType(),
-                                            /*argCount*/1,
-                                            SGF.SGM.M,
-                                            /*subs*/{},
-                                            ParameterConvention::Direct_Owned);
+  auto calleeConvention = SGF.SGM.M.getOptions().EnableGuaranteedClosureContexts
+                              ? ParameterConvention::Direct_Guaranteed
+                              : ParameterConvention::Direct_Owned;
+
+  auto partialApplyTy =
+      SILBuilder::getPartialApplyResultType(method->getType(),
+                                            /*argCount*/ 1, SGF.SGM.M,
+                                            /*subs*/ {}, calleeConvention);
 
   // Retain 'self' because the partial apply will take ownership.
   // We can't simply forward 'self' because the partial apply is conditional.

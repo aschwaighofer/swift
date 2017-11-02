@@ -357,11 +357,14 @@ SILGenFunction::emitClosureValue(SILLocation loc, SILDeclRef constant,
   for (auto capture : capturedArgs)
     forwardedArgs.push_back(capture.forward(*this));
 
-  SILType closureTy =
-    SILGenBuilder::getPartialApplyResultType(functionRef->getType(),
-                                             capturedArgs.size(), SGM.M,
-                                             subs,
-                                             ParameterConvention::Direct_Owned);
+  auto calleeConvention = SGM.M.getOptions().EnableGuaranteedClosureContexts
+                              ? ParameterConvention::Direct_Guaranteed
+                              : ParameterConvention::Direct_Owned;
+
+  SILType closureTy = SILGenBuilder::getPartialApplyResultType(
+      functionRef->getType(), capturedArgs.size(), SGM.M, subs,
+      calleeConvention);
+
   auto toClosure =
     B.createPartialApply(loc, functionRef, functionTy,
                          subs, forwardedArgs, closureTy);
