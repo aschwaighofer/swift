@@ -1687,9 +1687,12 @@ static SILValue emitRawApply(SILGenFunction &SGF,
                              ArrayRef<SILValue> indirectResultAddrs) {
   SILFunctionConventions substFnConv(substFnType, SGF.SGM.M);
   // Get the callee value.
-  SILValue fnValue = substFnType->isCalleeConsumed()
-    ? fn.forward(SGF)
-    : fn.borrow(SGF, loc).getValue();
+  bool isConsumed = substFnType->isCalleeConsumed();
+  bool isUnowned =
+      substFnType->getCalleeConvention() == ParameterConvention::Direct_Unowned;
+  SILValue fnValue =
+      isUnowned ? fn.getValue()
+                : isConsumed ? fn.forward(SGF) : fn.borrow(SGF, loc).getValue();
 
   SmallVector<SILValue, 4> argValues;
 
