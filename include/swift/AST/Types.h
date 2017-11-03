@@ -3415,6 +3415,9 @@ public:
   bool isCalleeConsumed() const {
     return getCalleeConvention() == ParameterConvention::Direct_Owned;
   }
+  bool isCalleeGuaranteed() const {
+    return getCalleeConvention() == ParameterConvention::Direct_Guaranteed;
+  }
 
   /// Return the array of all result information. This may contain inter-mingled
   /// direct and indirect results.
