@@ -44,7 +44,7 @@ namespace Lowering {
 /// The default convention for handling the callee object on thick
 /// callees.
 const ParameterConvention DefaultThickCalleeConvention =
-  ParameterConvention::Direct_Owned;
+  ParameterConvention::Direct_Guaranteed;
 
 /// Given an AST function type, return a type that is identical except
 /// for using the given ExtInfo.
