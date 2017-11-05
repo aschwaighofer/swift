@@ -802,11 +802,15 @@ static llvm::Function *emitObjCPartialApplicationForwarder(IRGenModule &IGM,
   
   // Do we need to retain self before calling, and/or release it after?
   bool retainsSelf;
+  bool destroySelf = false;
   switch (origMethodType->getParameters().back().getConvention()) {
   case ParameterConvention::Direct_Unowned:
     retainsSelf = false;
     break;
   case ParameterConvention::Direct_Guaranteed:
+    retainsSelf = true;
+    destroySelf = true;
+    break;
   case ParameterConvention::Direct_Owned:
     retainsSelf = true;
     break;
@@ -910,6 +914,11 @@ static llvm::Function *emitObjCPartialApplicationForwarder(IRGenModule &IGM,
     // Release the context.
     if (!resultType->isCalleeGuaranteed())
       subIGF.emitNativeStrongRelease(context, subIGF.getDefaultAtomicity());
+    else {
+      // The objc method does not take owner-ship of self so we need to release
+      // self.
+      assert(!destroySelf && "Need to destroy @guaranteed self!");
+    }
   };
   
    // Emit the call and produce the return value.
