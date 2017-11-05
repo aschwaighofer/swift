@@ -931,6 +931,9 @@ public:
     checkFullApplySite(AI);
 
     SILFunctionConventions calleeConv(AI->getSubstCalleeType(), F.getModule());
+    if (calleeConv.funcTy->getRepresentation() == SILFunctionTypeRepresentation::Thick) {
+      require(!calleeConv.funcTy->isCalleeConsumed(), "@callee_consumed apply?!");
+    }
     require(AI->getType() == calleeConv.getSILResultType(),
             "type of apply instruction doesn't match function result type");
     if (AI->isNonThrowing()) {
@@ -954,6 +957,9 @@ public:
     checkFullApplySite(AI);
 
     SILFunctionConventions calleeConv(AI->getSubstCalleeType(), F.getModule());
+    if (calleeConv.funcTy->getRepresentation() == SILFunctionTypeRepresentation::Thick) {
+      require(!calleeConv.funcTy->isCalleeConsumed(), "@callee_consumed apply?!");
+    }
 
     auto normalBB = AI->getNormalBB();
     require(normalBB->args_size() == 1,
@@ -1010,6 +1016,7 @@ public:
     auto resultInfo = requireObjectType(SILFunctionType, PAI,
                                         "result of partial_apply");
     verifySILFunctionType(resultInfo);
+    require(PAI->hasCalleeGuaranteedContext(), "@callee_guaranteed closure!");
     require(resultInfo->getExtInfo().hasContext(),
             "result of closure cannot have a thin function type");
 
