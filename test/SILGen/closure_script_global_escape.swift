@@ -1,4 +1,5 @@
 // RUN: %target-swift-frontend -module-name foo -enable-sil-ownership -emit-silgen %s | %FileCheck %s
+// RUN: %target-swift-frontend -module-name foo -enable-sil-ownership -emit-silgen -enable-guaranteed-closure-contexts %s
 // RUN: %target-swift-frontend -module-name foo -enable-sil-ownership -emit-sil -verify %s
 
 // CHECK-LABEL: sil @main

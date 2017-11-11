@@ -1,4 +1,5 @@
 // RUN: %target-swift-frontend -parse-stdlib -emit-silgen %s | %FileCheck %s
+// RUN: %target-swift-frontend -parse-stdlib -emit-silgen -enable-guaranteed-closure-contexts %s > /dev/null
 
 struct Bool {}
 var false_ = Bool()
