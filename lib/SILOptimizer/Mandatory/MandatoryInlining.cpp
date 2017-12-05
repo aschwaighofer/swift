@@ -657,7 +657,7 @@ class MandatoryInlining : public SILModuleTransform {
       // We discard functions that don't have external linkage,
       // e.g. deserialized functions, internal functions, and thunks.
       // Being marked transparent controls this.
-      if (F.isPossiblyUsedExternally()) continue;
+      if (F.isPossiblyUsedExternally() || F.isAlwaysEmitIntoClient()) continue;
 
       // ObjC functions are called through the runtime and are therefore alive
       // even if not referenced inside SIL.

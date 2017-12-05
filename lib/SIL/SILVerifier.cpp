@@ -1076,6 +1076,7 @@ public:
     if (RefF->isExternalDeclaration()) {
       require(SingleFunction ||
               !hasSharedVisibility(RefF->getLinkage()) ||
+              RefF->isAlwaysEmitIntoClient() ||
               RefF->hasForeignBody(),
               "external declarations of SILFunctions with shared visibility is "
               "not allowed");

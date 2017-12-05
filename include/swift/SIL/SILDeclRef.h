@@ -272,7 +272,13 @@ struct SILDeclRef {
   bool isNoinline() const;
   /// \brief True if the function has __always inline attribute.
   bool isAlwaysInline() const;
-  
+
+  /// True if the defining module contains only contains the SIL for this
+  /// declaration.
+  bool isAlwaysEmitIntoClient() const {
+    return isTransparent() && isSerialized();
+  }
+
   /// \return True if the function has an effects attribute.
   bool hasEffectsAttribute() const;
 

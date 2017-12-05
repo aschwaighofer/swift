@@ -417,6 +417,13 @@ public:
   /// current SILModule.
   bool isPossiblyUsedExternally() const;
 
+  /// True if the defining module contains only contains the SIL for this
+  /// declaration. It means the SIL is possibly used externally but no object
+  /// code is provided by the defining module.
+  bool isAlwaysEmitIntoClient() const {
+    return isSerialized() && hasSharedVisibility(getLinkage());
+  }
+
   /// In addition to isPossiblyUsedExternally() it returns also true if this
   /// is a (private or internal) vtable method which can be referenced by
   /// vtables of derived classes outside the compilation unit.

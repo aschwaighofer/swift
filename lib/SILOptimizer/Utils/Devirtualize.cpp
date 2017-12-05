@@ -553,6 +553,10 @@ DevirtualizationResult swift::devirtualizeClassMethod(FullApplySite AI,
   auto ClassOrMetatypeType = ClassOrMetatype->getType();
   auto *F = getTargetClassMethod(Mod, ClassOrMetatypeType, MI);
 
+  // Link function if required.
+  if (F->isAlwaysEmitIntoClient() && !F->isDefinition())
+    Mod.linkFunction(F);
+
   CanSILFunctionType GenCalleeType = F->getLoweredFunctionType();
 
   SmallVector<Substitution, 4> Subs;
@@ -951,9 +955,14 @@ DevirtualizationResult swift::tryDevirtualizeWitnessMethod(ApplySite AI) {
 
   auto *WMI = cast<WitnessMethodInst>(AI.getCallee());
 
+  auto &Mod = AI.getModule();
+
   std::tie(F, WT) =
-    AI.getModule().lookUpFunctionInWitnessTable(WMI->getConformance(),
-                                                WMI->getMember());
+      Mod.lookUpFunctionInWitnessTable(WMI->getConformance(), WMI->getMember());
+
+  // Link function if required.
+  if (F->isAlwaysEmitIntoClient() && !F->isDefinition())
+    Mod.linkFunction(F);
 
   return devirtualizeWitnessMethod(AI, F, WMI->getConformance());
 }

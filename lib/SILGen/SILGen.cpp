@@ -570,13 +570,15 @@ void emitOrDelayFunction(SILGenModule &SGM,
   // it.
   bool mayDelay;
   // Shared thunks and Clang-imported definitions can always be delayed.
-  if (constant.isThunk() || constant.isClangImported()) {
+  if ((constant.isThunk() && !constant.isAlwaysEmitIntoClient()) ||
+      constant.isClangImported()) {
     mayDelay = true;
   // Implicit decls may be delayed if they can't be used externally.
   } else {
     auto linkage = constant.getLinkage(ForDefinition);
-    mayDelay = constant.isImplicit()
-      && !isPossiblyUsedExternally(linkage, SGM.M.isWholeModule());
+    mayDelay = constant.isImplicit() &&
+               !isPossiblyUsedExternally(linkage, SGM.M.isWholeModule()) &&
+               !constant.isAlwaysEmitIntoClient();
   }
 
   // Avoid emitting a delayable definition if it hasn't already been referenced.

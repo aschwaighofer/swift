@@ -350,12 +350,6 @@ SILLinkage SILDeclRef::getLinkage(ForDefinition_t forDefinition) const {
     return SILLinkage::Private;
   }
 
-  // Add External to the linkage (e.g. Public -> PublicExternal) if this is a
-  // declaration not a definition.
-  auto maybeAddExternal = [&](SILLinkage linkage) {
-    return forDefinition ? linkage : addExternalToLinkage(linkage);
-  };
-
   // Native function-local declarations have shared linkage.
   // FIXME: @objc declarations should be too, but we currently have no way
   // of marking them "used" other than making them external. 
@@ -369,6 +363,19 @@ SILLinkage SILDeclRef::getLinkage(ForDefinition_t forDefinition) const {
     }
     moduleContext = moduleContext->getParent();
   }
+
+  // Add External to the linkage (e.g. Public -> PublicExternal) if this is a
+  // declaration not a definition.
+  auto maybeAddExternal = [&](SILLinkage linkage) {
+    return forDefinition ? linkage : addExternalToLinkage(linkage);
+  };
+
+  // Transparent public inlineable functions should be shared. They are serialized and
+  // emitted into a client if used. No object code should be generated in the
+  // defining module.
+  if (d->getEffectiveAccess() == AccessLevel::Public &&
+      isAlwaysEmitIntoClient())
+    return maybeAddExternal(SILLinkage::Shared);
 
   // Enum constructors and curry thunks either have private or shared
   // linkage, dependings are essentially the same as thunks, they are
@@ -567,7 +574,6 @@ IsSerialized_t SILDeclRef::isSerialized() const {
       }
     }
   }
-
   // Declarations imported from Clang modules are serialized if
   // referenced from an inlineable context.
   if (isClangImported())

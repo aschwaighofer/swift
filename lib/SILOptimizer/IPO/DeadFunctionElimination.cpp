@@ -115,8 +115,9 @@ protected:
   /// Checks is a function is alive, e.g. because it is visible externally.
   bool isAnchorFunction(SILFunction *F) {
 
-    // Functions that may be used externally cannot be removed.
-    if (F->isPossiblyUsedExternally())
+    // Functions that may be used externally (either the object or the SIL)
+    // cannot be removed.
+    if (F->isPossiblyUsedExternally() || F->isAlwaysEmitIntoClient())
       return true;
 
     // ObjC functions are called through the runtime and are therefore alive
