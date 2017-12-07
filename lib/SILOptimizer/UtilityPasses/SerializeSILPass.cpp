@@ -44,7 +44,8 @@ public:
     // contain all the symbols which were alive at the time of serialization.
     DEBUG(llvm::dbgs() << "Serializing SILModule in SerializeSILPass\n");
     getModule()->serialize();
-    removeSerializedFlagFromAllFunctions(M);
+    if (M.isWholeModule())
+      removeSerializedFlagFromAllFunctions(M);
   }
 };
 

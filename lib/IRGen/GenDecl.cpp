@@ -886,7 +886,7 @@ void IRGenerator::emitGlobalTopLevel() {
   // Emit SIL functions.
   for (SILFunction &f : PrimaryIGM->getSILModule()) {
     // Only eagerly emit functions that are externally visible.
-    if (!f.isPossiblyUsedExternally())
+    if (!f.isPossiblyUsedExternally() && !f.isAlwaysEmitIntoClient())
       continue;
 
     CurrentIGMPtr IGM = getGenModule(&f);
@@ -985,8 +985,9 @@ void IRGenerator::emitLazyDefinitions() {
     while (!LazyFunctionDefinitions.empty()) {
       SILFunction *f = LazyFunctionDefinitions.pop_back_val();
       CurrentIGMPtr IGM = getGenModule(f);
-      assert(!f->isPossiblyUsedExternally()
-             && "function with externally-visible linkage emitted lazily?");
+      assert(!f->isPossiblyUsedExternally() && !f->isAlwaysEmitIntoClient() &&
+             "function with externally-visible or shared [serialized] linkage "
+             "emitted lazily?");
       IGM->emitSILFunction(f);
     }
   }
@@ -1915,7 +1916,8 @@ llvm::Function *IRGenModule::getAddrOfSILFunction(SILFunction *f,
     }
 
   // Otherwise, if we have a lazy definition for it, be sure to queue that up.
-  } else if (isDefinition && !forDefinition && !f->isPossiblyUsedExternally()) {
+  } else if (isDefinition && !forDefinition && !f->isPossiblyUsedExternally() &&
+             !f->isAlwaysEmitIntoClient()) {
     IRGen.addLazyFunction(f);
   }
 
