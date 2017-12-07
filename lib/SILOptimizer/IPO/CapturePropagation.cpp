@@ -429,6 +429,10 @@ bool CapturePropagation::optimizePartialApply(PartialApplyInst *PAI) {
   if (SubstF->isExternalDeclaration())
     return false;
 
+  if (PAI->getFunction()->isSerialized() &&
+      !SubstF->hasValidLinkageForFragileInline())
+    return false;
+
   if (PAI->hasSubstitutions() && hasArchetypes(PAI->getSubstitutions())) {
     DEBUG(llvm::dbgs()
               << "CapturePropagation: cannot handle partial specialization "
