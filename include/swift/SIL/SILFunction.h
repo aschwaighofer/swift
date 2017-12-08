@@ -421,7 +421,7 @@ public:
   /// declaration. It means the SIL is possibly used externally but no object
   /// code is provided by the defining module.
   bool isAlwaysEmitIntoClient() const {
-    return isSerialized() && hasSharedVisibility(getLinkage());
+    return isSerialized() && hasSharedVisibility(getLinkage()) && isTransparent();
   }
 
   /// In addition to isPossiblyUsedExternally() it returns also true if this
