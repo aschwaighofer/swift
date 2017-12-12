@@ -417,11 +417,11 @@ public:
   /// current SILModule.
   bool isPossiblyUsedExternally() const;
 
-  /// True if the defining module contains only contains the SIL for this
-  /// declaration. It means the SIL is possibly used externally but no object
-  /// code is provided by the defining module.
+  /// True if the defining module only contains the SIL for this declaration. It
+  /// means the SIL is possibly used externally but no object code is provided
+  /// by the defining module.
   bool isAlwaysEmitIntoClient() const {
-    return isSerialized() && hasSharedVisibility(getLinkage()) && isTransparent();
+    return isSerialized() && getLinkage() == SILLinkage::Hidden;
   }
 
   /// In addition to isPossiblyUsedExternally() it returns also true if this

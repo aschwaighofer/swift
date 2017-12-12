@@ -33,10 +33,7 @@ using namespace swift;
 using namespace Lowering;
 
 class SILModule::SerializationCallback : public SerializedSILLoader::Callback {
-  void didDeserialize(ModuleDecl *M, SILFunction *fn) override {
-    updateLinkage(fn);
-  }
-
+  void didDeserialize(ModuleDecl *M, SILFunction *fn) override;
   void didDeserialize(ModuleDecl *M, SILGlobalVariable *var) override {
     updateLinkage(var);
     
@@ -83,6 +80,38 @@ class SILModule::SerializationCallback : public SerializedSILLoader::Callback {
       callBack(M, fn);
   }
 };
+
+template <>
+void SILModule::SerializationCallback::updateLinkage(SILFunction *decl) {
+  switch (decl->getLinkage()) {
+  case SILLinkage::Public:
+    decl->setLinkage(SILLinkage::PublicExternal);
+    return;
+  case SILLinkage::Hidden:
+    if (decl->isSerialized()) {
+      decl->setLinkage(SILLinkage::SharedExternal);
+      return;
+    }
+    decl->setLinkage(SILLinkage::HiddenExternal);
+    return;
+  case SILLinkage::Shared:
+    decl->setLinkage(SILLinkage::SharedExternal);
+    return;
+  case SILLinkage::Private:
+    decl->setLinkage(SILLinkage::PrivateExternal);
+    return;
+  case SILLinkage::PublicExternal:
+  case SILLinkage::HiddenExternal:
+  case SILLinkage::SharedExternal:
+  case SILLinkage::PrivateExternal:
+    return;
+  }
+}
+
+void SILModule::SerializationCallback::didDeserialize(ModuleDecl *M,
+                                                      SILFunction *fn) {
+  updateLinkage(fn);
+}
 
 SILModule::SILModule(ModuleDecl *SwiftModule, SILOptions &Options,
                      const DeclContext *associatedDC, bool wholeModule)

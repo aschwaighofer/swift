@@ -1490,16 +1490,6 @@ void IRGenSILFunction::emitSILFunction() {
   
   assert(!CurSILFn->empty() && "function has no basic blocks?!");
 
-  // AlwaysEmitIntoClient functions need to stay alive if they have made it this
-  // far. This should only happen in incremental builds. Under -wmo we change
-  // the linkage of [shared] [serialized] functions to [shared] after we have
-  // serialized. FIXME: this is currently not true for -Onone -wmo so we can't
-  // enable this assert.
-  if (CurSILFn->isAlwaysEmitIntoClient()) {
-    //assert(!CurSILFn->getSILModule().isWholeModule());
-    IGM.addUsedGlobal(CurFn);
-  }
-
   // Configure the dominance resolver.
   // TODO: consider re-using a dom analysis from the PassManager
   // TODO: consider using a cheaper analysis at -O0

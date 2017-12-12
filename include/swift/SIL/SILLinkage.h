@@ -203,6 +203,23 @@ inline bool hasPrivateVisibility(SILLinkage linkage) {
   llvm_unreachable("Unhandled SILLinkage in switch.");
 }
 
+inline bool hasHiddenVisibility(SILLinkage linkage) {
+  switch (linkage) {
+  case SILLinkage::Hidden:
+  case SILLinkage::HiddenExternal:
+    return true;
+  case SILLinkage::Public:
+  case SILLinkage::PublicExternal:
+  case SILLinkage::Private:
+  case SILLinkage::PrivateExternal:
+  case SILLinkage::Shared:
+  case SILLinkage::SharedExternal:
+    return false;
+  }
+
+  llvm_unreachable("Unhandled SILLinkage in switch.");
+}
+
 /// Returns true if l1 is less visible than l2.
 inline bool isLessVisibleThan(SILLinkage l1, SILLinkage l2) {
   if (l1 == SILLinkage::PublicExternal)

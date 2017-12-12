@@ -370,12 +370,12 @@ SILLinkage SILDeclRef::getLinkage(ForDefinition_t forDefinition) const {
     return forDefinition ? linkage : addExternalToLinkage(linkage);
   };
 
-  // Transparent public inlineable functions should be shared. They are serialized and
-  // emitted into a client if used. No object code should be generated in the
-  // defining module.
+  // Transparent public inlineable functions should be Hidden. They are
+  // serialized and emitted into a client if used. No object code should be
+  // generated in the defining module (except in incremental mode).
   if (d->getEffectiveAccess() == AccessLevel::Public &&
       isAlwaysEmitIntoClient())
-    return maybeAddExternal(SILLinkage::Shared);
+    return maybeAddExternal(SILLinkage::Hidden);
 
   // Enum constructors and curry thunks either have private or shared
   // linkage, dependings are essentially the same as thunks, they are
