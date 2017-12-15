@@ -5137,16 +5137,11 @@ RValue RValueEmitter::visitMakeTemporarilyEscapableExpr(
   auto functionValue =
     visit(E->getNonescapingClosureValue()).getAsSingleValue(SGF, E);
 
-  // Convert it to an escaping function value.
   auto escapingFnTy = SGF.getLoweredType(E->getOpaqueValue()->getType());
-  assert(escapingFnTy.castTo<SILFunctionType>()->getExtInfo() ==
-         functionValue.getType().castTo<SILFunctionType>()->getExtInfo()
-           .withNoEscape(false));
 
-  // TODO: maybe this should use a more explicit instruction.
+  // Convert it to an escaping function value.
   functionValue =
-    SGF.emitManagedRValueWithCleanup(
-      SGF.B.createConvertFunction(E, functionValue.forward(SGF), escapingFnTy));
+      SGF.createWithoutActuallyEscapingClosure(E, functionValue, escapingFnTy);
 
   // Bind the opaque value to the escaping function.
   SILGenFunction::OpaqueValueState opaqueValue{
