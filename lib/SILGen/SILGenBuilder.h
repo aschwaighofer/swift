@@ -87,11 +87,11 @@ public:
   PartialApplyInst *createPartialApply(SILLocation loc, SILValue fn,
                                        SILType substFnTy, SubstitutionList subs,
                                        ArrayRef<SILValue> args,
-                                       SILType closureTy);
+                                       SILType closureTy, bool canAllocOnStack);
   ManagedValue createPartialApply(SILLocation loc, SILValue fn,
                                   SILType substFnTy, SubstitutionList subs,
                                   ArrayRef<ManagedValue> args,
-                                  SILType closureTy);
+                                  SILType closureTy, bool canAllocOnStack);
 
   BuiltinInst *createBuiltin(SILLocation loc, Identifier name, SILType resultTy,
                              SubstitutionList subs, ArrayRef<SILValue> args);

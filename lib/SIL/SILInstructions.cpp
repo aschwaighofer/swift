@@ -527,11 +527,13 @@ PartialApplyInst *PartialApplyInst::create(
     SILDebugLocation Loc, SILValue Callee, ArrayRef<SILValue> Args,
     SubstitutionList Subs, ParameterConvention CalleeConvention, SILFunction &F,
     SILOpenedArchetypesState &OpenedArchetypes,
-    const GenericSpecializationInformation *SpecializationInfo) {
+    const GenericSpecializationInformation *SpecializationInfo,
+    bool CanBeOnStack) {
   SILType SubstCalleeTy =
       Callee->getType().substGenericArgs(F.getModule(), Subs);
   SILType ClosureType = SILBuilder::getPartialApplyResultType(
-      SubstCalleeTy, Args.size(), F.getModule(), {}, CalleeConvention);
+      SubstCalleeTy, Args.size(), F.getModule(), {}, CalleeConvention,
+      CanBeOnStack);
 
   SmallVector<SILValue, 32> TypeDependentOperands;
   collectTypeDependentOperands(TypeDependentOperands, OpenedArchetypes, F,
@@ -539,10 +541,9 @@ PartialApplyInst *PartialApplyInst::create(
   void *Buffer =
     allocateTrailingInst<PartialApplyInst, Operand, Substitution>(
       F, getNumAllOperands(Args, TypeDependentOperands), Subs.size());
-  return ::new(Buffer) PartialApplyInst(Loc, Callee, SubstCalleeTy,
-                                        Subs, Args,
-                                        TypeDependentOperands, ClosureType,
-                                        SpecializationInfo);
+  return ::new (Buffer) PartialApplyInst(Loc, Callee, SubstCalleeTy, Subs, Args,
+                                         TypeDependentOperands, ClosureType,
+                                         SpecializationInfo, CanBeOnStack);
 }
 
 TryApplyInstBase::TryApplyInstBase(SILInstructionKind kind,

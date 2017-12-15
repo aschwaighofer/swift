@@ -363,7 +363,7 @@ SILGenFunction::emitClosureValue(SILLocation loc, SILDeclRef constant,
 
   SILType closureTy = SILGenBuilder::getPartialApplyResultType(
       functionRef->getType(), capturedArgs.size(), SGM.M, subs,
-      calleeConvention);
+      calleeConvention, false);
 
   auto toClosure =
     B.createPartialApply(loc, functionRef, functionTy,

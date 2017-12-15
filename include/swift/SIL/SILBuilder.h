@@ -234,7 +234,8 @@ public:
   static SILType getPartialApplyResultType(SILType Ty, unsigned ArgCount,
                                          SILModule &M,
                                          SubstitutionList subs,
-                                         ParameterConvention calleeConvention);
+                                         ParameterConvention calleeConvention,
+                                         bool noEscape);
 
   //===--------------------------------------------------------------------===//
   // CFG Manipulation
@@ -374,11 +375,11 @@ public:
   PartialApplyInst *createPartialApply(
       SILLocation Loc, SILValue Fn, SubstitutionList Subs,
       ArrayRef<SILValue> Args, ParameterConvention CalleeConvention,
-      const GenericSpecializationInformation *SpecializationInfo = nullptr) {
-    return insert(PartialApplyInst::create(getSILDebugLocation(Loc), Fn,
-                                           Args, Subs, CalleeConvention, *F,
-                                           OpenedArchetypes,
-                                           SpecializationInfo));
+      const GenericSpecializationInformation *SpecializationInfo = nullptr,
+      bool CanBeOnStack = false) {
+    return insert(PartialApplyInst::create(
+        getSILDebugLocation(Loc), Fn, Args, Subs, CalleeConvention, *F,
+        OpenedArchetypes, SpecializationInfo, CanBeOnStack));
   }
 
   BeginApplyInst *createBeginApply(

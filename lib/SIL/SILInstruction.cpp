@@ -1138,6 +1138,9 @@ bool SILInstruction::isTriviallyDuplicatable() const {
       return false;
   }
 
+  if (auto *Closure = dyn_cast<PartialApplyInst>(this))
+    return !Closure->canAllocOnStack();
+
   if (isa<OpenExistentialAddrInst>(this) || isa<OpenExistentialRefInst>(this) ||
       isa<OpenExistentialMetatypeInst>(this) ||
       isa<OpenExistentialValueInst>(this) || isa<OpenExistentialBoxInst>(this) ||

@@ -845,7 +845,8 @@ specializePartialApply(PartialApplyInst *PartialApply,
   return Builder.createPartialApply(
       PartialApply->getLoc(), FunctionRef, PartialApply->getSubstitutions(),
       Args,
-      PartialApply->getType().getAs<SILFunctionType>()->getCalleeConvention());
+      PartialApply->getType().getAs<SILFunctionType>()->getCalleeConvention(),
+      PartialApply->canAllocOnStack());
 }
 
 static void

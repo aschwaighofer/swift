@@ -204,7 +204,8 @@ public:
                                   getClosure()
                                       ->getType()
                                       .getAs<SILFunctionType>()
-                                      ->getCalleeConvention());
+                                      ->getCalleeConvention(),
+                                  getClosure()->canBeOnStack());
 
     assert(isa<ThinToThickFunctionInst>(getClosure()) &&
            "We only support partial_apply and thin_to_thick_function");

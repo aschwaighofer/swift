@@ -733,7 +733,8 @@ bool SILDeserializer::readSILInstruction(SILFunction *Fn, SILBasicBlock *BB,
   Builder.setInsertionPoint(BB);
   Builder.setCurrentDebugScope(Fn->getDebugScope());
   unsigned RawOpCode = 0, TyCategory = 0, TyCategory2 = 0, TyCategory3 = 0,
-           Attr = 0, NumSubs = 0, NumConformances = 0, IsNonThrowingApply = 0;
+           Attr = 0, NumSubs = 0, NumConformances = 0, IsNonThrowingApply = 0,
+           CanAllocOnStack = 0;
   ValueID ValID, ValID2, ValID3;
   TypeID TyID, TyID2, TyID3;
   TypeID ConcreteTyID;
@@ -793,7 +794,7 @@ bool SILDeserializer::readSILInstruction(SILFunction *Fn, SILBasicBlock *BB,
     break;
   case SIL_INST_APPLY: {
     unsigned IsPartial;
-    SILInstApplyLayout::readRecord(scratch, IsPartial, NumSubs,
+    SILInstApplyLayout::readRecord(scratch, IsPartial, CanAllocOnStack, NumSubs,
                                    TyID, TyID2, ValID, ListOfValues);
     switch (IsPartial) {
     case SIL_APPLY:
@@ -1187,7 +1188,7 @@ bool SILDeserializer::readSILInstruction(SILFunction *Fn, SILBasicBlock *BB,
     // FIXME: Why the arbitrary order difference in IRBuilder type argument?
     ResultVal = Builder.createPartialApply(
         Loc, FnVal, Substitutions, Args,
-        closureTy.castTo<SILFunctionType>()->getCalleeConvention());
+        closureTy.castTo<SILFunctionType>()->getCalleeConvention(), CanAllocOnStack != 0);
     break;
   }
   case SILInstructionKind::BuiltinInst: {

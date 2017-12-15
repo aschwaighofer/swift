@@ -611,7 +611,8 @@ SILCloner<ImplClass>::visitPartialApplyInst(PartialApplyInst *Inst) {
                         ->getAs<SILFunctionType>()
                       ->getCalleeConvention(),
                     GenericSpecializationInformation::create(Inst,
-                                                             getBuilder())));
+                                                             getBuilder()),
+                    Inst->canAllocOnStack()));
 }
 
 template<typename ImplClass>

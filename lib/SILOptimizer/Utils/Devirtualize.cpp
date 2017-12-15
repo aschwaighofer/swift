@@ -905,7 +905,8 @@ devirtualizeWitnessMethod(ApplySite AI, SILFunction *F,
                                       ->getAs<SILFunctionType>()
                                       ->getCalleeConvention();
     auto *NewPAI = Builder.createPartialApply(
-        Loc, FRI, NewSubs, Arguments, PartialApplyConvention);
+        Loc, FRI, NewSubs, Arguments, PartialApplyConvention,
+        PAI->canBeOnStack());
     // Check if any casting is required for the return value.
     ResultValue = castValueToABICompatibleType(
         &Builder, Loc, NewPAI, NewPAI->getType(), PAI->getType());

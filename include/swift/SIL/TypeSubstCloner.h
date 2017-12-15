@@ -215,7 +215,7 @@ protected:
         getOpLocation(Inst->getLoc()), Helper.getCallee(),
         Helper.getSubstitutions(), Helper.getArguments(), ParamConvention,
         GenericSpecializationInformation::create(
-          Inst, getBuilder()));
+          Inst, getBuilder()), Inst->canAllocOnStack());
     doPostProcess(Inst, N);
   }
 

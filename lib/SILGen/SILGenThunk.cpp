@@ -265,7 +265,8 @@ void SILGenFunction::emitCurryThunk(SILDeclRef thunk) {
 
   // Partially apply the next uncurry level and return the result closure.
   auto closureTy = SILGenBuilder::getPartialApplyResultType(
-      toFn->getType(), /*appliedParams=*/1, SGM.M, subs, calleeConvention);
+      toFn->getType(), /*appliedParams=*/1, SGM.M, subs, calleeConvention,
+      false);
   SILValue toClosure =
     B.createPartialApply(vd, toFn, substTy, subs, {selfArg}, closureTy);
   if (resultTy != closureTy)

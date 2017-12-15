@@ -1640,11 +1640,15 @@ class ApplyInstBase<Impl, Base, false> : public Base {
 
   /// The number of tail-allocated substitutions, allocated after the operand
   /// list's tail allocation.
-  unsigned NumSubstitutions: 31;
+  unsigned NumSubstitutions: 30;
 
   /// Used for apply_inst instructions: true if the called function has an
   /// error result but is not actually throwing.
   unsigned NonThrowing: 1;
+
+  // Used for partial_apply instructions: true if the partial apply does not
+  // escape the function.
+  unsigned CanAllocOnStack: 1;
 
   /// The number of call arguments as required by the callee.
   unsigned NumCallArguments;
@@ -1671,7 +1675,7 @@ protected:
       : Base(kind, DebugLoc, baseArgs...), SubstCalleeType(substCalleeType),
         SpecializationInfo(specializationInfo),
         NumSubstitutions(subs.size()), NonThrowing(false),
-        NumCallArguments(args.size()),
+        CanAllocOnStack(false), NumCallArguments(args.size()),
         NumTypeDependentOperands(typeDependentOperands.size()) {
 
     // Initialize the operands.
@@ -1715,6 +1719,7 @@ protected:
   
   bool isNonThrowingApply() const { return NonThrowing; }
   
+  bool canAllocOnStack() const { return CanAllocOnStack; }
 public:
   /// The operand number of the first argument.
   static unsigned getArgumentOperandNumber() { return NumStaticOperands; }
@@ -2002,13 +2007,15 @@ class PartialApplyInst final
                    ArrayRef<SILValue> Args,
                    ArrayRef<SILValue> TypeDependentOperands,
                    SILType ClosureType,
-                   const GenericSpecializationInformation *SpecializationInfo);
+                   const GenericSpecializationInformation *SpecializationInfo,
+                   bool CanBeOnStack);
 
   static PartialApplyInst *
   create(SILDebugLocation DebugLoc, SILValue Callee, ArrayRef<SILValue> Args,
          SubstitutionList Substitutions, ParameterConvention CalleeConvention,
          SILFunction &F, SILOpenedArchetypesState &OpenedArchetypes,
-         const GenericSpecializationInformation *SpecializationInfo);
+         const GenericSpecializationInformation *SpecializationInfo,
+         bool CanBeOnStack);
 
 public:
   /// Return the result function type of this partial apply.
@@ -2017,6 +2024,10 @@ public:
   }
   bool hasCalleeGuaranteedContext() const {
     return getType().castTo<SILFunctionType>()->isCalleeGuaranteed();
+  }
+
+  bool canAllocOnStack() const {
+    return ApplyInstBase::canAllocOnStack();
   }
 };
 

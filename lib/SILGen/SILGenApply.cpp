@@ -4120,7 +4120,8 @@ CallEmission::applyPartiallyAppliedSuperMethod(SGFContext C) {
   }
   auto calleeConvention = ParameterConvention::Direct_Guaranteed;
   auto closureTy = SILGenBuilder::getPartialApplyResultType(
-      constantInfo.getSILType(), 1, SGF.B.getModule(), subs, calleeConvention);
+      constantInfo.getSILType(), 1, SGF.B.getModule(), subs, calleeConvention,
+      false);
 
   auto &module = SGF.getFunction().getModule();
 
@@ -5317,7 +5318,8 @@ static ManagedValue emitDynamicPartialApply(SILGenFunction &SGF,
   auto partialApplyTy =
       SILBuilder::getPartialApplyResultType(method->getType(),
                                             /*argCount*/ 1, SGF.SGM.M,
-                                            /*subs*/ {}, calleeConvention);
+                                            /*subs*/ {}, calleeConvention,
+                                            false);
 
   // Retain 'self' because the partial apply will take ownership.
   // We can't simply forward 'self' because the partial apply is conditional.

@@ -103,24 +103,27 @@ SILGenBuilder::createTryApply(SILLocation loc, SILValue fn, SILType substFnTy,
 PartialApplyInst *
 SILGenBuilder::createPartialApply(SILLocation loc, SILValue fn,
                                   SILType substFnTy, SubstitutionList subs,
-                                  ArrayRef<SILValue> args, SILType closureTy) {
+                                  ArrayRef<SILValue> args, SILType closureTy,
+                                  bool canAllocOnStack) {
   getSILGenModule().useConformancesFromSubstitutions(subs);
   return SILBuilder::createPartialApply(
       loc, fn, subs, args,
-      closureTy.getAs<SILFunctionType>()->getCalleeConvention());
+      closureTy.getAs<SILFunctionType>()->getCalleeConvention(),
+      canAllocOnStack);
 }
 
 ManagedValue SILGenBuilder::createPartialApply(SILLocation loc, SILValue fn,
                                                SILType substFnTy,
                                                SubstitutionList subs,
                                                ArrayRef<ManagedValue> args,
-                                               SILType closureTy) {
+                                               SILType closureTy,
+                                               bool canAllocOnStack) {
   llvm::SmallVector<SILValue, 8> values;
   transform(args, std::back_inserter(values), [&](ManagedValue mv) -> SILValue {
     return mv.forward(getSILGenFunction());
   });
-  SILValue result = SILGenBuilder::createPartialApply(loc, fn, substFnTy, subs,
-                                                      values, closureTy);
+  SILValue result = SILGenBuilder::createPartialApply(
+      loc, fn, substFnTy, subs, values, closureTy, canAllocOnStack);
   // Partial apply instructions create a box, so we need to put on a cleanup.
   return getSILGenFunction().emitManagedRValueWithCleanup(result);
 }
