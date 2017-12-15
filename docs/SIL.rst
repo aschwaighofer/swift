@@ -3244,7 +3244,7 @@ partial_apply
 `````````````
 ::
 
-  sil-instruction ::= 'partial_apply' callee-ownership-attr? sil-value
+  sil-instruction ::= 'partial_apply' ('[' 'stack' ']')? callee-ownership-attr? sil-value
                         sil-apply-substitution-list?
                         '(' (sil-value (',' sil-value)*)? ')'
                         ':' sil-type
@@ -3363,6 +3363,19 @@ lowers to an uncurried entry point and is curried in the enclosing function::
     release %bar : $(Int) -> Int
     return %ret : $Int
   }
+
+The optional ``stack`` attribute indicates that the context can be allocated
+on the stack instead of on the heap. In this case the instruction must be
+balanced with a ``dealloc_ref [stack]`` instruction to mark the end of the
+object's lifetime. The result type of such a ``partial_apply [stack]`` is a
+thick function type that is ``@noescape`` meaning that the closure context is
+treated as trivial value.
+
+Note that the ``stack`` attribute only specifies that stack allocation is
+possible. The final decision on stack allocation is done during llvm IR
+generation. This is because the decision also depends on the object size,
+which is not necessarily known at SIL level.
+
 
 builtin
 ```````
