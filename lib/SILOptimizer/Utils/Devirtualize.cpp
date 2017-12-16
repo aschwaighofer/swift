@@ -904,9 +904,9 @@ devirtualizeWitnessMethod(ApplySite AI, SILFunction *F,
                                       .getSwiftRValueType()
                                       ->getAs<SILFunctionType>()
                                       ->getCalleeConvention();
-    auto *NewPAI = Builder.createPartialApply(
-        Loc, FRI, NewSubs, Arguments, PartialApplyConvention,
-        PAI->canBeOnStack());
+    auto *NewPAI = Builder.createPartialApply(Loc, FRI, NewSubs, Arguments,
+                                              PartialApplyConvention, nullptr,
+                                              PAI->canAllocOnStack());
     // Check if any casting is required for the return value.
     ResultValue = castValueToABICompatibleType(
         &Builder, Loc, NewPAI, NewPAI->getType(), PAI->getType());

@@ -2022,7 +2022,8 @@ static ApplySite replaceWithSpecializedCallee(ApplySite AI,
     auto *NewPAI = Builder.createPartialApply(
         Loc, Callee, Subs, Arguments,
         PAI->getType().getAs<SILFunctionType>()->getCalleeConvention(),
-        PAI->canBeOnStack());
+        nullptr,
+        PAI->canAllocOnStack());
     PAI->replaceAllUsesWith(NewPAI);
     return NewPAI;
   }
@@ -2396,7 +2397,8 @@ void swift::trySpecializeApplyOfGeneric(
     auto *NewPAI = Builder.createPartialApply(
         PAI->getLoc(), FRI, Subs, Arguments,
         PAI->getType().getAs<SILFunctionType>()->getCalleeConvention(),
-        PAI->canBeOnStack());
+        nullptr,
+        PAI->canAllocOnStack());
     PAI->replaceAllUsesWith(NewPAI);
     DeadApplies.insert(PAI);
     return;

@@ -109,6 +109,7 @@ SILGenBuilder::createPartialApply(SILLocation loc, SILValue fn,
   return SILBuilder::createPartialApply(
       loc, fn, subs, args,
       closureTy.getAs<SILFunctionType>()->getCalleeConvention(),
+      nullptr,
       canAllocOnStack);
 }
 

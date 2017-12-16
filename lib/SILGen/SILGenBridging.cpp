@@ -914,7 +914,8 @@ SILGenFunction::emitBlockToFunc(SILLocation loc,
   auto thunkValue = B.createFunctionRef(loc, thunk);
   SingleValueInstruction *thunkedFn = B.createPartialApply(
       loc, thunkValue, SILType::getPrimitiveObjectType(substFnTy), subs,
-      block.forward(*this), SILType::getPrimitiveObjectType(loweredFuncTy));
+      block.forward(*this), SILType::getPrimitiveObjectType(loweredFuncTy),
+      false);
   if (loweredFuncTy->isNoEscape()) {
     auto &funcTL = getTypeLowering(loweredFuncTy);
     thunkedFn =

@@ -846,7 +846,7 @@ specializePartialApply(PartialApplyInst *PartialApply,
       PartialApply->getLoc(), FunctionRef, PartialApply->getSubstitutions(),
       Args,
       PartialApply->getType().getAs<SILFunctionType>()->getCalleeConvention(),
-      PartialApply->canAllocOnStack());
+      nullptr, PartialApply->canAllocOnStack());
 }
 
 static void

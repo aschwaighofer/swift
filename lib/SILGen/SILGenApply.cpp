@@ -4129,9 +4129,9 @@ CallEmission::applyPartiallyAppliedSuperMethod(SGFContext C) {
   if (constantInfo.SILFnType->isPolymorphic() && !subs.empty())
     partialApplyTy = partialApplyTy.substGenericArgs(module, subs);
 
-  SILValue partialApply =
-      SGF.B.createPartialApply(loc, superMethod.getValue(), partialApplyTy,
-                               subs, {upcastedSelf.forward(SGF)}, closureTy);
+  SILValue partialApply = SGF.B.createPartialApply(
+      loc, superMethod.getValue(), partialApplyTy, subs,
+      {upcastedSelf.forward(SGF)}, closureTy, false);
   ManagedValue pa = SGF.emitManagedRValueWithCleanup(partialApply);
   firstLevelResult.value = RValue(SGF, loc, formalApplyType.getResult(), pa);
   return firstLevelResult;
@@ -5328,7 +5328,7 @@ static ManagedValue emitDynamicPartialApply(SILGenFunction &SGF,
 
   SILValue resultValue =
     SGF.B.createPartialApply(loc, method, method->getType(), {},
-                             self, partialApplyTy);
+                             self, partialApplyTy, false);
   ManagedValue result = SGF.emitManagedRValueWithCleanup(resultValue);
 
   // If necessary, thunk to the native ownership conventions and bridged types.

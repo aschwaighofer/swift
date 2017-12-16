@@ -367,7 +367,7 @@ SILGenFunction::emitClosureValue(SILLocation loc, SILDeclRef constant,
 
   auto toClosure =
     B.createPartialApply(loc, functionRef, functionTy,
-                         subs, forwardedArgs, closureTy);
+                         subs, forwardedArgs, closureTy, false);
   auto result = emitManagedRValueWithCleanup(toClosure);
 
   // Get the lowered AST types:

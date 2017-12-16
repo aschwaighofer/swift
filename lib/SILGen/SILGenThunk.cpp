@@ -267,8 +267,8 @@ void SILGenFunction::emitCurryThunk(SILDeclRef thunk) {
   auto closureTy = SILGenBuilder::getPartialApplyResultType(
       toFn->getType(), /*appliedParams=*/1, SGM.M, subs, calleeConvention,
       false);
-  SILValue toClosure =
-    B.createPartialApply(vd, toFn, substTy, subs, {selfArg}, closureTy);
+  SILValue toClosure = B.createPartialApply(vd, toFn, substTy, subs, {selfArg},
+                                            closureTy, false);
   if (resultTy != closureTy)
     toClosure = B.createConvertFunction(vd, toClosure, resultTy);
   B.createReturn(ImplicitReturnLocation::getImplicitReturnLoc(vd), toClosure);

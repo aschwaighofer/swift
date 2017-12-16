@@ -78,7 +78,7 @@ bool SILLoop::canDuplicate(SILInstruction *I) const {
     return false;
   }
 
-  if (auto *Closure = dyn_cast<PartialApplyInst>(this))
+  if (auto *Closure = dyn_cast<PartialApplyInst>(I))
     if (Closure->canAllocOnStack())
       return false;
 

@@ -1188,7 +1188,8 @@ bool SILDeserializer::readSILInstruction(SILFunction *Fn, SILBasicBlock *BB,
     // FIXME: Why the arbitrary order difference in IRBuilder type argument?
     ResultVal = Builder.createPartialApply(
         Loc, FnVal, Substitutions, Args,
-        closureTy.castTo<SILFunctionType>()->getCalleeConvention(), CanAllocOnStack != 0);
+        closureTy.castTo<SILFunctionType>()->getCalleeConvention(), nullptr,
+        CanAllocOnStack != 0);
     break;
   }
   case SILInstructionKind::BuiltinInst: {

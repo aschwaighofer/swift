@@ -1720,6 +1720,8 @@ protected:
   bool isNonThrowingApply() const { return NonThrowing; }
   
   bool canAllocOnStack() const { return CanAllocOnStack; }
+
+  void setCanAllocOnStack(bool b) { CanAllocOnStack = b; }
 public:
   /// The operand number of the first argument.
   static unsigned getArgumentOperandNumber() { return NumStaticOperands; }

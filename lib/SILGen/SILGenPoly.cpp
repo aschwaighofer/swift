@@ -2953,7 +2953,8 @@ static ManagedValue createThunk(SILGenFunction &SGF,
     SGF.B.createPartialApply(loc, thunkValue,
                              SILType::getPrimitiveObjectType(substFnType),
                              subs, fn.ensurePlusOne(SGF, loc).forward(SGF),
-                             SILType::getPrimitiveObjectType(expectedType));
+                             SILType::getPrimitiveObjectType(expectedType),
+                             false);
   if (expectedType->isNoEscape()) {
     thunkedFn = SGF.B.createConvertFunction(loc, thunkedFn,
                                             expectedTL.getLoweredType());
@@ -3135,7 +3136,7 @@ ManagedValue SILGenFunction::createWithoutActuallyEscapingClosure(
   SingleValueInstruction *thunkedFn = B.createPartialApply(
       loc, thunkValue, SILType::getPrimitiveObjectType(substFnType), subs,
       noEscapingFunctionValue.ensurePlusOne(*this, loc).forward(*this),
-      SILType::getPrimitiveObjectType(escapingFnTy));
+      SILType::getPrimitiveObjectType(escapingFnTy), false);
 
   return emitManagedRValueWithCleanup(thunkedFn);
 }

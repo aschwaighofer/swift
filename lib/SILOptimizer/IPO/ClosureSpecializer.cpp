@@ -200,12 +200,13 @@ public:
   createNewClosure(SILBuilder &B, SILValue V,
                    llvm::SmallVectorImpl<SILValue> &Args) const {
     if (isa<PartialApplyInst>(getClosure()))
-      return B.createPartialApply(getClosure()->getLoc(), V, {}, Args,
-                                  getClosure()
-                                      ->getType()
-                                      .getAs<SILFunctionType>()
-                                      ->getCalleeConvention(),
-                                  getClosure()->canBeOnStack());
+      return B.createPartialApply(
+          getClosure()->getLoc(), V, {}, Args,
+          getClosure()
+              ->getType()
+              .getAs<SILFunctionType>()
+              ->getCalleeConvention(),
+          nullptr, cast<PartialApplyInst>(getClosure())->canAllocOnStack());
 
     assert(isa<ThinToThickFunctionInst>(getClosure()) &&
            "We only support partial_apply and thin_to_thick_function");
