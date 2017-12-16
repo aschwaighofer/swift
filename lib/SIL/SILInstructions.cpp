@@ -523,6 +523,12 @@ PartialApplyInst::PartialApplyInst(
     : InstructionBase(Loc, Callee, SubstCalleeTy, Subs, Args,
                       TypeDependentOperands, SpecializationInfo, ClosureType) {
       setCanAllocOnStack(CanBeOnStack);
+      assert(((CanBeOnStack &&
+               getType().castTo<SILFunctionType>()->isNoEscape()) ||
+              (!CanBeOnStack &&
+               !getType().castTo<SILFunctionType>()->isNoEscape())) &&
+             "partial_apply [stack] must be @noescape, plain partial_apply "
+             "must not be @noescape");
     }
 
 PartialApplyInst *PartialApplyInst::create(
@@ -2096,6 +2102,18 @@ PointerToThinFunctionInst::create(SILDebugLocation DebugLoc, SILValue Operand,
   void *Buffer = Mod.allocateInst(size, alignof(PointerToThinFunctionInst));
   return ::new (Buffer) PointerToThinFunctionInst(DebugLoc, Operand,
                                                   TypeDependentOperands, Ty);
+}
+
+ConvertFunctionInst::ConvertFunctionInst(
+    SILDebugLocation DebugLoc, SILValue Operand,
+    ArrayRef<SILValue> TypeDependentOperands, SILType Ty)
+    : UnaryInstructionWithTypeDependentOperandsBase(DebugLoc, Operand,
+                                                    TypeDependentOperands, Ty) {
+  // A change involving @noescape is not trivial. @noescape closures have a
+  // trivial context.
+  assert(getType().castTo<SILFunctionType>()->isNoEscape() ==
+             Operand->getType().castTo<SILFunctionType>()->isNoEscape() &&
+         "convert_function cast cannot change @noescape attribute");
 }
 
 ConvertFunctionInst *

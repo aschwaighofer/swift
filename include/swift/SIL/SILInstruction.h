@@ -3879,9 +3879,7 @@ class ConvertFunctionInst final
   friend SILBuilder;
 
   ConvertFunctionInst(SILDebugLocation DebugLoc, SILValue Operand,
-                      ArrayRef<SILValue> TypeDependentOperands, SILType Ty)
-      : UnaryInstructionWithTypeDependentOperandsBase(
-            DebugLoc, Operand, TypeDependentOperands, Ty) {}
+                      ArrayRef<SILValue> TypeDependentOperands, SILType Ty);
 
   static ConvertFunctionInst *
   create(SILDebugLocation DebugLoc, SILValue Operand, SILType Ty,

@@ -1651,6 +1651,10 @@ public:
                                        ManagedValue noEscapingFunctionValue,
                                        SILType escapingFnTy);
 
+  ManagedValue createNoEscapingClosure(SILLocation loc,
+                                       ManagedValue escapingFunctionValue,
+                                       SILType noEscapingFnTy);
+
   //===--------------------------------------------------------------------===//
   // Declarations
   //===--------------------------------------------------------------------===//

@@ -916,12 +916,13 @@ SILGenFunction::emitBlockToFunc(SILLocation loc,
       loc, thunkValue, SILType::getPrimitiveObjectType(substFnTy), subs,
       block.forward(*this), SILType::getPrimitiveObjectType(loweredFuncTy),
       false);
-  if (loweredFuncTy->isNoEscape()) {
-    auto &funcTL = getTypeLowering(loweredFuncTy);
-    thunkedFn =
-        B.createConvertFunction(loc, thunkedFn, funcTL.getLoweredType());
-  }
-  return emitManagedRValueWithCleanup(thunkedFn);
+
+  auto closure =  emitManagedRValueWithCleanup(thunkedFn);
+  if (!loweredFuncTy->isNoEscape())
+    return closure;
+
+  auto &funcTL = getTypeLowering(loweredFuncTy);
+  return createNoEscapingClosure(loc, closure, funcTL.getLoweredType());
 }
 
 static ManagedValue emitCBridgedToNativeValue(SILGenFunction &SGF,

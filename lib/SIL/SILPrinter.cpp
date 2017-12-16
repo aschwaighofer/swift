@@ -1103,6 +1103,9 @@ public:
   }
 
   void visitPartialApplyInst(PartialApplyInst *CI) {
+    if (CI->canAllocOnStack()) {
+      *this << "[stack] ";
+    }
     switch (CI->getFunctionType()->getCalleeConvention()) {
     case ParameterConvention::Direct_Owned:
       // Default; do nothing.
