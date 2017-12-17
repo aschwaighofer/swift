@@ -3824,8 +3824,7 @@ void IRGenSILFunction::visitDeallocRefInst(swift::DeallocRefInst *i) {
     assert(i->canAllocOnStack() && PAI->canAllocOnStack() &&
            PAI->getType().getAs<SILFunctionType>()->isNoEscape());
     Explosion self = getLoweredExplosion(i->getOperand());
-    cast<LoadableTypeInfo>(getTypeInfo(i->getOperand()->getType()))
-        .consume(*this, self, irgen::Atomicity::Atomic);
+    destroyPartialApplyStack(*this, self, PAI->getType());
     return;
   }
   // Lower the operand.

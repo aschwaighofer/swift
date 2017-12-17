@@ -273,12 +273,18 @@ IRGenModule::IRGenModule(IRGenerator &irgen,
   PtrSize = Size(DataLayout.getPointerSize(DefaultAS));
 
   FunctionPairTy = createStructType(*this, "swift.function", {
+
     FunctionPtrTy,
     RefCountedPtrTy,
   });
 
   OpaqueTy = llvm::StructType::create(LLVMContext, "swift.opaque");
   OpaquePtrTy = OpaqueTy->getPointerTo(DefaultAS);
+  NoEscapeFunctionPairTy = createStructType(*this, "swift.noescape.function", {
+    FunctionPtrTy,
+    OpaquePtrTy,
+  });
+
 
   ProtocolConformanceRecordTy
     = createStructType(*this, "swift.protocol_conformance", {

@@ -435,6 +435,16 @@ namespace {
       dest = projectFunction(IGF, dest);
       return storeFunctionPointerExtraInhabitant(IGF, index, dest);
     }
+
+    void destroyStackFunction(IRGenFunction &IGF, Explosion &e,
+                              SILType T) const {
+      assert(T.getAs<SILFunctionType>()->isNoEscape() &&
+             "Only @noescape functions support stack destruction");
+      e.claimNext();
+      auto context =
+          IGF.Builder.CreateBitCast(e.claimNext(), IGF.IGM.RefCountedPtrTy);
+      IGF.emitNativeStrongRelease(context, IGF.getDefaultAtomicity());
+    }
   };
 
   /// The type-info class for ObjC blocks, which are represented by an ObjC
@@ -577,13 +587,16 @@ const TypeInfo *TypeConverter::convertFunctionType(SILFunctionType *T) {
     SpareBitVector spareBits;
     spareBits.append(IGM.getFunctionPointerSpareBits());
     spareBits.append(IGM.getHeapObjectSpareBits());
-    
-    return FuncTypeInfo::create(CanSILFunctionType(T),
-                                IGM.FunctionPairTy,
-                                IGM.getPointerSize() * 2,
-                                IGM.getPointerAlignment(),
-                                std::move(spareBits),
-                                IsNotPOD);
+    if (T->isNoEscape()) {
+      // @noescape thick functions are trivial types.
+      return FuncTypeInfo::create(
+          CanSILFunctionType(T), IGM.NoEscapeFunctionPairTy,
+          IGM.getPointerSize() * 2, IGM.getPointerAlignment(),
+          std::move(spareBits), IsPOD);
+    }
+    return FuncTypeInfo::create(
+        CanSILFunctionType(T), IGM.FunctionPairTy, IGM.getPointerSize() * 2,
+        IGM.getPointerAlignment(), std::move(spareBits), IsNotPOD);
   }
   }
   llvm_unreachable("bad function type representation");
@@ -1171,8 +1184,10 @@ static llvm::Function *emitPartialApplicationForwarder(IRGenModule &IGM,
     // If the parameters can live independent of the context, release it now
     // so we can tail call. The safety of this assumes that neither this release
     // nor any of the loads can throw.
-    if (consumesContext && !dependsOnContextLifetime && rawData)
+    if (consumesContext && !dependsOnContextLifetime && rawData) {
+      assert(!outType->isNoEscape() && "Trivial context must not be released");
       subIGF.emitNativeStrongRelease(rawData, subIGF.getDefaultAtomicity());
+    }
 
     // Now that we have bound generic parameters from the captured arguments
     // emit the polymorphic arguments.
@@ -1272,8 +1287,10 @@ static llvm::Function *emitPartialApplicationForwarder(IRGenModule &IGM,
   }
   
   // If the parameters depended on the context, consume the context now.
-  if (rawData && consumesContext && dependsOnContextLifetime)
+  if (rawData && consumesContext && dependsOnContextLifetime) {
+    assert(!outType->isNoEscape() && "Trivial context must not be released");
     subIGF.emitNativeStrongRelease(rawData, subIGF.getDefaultAtomicity());
+  }
 
   // Reabstract the result value as substituted.
   SILFunctionConventions origConv(origType, IGM.getSILModule());
@@ -1336,6 +1353,8 @@ void irgen::emitFunctionPartialApplication(
   SmallVector<const TypeInfo *, 4> argTypeInfos;
   SmallVector<SILType, 4> argValTypes;
   SmallVector<ParameterConvention, 4> argConventions;
+
+  bool isNoEscapeFunction = outType->isNoEscape();
 
   // Reserve space for polymorphic bindings.
   SubstitutionMap subMap;
@@ -1465,7 +1484,10 @@ void irgen::emitFunctionPartialApplication(
     fnPtr = IGF.Builder.CreateBitCast(fnPtr, IGF.IGM.Int8PtrTy);
     out.add(fnPtr);
     llvm::Value *ctx = args.claimNext();
-    ctx = IGF.Builder.CreateBitCast(ctx, IGF.IGM.RefCountedPtrTy);
+    if (isNoEscapeFunction)
+      ctx = IGF.Builder.CreateBitCast(ctx, IGF.IGM.OpaquePtrTy);
+    else
+      ctx = IGF.Builder.CreateBitCast(ctx, IGF.IGM.RefCountedPtrTy);
     out.add(ctx);
     return;
   }
@@ -1506,7 +1528,10 @@ void irgen::emitFunctionPartialApplication(
     llvm::Value *ctx = args.claimNext();
     if (isIndirectFormalParameter(*singleRefcountedConvention))
       ctx = IGF.Builder.CreateLoad(ctx, IGF.IGM.getPointerAlignment());
-    ctx = IGF.Builder.CreateBitCast(ctx, IGF.IGM.RefCountedPtrTy);
+    if (isNoEscapeFunction)
+      ctx = IGF.Builder.CreateBitCast(ctx, IGF.IGM.OpaquePtrTy);
+    else
+      ctx = IGF.Builder.CreateBitCast(ctx, IGF.IGM.RefCountedPtrTy);
     out.add(ctx);
     return;
   }
@@ -1597,6 +1622,8 @@ void irgen::emitFunctionPartialApplication(
                                                               argConventions);
   forwarder = IGF.Builder.CreateBitCast(forwarder, IGF.IGM.Int8PtrTy);
   out.add(forwarder);
+  if (isNoEscapeFunction)
+    data = IGF.Builder.CreateBitCast(data, IGF.IGM.OpaquePtrTy);
   out.add(data);
 }
 
@@ -1755,4 +1782,10 @@ void irgen::emitBlockHeader(IRGenFunction &IGF,
                           IGF.Builder.CreateStructGEP(headerAddr, 3, layout));
   IGF.Builder.CreateStore(descriptorVal,
                           IGF.Builder.CreateStructGEP(headerAddr, 4, layout));
+}
+
+void irgen::destroyPartialApplyStack(IRGenFunction &IGF, Explosion &closure,
+                                     SILType closureType) {
+  auto &closureTI = IGF.getTypeInfo(closureType).as<FuncTypeInfo>();
+  closureTI.destroyStackFunction(IGF, closure, closureType);
 }

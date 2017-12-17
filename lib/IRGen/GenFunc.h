@@ -54,6 +54,9 @@ namespace irgen {
       CanSILFunctionType origType, CanSILFunctionType substType,
       CanSILFunctionType outType, Explosion &out, bool isOutlined);
 
+  void destroyPartialApplyStack(IRGenFunction &IGF, Explosion &closure,
+                                SILType closureType);
+
 } // end namespace irgen
 } // end namespace swift
 
