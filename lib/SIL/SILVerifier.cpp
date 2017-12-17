@@ -931,6 +931,15 @@ public:
     auto substTy = checkApplySubstitutions(PAI->getSubstitutions(),
                                         PAI->getCallee()->getType());
 
+    if (PAI->getType().getAs<SILFunctionType>()->isNoEscape()) {
+      require(PAI->canAllocOnStack(), "partial_apply [stack] must have "
+                                      "matching @noescape function result "
+                                      "type");
+    } else
+      require(!PAI->canAllocOnStack(), "partial_apply without @noescape "
+                                       "function result type must not be "
+                                       "[stack]");
+
     require(!PAI->getSubstCalleeType()->isPolymorphic(),
             "substituted callee type should not be generic");
 
@@ -1799,6 +1808,15 @@ public:
             "Operand of dealloc_stack must be an alloc_stack");
   }
   void checkDeallocRefInst(DeallocRefInst *DI) {
+    if (auto *PA = dyn_cast<PartialApplyInst>(DI->getOperand())) {
+      require(DI->getOperand()->getType().isObject(),
+              "Operand of dealloc_ref must be object");
+      require(DI->getOperand()->getType().getAs<SILFunctionType>(),
+              "Operand of dealloc_ref must be of function type");
+      require(PA->canAllocOnStack(), "partial_apply operand  must be [stack]");
+      require(DI->canAllocOnStack(), "dealloc_ref must be [stack]");
+      return;
+    }
     require(DI->getOperand()->getType().isObject(),
             "Operand of dealloc_ref must be object");
     require(DI->getOperand()->getType().getClassOrBoundGenericClass(),

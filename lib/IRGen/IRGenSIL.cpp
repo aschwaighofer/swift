@@ -3818,6 +3818,16 @@ void IRGenSILFunction::visitDeallocStackInst(swift::DeallocStackInst *i) {
 }
 
 void IRGenSILFunction::visitDeallocRefInst(swift::DeallocRefInst *i) {
+  // dealloc_ref [stack] with a thick function operand releases the closure for
+  // now.
+  if (auto *PAI = dyn_cast<PartialApplyInst>(i->getOperand())) {
+    assert(i->canAllocOnStack() && PAI->canAllocOnStack() &&
+           PAI->getType().getAs<SILFunctionType>()->isNoEscape());
+    Explosion self = getLoweredExplosion(i->getOperand());
+    cast<LoadableTypeInfo>(getTypeInfo(i->getOperand()->getType()))
+        .consume(*this, self, irgen::Atomicity::Atomic);
+    return;
+  }
   // Lower the operand.
   Explosion self = getLoweredExplosion(i->getOperand());
   auto selfValue = self.claimNext();

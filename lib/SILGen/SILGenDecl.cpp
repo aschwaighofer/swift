@@ -352,6 +352,26 @@ public:
 } // end anonymous namespace
 
 namespace {
+class PartialApplyStackCleanup : public Cleanup {
+  SILValue v;
+public:
+  PartialApplyStackCleanup(SILValue v) : v(v) {}
+
+  void emit(SILGenFunction &SGF, CleanupLocation l) override {
+    SGF.B.createDeallocRef(l, v, /*canBeOnStack*/ true);
+  }
+
+  void dump(SILGenFunction &) const override {
+#ifndef NDEBUG
+    llvm::errs() << "PartialApplyStackCleanup\n"
+                 << "State:" << getState() << "\n"
+                 << "Value:" << v << "\n";
+#endif
+  }
+};
+} // end anonymous namespace
+
+namespace {
 /// An initialization of a local 'var'.
 class LocalVariableInitialization : public SingleBufferInitialization {
   /// The local variable decl being initialized.
@@ -1268,6 +1288,12 @@ CleanupHandle SILGenFunction::enterDeallocStackCleanup(SILValue temp) {
 
 CleanupHandle SILGenFunction::enterDestroyCleanup(SILValue valueOrAddr) {
   Cleanups.pushCleanup<ReleaseValueCleanup>(valueOrAddr);
+  return Cleanups.getTopCleanup();
+}
+
+CleanupHandle SILGenFunction::enterPartialApplyStackCleanup(SILValue closure) {
+  assert(cast<PartialApplyInst>(closure)->canAllocOnStack());
+  Cleanups.pushCleanup<PartialApplyStackCleanup>(closure);
   return Cleanups.getTopCleanup();
 }
 

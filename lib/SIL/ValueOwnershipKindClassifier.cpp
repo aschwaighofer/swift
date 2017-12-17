@@ -40,7 +40,13 @@ CONSTANT_OWNERSHIP_INST(Owned, CopyUnownedValue)
 CONSTANT_OWNERSHIP_INST(Owned, LoadUnowned)
 CONSTANT_OWNERSHIP_INST(Owned, LoadWeak)
 CONSTANT_OWNERSHIP_INST(Owned, KeyPath)
-CONSTANT_OWNERSHIP_INST(Owned, PartialApply)
+ValueOwnershipKind
+ValueOwnershipKindClassifier::visitPartialApplyInst(PartialApplyInst *Arg) {
+  // @noescape partial_apply [stack] has trivial ownership.
+  if (Arg->getType().isTrivial(Arg->getModule()))
+    return ValueOwnershipKind::Trivial;
+  return ValueOwnershipKind::Owned;
+}
 CONSTANT_OWNERSHIP_INST(Owned, StrongPin)
 CONSTANT_OWNERSHIP_INST(Owned, ThinToThickFunction)
 CONSTANT_OWNERSHIP_INST(Owned, InitExistentialValue)

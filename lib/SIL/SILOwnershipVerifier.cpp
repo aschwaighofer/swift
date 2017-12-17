@@ -485,7 +485,16 @@ CONSTANT_OWNERSHIP_INST(Guaranteed, MustBeLive, OpenExistentialBoxValue)
 CONSTANT_OWNERSHIP_INST(Owned, MustBeInvalidated, AutoreleaseValue)
 CONSTANT_OWNERSHIP_INST(Owned, MustBeInvalidated, DeallocBox)
 CONSTANT_OWNERSHIP_INST(Owned, MustBeInvalidated, DeallocExistentialBox)
-CONSTANT_OWNERSHIP_INST(Owned, MustBeInvalidated, DeallocRef)
+OwnershipUseCheckerResult
+OwnershipCompatibilityUseChecker::visitDeallocRefInst(DeallocRefInst *I) {
+  assert(I->getNumOperands() && "Expected to have non-zero operands");
+  if (isAddressOrTrivialType()) {
+    return {compatibleWithOwnership(ValueOwnershipKind::Trivial),
+            UseLifetimeConstraint::MustBeLive};
+  }
+  return {compatibleWithOwnership(ValueOwnershipKind::Owned),
+    UseLifetimeConstraint::MustBeInvalidated};
+}
 CONSTANT_OWNERSHIP_INST(Owned, MustBeInvalidated, DestroyValue)
 CONSTANT_OWNERSHIP_INST(Owned, MustBeInvalidated, ReleaseValue)
 CONSTANT_OWNERSHIP_INST(Owned, MustBeInvalidated, ReleaseValueAddr)
@@ -1021,6 +1030,9 @@ OwnershipUseCheckerResult OwnershipCompatibilityUseChecker::visitCallee(
     return {compatibleWithOwnership(ValueOwnershipKind::Owned),
             UseLifetimeConstraint::MustBeInvalidated};
   case ParameterConvention::Direct_Guaranteed:
+    if (SubstCalleeType->isNoEscape())
+      return {compatibleWithOwnership(ValueOwnershipKind::Trivial),
+        UseLifetimeConstraint::MustBeLive};
     return {compatibleWithOwnership(ValueOwnershipKind::Guaranteed),
             UseLifetimeConstraint::MustBeLive};
   }
@@ -1073,8 +1085,9 @@ OwnershipUseCheckerResult OwnershipCompatibilityUseChecker::visitApplyParameter(
 OwnershipUseCheckerResult OwnershipCompatibilityUseChecker::
 visitFullApply(FullApplySite apply) {
   // If we are visiting the callee, handle it specially.
-  if (getOperandIndex() == 0)
+  if (getOperandIndex() == 0) {
     return visitCallee(apply.getSubstCalleeType());
+  }
 
   // Indirect return arguments are address types.
   if (isAddressOrTrivialType())

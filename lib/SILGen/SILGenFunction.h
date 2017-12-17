@@ -1749,6 +1749,10 @@ public:
   
   /// Enter a cleanup to emit a ReleaseValue/DestroyAddr of the specified value.
   CleanupHandle enterDestroyCleanup(SILValue valueOrAddr);
+
+  /// Enter a cleanup to emit a dealloc_ref [stack] of the specified
+  /// partial_apply [stack].
+  CleanupHandle enterPartialApplyStackCleanup(SILValue partialApply);
   
   /// Enter a cleanup to emit a DeinitExistentialAddr or DeinitExistentialBox
   /// of the specified value.
