@@ -1808,18 +1808,24 @@ public:
             "Operand of dealloc_stack must be an alloc_stack");
   }
   void checkDeallocRefInst(DeallocRefInst *DI) {
-    if (auto *PA = dyn_cast<PartialApplyInst>(DI->getOperand())) {
-      require(DI->getOperand()->getType().isObject(),
+    auto Opd = DI->getOperand();
+    if (isa<PartialApplyInst>(Opd) || isa<ThinToThickFunctionInst>(Opd)) {
+      require(Opd->getType().isObject(),
               "Operand of dealloc_ref must be object");
-      require(DI->getOperand()->getType().getAs<SILFunctionType>(),
+      require(Opd->getType().getAs<SILFunctionType>(),
               "Operand of dealloc_ref must be of function type");
-      require(PA->canAllocOnStack(), "partial_apply operand  must be [stack]");
+      if (auto *PA = dyn_cast<PartialApplyInst>(Opd))
+        require(PA->canAllocOnStack(), "partial_apply must be [stack]");
+      else {
+        require(cast<ThinToThickFunctionInst>(Opd)->canAllocOnStack(),
+                "thin_to_thick_function must be [stack]");
+      } 
       require(DI->canAllocOnStack(), "dealloc_ref must be [stack]");
       return;
     }
-    require(DI->getOperand()->getType().isObject(),
+    require(Opd->getType().isObject(),
             "Operand of dealloc_ref must be object");
-    require(DI->getOperand()->getType().getClassOrBoundGenericClass(),
+    require(Opd->getType().getClassOrBoundGenericClass(),
             "Operand of dealloc_ref must be of class type");
   }
   void checkDeallocPartialRefInst(DeallocPartialRefInst *DPRI) {

@@ -187,6 +187,16 @@ public:
     return isa<PartialApplyInst>(getClosure());
   }
 
+  bool closureNeedsDeallocRefStack() const {
+    if (auto *PA = dyn_cast<PartialApplyInst>(getClosure()))
+      return PA->canAllocOnStack();
+
+    if (auto *TI = dyn_cast<ThinToThickFunctionInst>(getClosure()))
+      return TI->canAllocOnStack();
+
+    return false;
+  }
+
   unsigned getClosureIndex() const { return ClosureIndex; }
 
   // Get the closure value passed to the apply (on the caller side).
@@ -408,6 +418,7 @@ static void rewriteApplyInst(const CallSiteDescriptor &CSDesc,
     // right after NewAI. This is to balance the +1 from being an @owned
     // argument to AI.
     if (CSDesc.isClosureConsumed() && CSDesc.closureHasRefSemanticContext()) {
+      assert(!CSDesc.closureNeedsDeallocRefStack());
       Builder.setInsertionPoint(TAI->getNormalBB()->begin());
       Builder.createReleaseValue(Closure->getLoc(), Closure, Builder.getDefaultAtomicity());
       Builder.setInsertionPoint(TAI->getErrorBB()->begin());
@@ -423,6 +434,7 @@ static void rewriteApplyInst(const CallSiteDescriptor &CSDesc,
     // right after NewAI. This is to balance the +1 from being an @owned
     // argument to AI.
     if (CSDesc.isClosureConsumed() && CSDesc.closureHasRefSemanticContext())
+      assert(!CSDesc.closureNeedsDeallocRefStack());
       Builder.createReleaseValue(Closure->getLoc(), Closure,
                                  Builder.getDefaultAtomicity());
 
@@ -730,8 +742,10 @@ void ClosureSpecCloner::populateCloned() {
   // Then insert a release in all non failure exit BBs if our partial apply was
   // guaranteed. This is b/c it was passed at +0 originally and we need to
   // balance the initial increment of the newly created closure.
-  if (CallSiteDesc.isClosureGuaranteed() &&
-      CallSiteDesc.closureHasRefSemanticContext()) {
+  bool closureNeedsRelease = (CallSiteDesc.isClosureGuaranteed() &&
+                              CallSiteDesc.closureHasRefSemanticContext());
+  bool closureNeedsDeallocRef = CallSiteDesc.closureNeedsDeallocRefStack();
+  if (closureNeedsRelease || closureNeedsDeallocRef) {
     for (SILBasicBlock *BB : CallSiteDesc.getNonFailureExitBBs()) {
       SILBasicBlock *OpBB = BBMap[BB];
 
@@ -742,8 +756,13 @@ void ClosureSpecCloner::populateCloned() {
       // that it will be executed at the end of the epilogue.
       if (isa<ReturnInst>(TI)) {
         Builder.setInsertionPoint(TI);
-        Builder.createReleaseValue(Loc, SILValue(NewClosure),
-                                   Builder.getDefaultAtomicity());
+        if (closureNeedsRelease)
+          Builder.createReleaseValue(Loc, SILValue(NewClosure),
+                                     Builder.getDefaultAtomicity());
+        else {
+          assert(closureNeedsDeallocRef);
+          Builder.createDeallocRef(Loc, NewClosure, true);
+        }
         continue;
       }
 
@@ -759,7 +778,11 @@ void ClosureSpecCloner::populateCloned() {
       // value, we will retain the partial apply before we release it and
       // potentially eliminate it.
       Builder.setInsertionPoint(NoReturnApply.getInstruction());
-      Builder.createReleaseValue(Loc, SILValue(NewClosure), Builder.getDefaultAtomicity());
+      if (closureNeedsRelease)
+        Builder.createReleaseValue(Loc, SILValue(NewClosure),
+                                   Builder.getDefaultAtomicity());
+      else
+        Builder.createDeallocRef(Loc, NewClosure, true);
     }
   }
 }
