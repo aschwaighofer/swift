@@ -161,7 +161,7 @@ static SILInstruction *createDealloc(SingleValueInstruction *Alloc,
       assert(cast<AllocRefInst>(Alloc)->canAllocOnStack());
       return B.createDeallocRef(Location, Alloc, /*canBeOnStack*/true);
     case SILInstructionKind::PartialApplyInst:
-      assert(cast<PartialApplyInst>(Alloc)->isNoEscape());
+      assert(cast<PartialApplyInst>(Alloc)->canAllocOnStack());
       return B.createDeallocRef(Location, Alloc, /*canBeOnStack*/true);
     default:
       llvm_unreachable("unknown stack allocation");
