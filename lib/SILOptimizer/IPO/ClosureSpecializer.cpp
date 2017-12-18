@@ -69,6 +69,7 @@
 #include "swift/SILOptimizer/PassManager/Transforms.h"
 #include "swift/SILOptimizer/Utils/SILInliner.h"
 #include "swift/SILOptimizer/Utils/SpecializationMangler.h"
+#include "swift/SILOptimizer/Utils/StackNesting.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/CommandLine.h"
@@ -742,10 +743,11 @@ void ClosureSpecCloner::populateCloned() {
   // Then insert a release in all non failure exit BBs if our partial apply was
   // guaranteed. This is b/c it was passed at +0 originally and we need to
   // balance the initial increment of the newly created closure.
-  bool closureNeedsRelease = (CallSiteDesc.isClosureGuaranteed() &&
+  bool ClosureNeedsRelease = (CallSiteDesc.isClosureGuaranteed() &&
                               CallSiteDesc.closureHasRefSemanticContext());
-  bool closureNeedsDeallocRef = CallSiteDesc.closureNeedsDeallocRefStack();
-  if (closureNeedsRelease || closureNeedsDeallocRef) {
+  bool ClosureNeedsDeallocRef = CallSiteDesc.closureNeedsDeallocRefStack();
+  bool EmittedDeallocRefStack = false;
+  if (ClosureNeedsRelease || ClosureNeedsDeallocRef) {
     for (SILBasicBlock *BB : CallSiteDesc.getNonFailureExitBBs()) {
       SILBasicBlock *OpBB = BBMap[BB];
 
@@ -756,12 +758,13 @@ void ClosureSpecCloner::populateCloned() {
       // that it will be executed at the end of the epilogue.
       if (isa<ReturnInst>(TI)) {
         Builder.setInsertionPoint(TI);
-        if (closureNeedsRelease)
+        if (ClosureNeedsRelease)
           Builder.createReleaseValue(Loc, SILValue(NewClosure),
                                      Builder.getDefaultAtomicity());
         else {
-          assert(closureNeedsDeallocRef);
-          Builder.createDeallocRef(Loc, NewClosure, true);
+          assert(ClosureNeedsDeallocRef);
+          Builder.createDeallocRef(Loc, NewClosure, /*[stack]*/true);
+          EmittedDeallocRefStack = true;
         }
         continue;
       }
@@ -778,12 +781,20 @@ void ClosureSpecCloner::populateCloned() {
       // value, we will retain the partial apply before we release it and
       // potentially eliminate it.
       Builder.setInsertionPoint(NoReturnApply.getInstruction());
-      if (closureNeedsRelease)
+      if (ClosureNeedsRelease)
         Builder.createReleaseValue(Loc, SILValue(NewClosure),
                                    Builder.getDefaultAtomicity());
-      else
+      else {
         Builder.createDeallocRef(Loc, NewClosure, true);
+        EmittedDeallocRefStack = true;
+      }
     }
+  }
+
+  // Fix the nesting of the dealloc_ref [stack].
+  if (EmittedDeallocRefStack) {
+    StackNesting SN;
+    SN.correctStackNesting(Cloned);
   }
 }
 
@@ -976,8 +987,12 @@ void SILClosureSpecializerTransform::gatherCallSites(
         // However, thin_to_thick_function closures don't have a context and
         // don't need to be released.
         llvm::TinyPtrVector<SILBasicBlock *> NonFailureExitBBs;
-        if (ClosureParamInfo.isGuaranteed() &&
-            !isa<ThinToThickFunctionInst>(ClosureInst) &&
+        bool needsBalanceForGuaranteedClosure =
+            (ClosureParamInfo.isGuaranteed() &&
+             !isa<ThinToThickFunctionInst>(ClosureInst));
+        bool needToEmitDeallocRefStack =
+            ClosureInst->getType().castTo<SILFunctionType>()->isNoEscape();
+        if ((needsBalanceForGuaranteedClosure || needToEmitDeallocRefStack) &&
             !findAllNonFailureExitBBs(ApplyCallee, NonFailureExitBBs)) {
           continue;
         }
