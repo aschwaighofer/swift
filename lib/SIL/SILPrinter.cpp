@@ -1431,7 +1431,13 @@ public:
     printUncheckedConversionInst(CI, CI->getOperand());
   }
   void visitThinFunctionToPointerInst(ThinFunctionToPointerInst *CI) {
-    printUncheckedConversionInst(CI, CI->getOperand());
+    printUncheckedConversionInst(CI,CI->getOperand());
+  }
+  void visitThinToThickFunctionInst(ThinToThickFunctionInst *CI) {
+    if (CI->canAllocOnStack())
+      *this << "[stack] ";
+    *this << getIDAndType(CI->getOperand()) << " ";
+    *this << "to " << CI->getType();
   }
   void visitPointerToThinFunctionInst(PointerToThinFunctionInst *CI) {
     printUncheckedConversionInst(CI, CI->getOperand());
@@ -1483,9 +1489,6 @@ public:
     printUncheckedConversionInst(CI, CI->getOperand());
   }
   void visitUnmanagedToRefInst(UnmanagedToRefInst *CI) {
-    printUncheckedConversionInst(CI, CI->getOperand());
-  }
-  void visitThinToThickFunctionInst(ThinToThickFunctionInst *CI) {
     printUncheckedConversionInst(CI, CI->getOperand());
   }
   void visitThickToObjCMetatypeInst(ThickToObjCMetatypeInst *CI) {

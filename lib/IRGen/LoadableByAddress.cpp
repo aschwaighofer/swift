@@ -2429,7 +2429,8 @@ void LoadableByAddress::recreateConvInstrs() {
     case SILInstructionKind::ThinToThickFunctionInst: {
       auto instr = cast<ThinToThickFunctionInst>(convInstr);
       newInstr = convBuilder.createThinToThickFunction(
-          instr->getLoc(), instr->getOperand(), newType);
+          instr->getLoc(), instr->getOperand(), newType,
+          instr->canAllocOnStack());
       break;
     }
     case SILInstructionKind::ThinFunctionToPointerInst: {

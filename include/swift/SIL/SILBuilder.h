@@ -890,9 +890,11 @@ public:
   }
 
   ThinToThickFunctionInst *createThinToThickFunction(SILLocation Loc,
-                                                     SILValue Op, SILType Ty) {
-    return insert(ThinToThickFunctionInst::create(getSILDebugLocation(Loc), Op,
-                                         Ty, getFunction(), OpenedArchetypes));
+                                                     SILValue Op, SILType Ty,
+                                                     bool canBeOnStack) {
+    return insert(ThinToThickFunctionInst::create(
+        getSILDebugLocation(Loc), Op, Ty, getFunction(), OpenedArchetypes,
+        canBeOnStack));
   }
 
   ThickToObjCMetatypeInst *createThickToObjCMetatype(SILLocation Loc,

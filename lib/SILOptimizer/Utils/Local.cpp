@@ -893,6 +893,8 @@ static bool useDoesNotKeepClosureAlive(const SILInstruction *I) {
   case SILInstructionKind::ReleaseValueInst:
   case SILInstructionKind::DebugValueInst:
     return true;
+  case SILInstructionKind::DeallocRefInst:
+    return cast<DeallocRefInst>(I)->canAllocOnStack();
   default:
     return false;
   }

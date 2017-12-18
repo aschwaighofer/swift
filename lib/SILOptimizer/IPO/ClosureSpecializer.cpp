@@ -210,8 +210,9 @@ public:
 
     assert(isa<ThinToThickFunctionInst>(getClosure()) &&
            "We only support partial_apply and thin_to_thick_function");
-    return B.createThinToThickFunction(getClosure()->getLoc(), V,
-                                       getClosure()->getType());
+    return B.createThinToThickFunction(
+        getClosure()->getLoc(), V, getClosure()->getType(),
+        cast<ThinToThickFunctionInst>(getClosure())->canAllocOnStack());
   }
 
   FullApplySite getApplyInst() const { return AI; }

@@ -927,7 +927,6 @@ bool SILDeserializer::readSILInstruction(SILFunction *Fn, SILBasicBlock *BB,
   ONEOPERAND_ONETYPE_INST(UnownedToRef)
   ONEOPERAND_ONETYPE_INST(RefToUnmanaged)
   ONEOPERAND_ONETYPE_INST(UnmanagedToRef)
-  ONEOPERAND_ONETYPE_INST(ThinToThickFunction)
   ONEOPERAND_ONETYPE_INST(ThickToObjCMetatype)
   ONEOPERAND_ONETYPE_INST(ObjCToThickMetatype)
   ONEOPERAND_ONETYPE_INST(ObjCMetatypeToObject)
@@ -937,6 +936,18 @@ bool SILDeserializer::readSILInstruction(SILFunction *Fn, SILBasicBlock *BB,
   ONEOPERAND_ONETYPE_INST(PointerToThinFunction)
   ONEOPERAND_ONETYPE_INST(ProjectBlockStorage)
 #undef ONEOPERAND_ONETYPE_INST
+  case SILInstructionKind::ThinToThickFunctionInst: {
+    assert(RecordKind == SIL_ONE_TYPE_ONE_OPERAND &&
+           "Layout should be OneTypeOneOperand.");
+    assert((Attr == 0 || Attr == 1) &&
+           "Expecting true or false for canAllocOnStack");
+    ResultVal = Builder.createThinToThickFunction(
+        Loc,
+        getLocalValue(ValID, getSILType(MF->getType(TyID2),
+                                        (SILValueCategory)TyCategory2)),
+        getSILType(MF->getType(TyID), (SILValueCategory)TyCategory), Attr == 1);
+    break;
+  }
 
   case SILInstructionKind::ProjectBoxInst: {
     assert(RecordKind == SIL_ONE_TYPE_ONE_OPERAND &&

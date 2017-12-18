@@ -1335,7 +1335,6 @@ void SILSerializer::writeSILInstruction(const SILInstruction &SI) {
   case SILInstructionKind::UnownedToRefInst:
   case SILInstructionKind::RefToUnmanagedInst:
   case SILInstructionKind::UnmanagedToRefInst:
-  case SILInstructionKind::ThinToThickFunctionInst:
   case SILInstructionKind::ThickToObjCMetatypeInst:
   case SILInstructionKind::ObjCToThickMetatypeInst:
   case SILInstructionKind::ConvertFunctionInst:
@@ -1345,6 +1344,13 @@ void SILSerializer::writeSILInstruction(const SILInstruction &SI) {
   case SILInstructionKind::ObjCExistentialMetatypeToObjectInst:
   case SILInstructionKind::ProjectBlockStorageInst: {
     writeConversionLikeInstruction(cast<SingleValueInstruction>(&SI));
+    break;
+  }
+  case SILInstructionKind::ThinToThickFunctionInst: {
+    auto &TI = cast<ThinToThickFunctionInst>(SI);
+    assert(TI.getNumOperands() - TI.getTypeDependentOperands().size() == 1);
+    writeOneTypeOneOperandLayout(TI.getKind(), TI.canAllocOnStack() ? 1 : 0,
+                                 TI.getType(), TI.getOperand());
     break;
   }
   case SILInstructionKind::PointerToAddressInst: {

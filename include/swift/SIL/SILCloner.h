@@ -1190,10 +1190,10 @@ void
 SILCloner<ImplClass>::
 visitThinToThickFunctionInst(ThinToThickFunctionInst *Inst) {
   getBuilder().setCurrentDebugScope(getOpScope(Inst->getDebugScope()));
-  doPostProcess(Inst,
-    getBuilder().createThinToThickFunction(getOpLocation(Inst->getLoc()),
-                                           getOpValue(Inst->getOperand()),
-                                           getOpType(Inst->getType())));
+  doPostProcess(Inst, getBuilder().createThinToThickFunction(
+                          getOpLocation(Inst->getLoc()),
+                          getOpValue(Inst->getOperand()),
+                          getOpType(Inst->getType()), Inst->canAllocOnStack()));
 }
 
 template<typename ImplClass>

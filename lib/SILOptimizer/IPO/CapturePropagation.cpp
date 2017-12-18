@@ -288,8 +288,9 @@ void CapturePropagation::rewritePartialApply(PartialApplyInst *OrigPAI,
 
   SILBuilderWithScope Builder(OrigPAI);
   auto FuncRef = Builder.createFunctionRef(OrigPAI->getLoc(), SpecialF);
-  auto *T2TF = Builder.createThinToThickFunction(OrigPAI->getLoc(), FuncRef,
-                                                 OrigPAI->getType());
+  auto *T2TF = Builder.createThinToThickFunction(
+      OrigPAI->getLoc(), FuncRef, OrigPAI->getType(),
+      OrigPAI->getType().castTo<SILFunctionType>()->isNoEscape());
   OrigPAI->replaceAllUsesWith(T2TF);
   recursivelyDeleteTriviallyDeadInstructions(OrigPAI, true);
   DEBUG(llvm::dbgs() << "  Rewrote caller:\n" << *T2TF);

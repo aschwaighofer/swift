@@ -2848,6 +2848,10 @@ bool SILParser::parseSILInstruction(SILBuilder &B) {
     SILType Ty;
     Identifier ToToken;
     SourceLoc ToLoc;
+    bool canBeOnStack = false;
+    if (Opcode == SILInstructionKind::ThinToThickFunctionInst)
+      if (parseSILOptional(canBeOnStack, *this, "stack"))
+        return true;
     if (parseTypedValueRef(Val, B) ||
         parseSILIdentifier(ToToken, ToLoc,
                            diag::expected_tok_in_sil_instr, "to") ||
@@ -2908,13 +2912,14 @@ bool SILParser::parseSILInstruction(SILBuilder &B) {
       ResultVal = B.createUnmanagedToRef(InstLoc, Val, Ty);
       break;
     case SILInstructionKind::ThinFunctionToPointerInst:
-      ResultVal = B.createThinFunctionToPointer(InstLoc, Val, Ty);
+      ResultVal =
+          B.createThinFunctionToPointer(InstLoc, Val, Ty);
       break;
     case SILInstructionKind::PointerToThinFunctionInst:
       ResultVal = B.createPointerToThinFunction(InstLoc, Val, Ty);
       break;
     case SILInstructionKind::ThinToThickFunctionInst:
-      ResultVal = B.createThinToThickFunction(InstLoc, Val, Ty);
+      ResultVal = B.createThinToThickFunction(InstLoc, Val, Ty, canBeOnStack);
       break;
     case SILInstructionKind::ThickToObjCMetatypeInst:
       ResultVal = B.createThickToObjCMetatype(InstLoc, Val, Ty);

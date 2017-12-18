@@ -1100,6 +1100,9 @@ bool SILInstruction::isAllocatingStack() const {
   if (auto *PAI = dyn_cast<PartialApplyInst>(this))
     return PAI->canAllocOnStack();
 
+  if (auto *TI = dyn_cast<ThinToThickFunctionInst>(this))
+    return TI->canAllocOnStack();
+
   return false;
 }
 

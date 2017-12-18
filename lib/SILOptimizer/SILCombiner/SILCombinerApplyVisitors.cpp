@@ -58,6 +58,11 @@ static bool foldInverseReabstractionThunks(PartialApplyInst *PAI,
   if (PAI->getType() != PAI2->getArgument(0)->getType())
     return false;
 
+  // Don't remove @noescape'ness.
+  if (PAI->getType().castTo<SILFunctionType>()->isNoEscape() !=
+      PAI2->getType().castTo<SILFunctionType>()->isNoEscape())
+    return false;
+
   // Replace the partial_apply(partial_apply(X)) by X and remove the
   // partial_applies.
 
@@ -72,9 +77,10 @@ static bool foldInverseReabstractionThunks(PartialApplyInst *PAI,
 SILInstruction *SILCombiner::visitPartialApplyInst(PartialApplyInst *PAI) {
   // partial_apply without any substitutions or arguments is just a
   // thin_to_thick_function.
+  auto isNoEscape = PAI->getType().castTo<SILFunctionType>()->isNoEscape();
   if (!PAI->hasSubstitutions() && (PAI->getNumArguments() == 0))
     return Builder.createThinToThickFunction(PAI->getLoc(), PAI->getCallee(),
-                                             PAI->getType());
+                                             PAI->getType(), isNoEscape);
 
   // partial_apply %reabstraction_thunk_typeAtoB(
   //    partial_apply %reabstraction_thunk_typeBtoA %closure_typeB))

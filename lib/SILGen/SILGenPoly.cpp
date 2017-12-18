@@ -3268,7 +3268,7 @@ ManagedValue Transform::transformFunction(ManagedValue fn,
            "FunctionConversionExpr");
     SILType resTy = SILType::getPrimitiveObjectType(expectedFnType);
     fn = SGF.emitManagedRValueWithCleanup(
-        SGF.B.createThinToThickFunction(Loc, fn.forward(SGF), resTy));
+        SGF.B.createThinToThickFunction(Loc, fn.forward(SGF), resTy, false));
   }
 
   return fn;

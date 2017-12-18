@@ -2074,10 +2074,9 @@ UpcastInst *UpcastInst::create(SILDebugLocation DebugLoc, SILValue Operand,
                                    TypeDependentOperands, Ty);
 }
 
-ThinToThickFunctionInst *
-ThinToThickFunctionInst::create(SILDebugLocation DebugLoc, SILValue Operand,
-                                SILType Ty, SILFunction &F,
-                                SILOpenedArchetypesState &OpenedArchetypes) {
+ThinToThickFunctionInst *ThinToThickFunctionInst::create(
+    SILDebugLocation DebugLoc, SILValue Operand, SILType Ty, SILFunction &F,
+    SILOpenedArchetypesState &OpenedArchetypes, bool canBeOnStack) {
   SILModule &Mod = F.getModule();
   SmallVector<SILValue, 8> TypeDependentOperands;
   collectTypeDependentOperands(TypeDependentOperands, OpenedArchetypes, F,
@@ -2085,8 +2084,8 @@ ThinToThickFunctionInst::create(SILDebugLocation DebugLoc, SILValue Operand,
   unsigned size =
     totalSizeToAlloc<swift::Operand>(1 + TypeDependentOperands.size());
   void *Buffer = Mod.allocateInst(size, alignof(ThinToThickFunctionInst));
-  return ::new (Buffer) ThinToThickFunctionInst(DebugLoc, Operand,
-                                                TypeDependentOperands, Ty);
+  return ::new (Buffer) ThinToThickFunctionInst(
+      DebugLoc, Operand, TypeDependentOperands, Ty, canBeOnStack);
 }
 
 PointerToThinFunctionInst *

@@ -1907,7 +1907,11 @@ static ManagedValue convertFunctionRepresentation(SILGenFunction &SGF,
       auto v = SGF.B.createThinToThickFunction(
           loc, source.getValue(),
           SILType::getPrimitiveObjectType(adjustFunctionType(
-              sourceTy, SILFunctionType::Representation::Thick)));
+              sourceTy, SILFunctionType::Representation::Thick)),
+          resultFormalTy->isNoEscape());
+      if (resultFormalTy->isNoEscape()) {
+        SGF.enterPartialApplyStackCleanup(v);
+      }
       // FIXME: what if other reabstraction is required?
       return ManagedValue(v, source.getCleanup());
     }
@@ -1934,7 +1938,8 @@ static ManagedValue convertFunctionRepresentation(SILGenFunction &SGF,
       auto v = SGF.B.createThinToThickFunction(
           loc, source.getValue(),
           SILType::getPrimitiveObjectType(adjustFunctionType(
-              sourceTy, SILFunctionType::Representation::Thick)));
+              sourceTy, SILFunctionType::Representation::Thick)),
+          false);
       source = ManagedValue(v, source.getCleanup());
       LLVM_FALLTHROUGH;
     }

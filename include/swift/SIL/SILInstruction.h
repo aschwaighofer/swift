@@ -4212,17 +4212,21 @@ class UnmanagedToRefInst
 class ThinToThickFunctionInst final
     : public UnaryInstructionWithTypeDependentOperandsBase<
           SILInstructionKind::ThinToThickFunctionInst, ThinToThickFunctionInst,
-          ConversionInst> {
+          ConversionInst>,
+      public StackPromotable {
   friend SILBuilder;
 
   ThinToThickFunctionInst(SILDebugLocation DebugLoc, SILValue Operand,
-                          ArrayRef<SILValue> TypeDependentOperands, SILType Ty)
+                          ArrayRef<SILValue> TypeDependentOperands, SILType Ty,
+                          bool canBeOnStack)
       : UnaryInstructionWithTypeDependentOperandsBase(
-            DebugLoc, Operand, TypeDependentOperands, Ty) {}
+            DebugLoc, Operand, TypeDependentOperands, Ty),
+        StackPromotable(canBeOnStack) {}
 
   static ThinToThickFunctionInst *
   create(SILDebugLocation DebugLoc, SILValue Operand, SILType Ty,
-         SILFunction &F, SILOpenedArchetypesState &OpenedArchetypes);
+         SILFunction &F, SILOpenedArchetypesState &OpenedArchetypes,
+         bool canBeOnStack);
 
 public:
   /// Return the callee of the thin_to_thick_function.
