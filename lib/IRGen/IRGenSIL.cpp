@@ -2034,7 +2034,7 @@ Callee LoweredValue::getCallee(IRGenFunction &IGF,
     case SILFunctionType::Representation::Closure:
     case SILFunctionType::Representation::Method:
       return getSwiftFunctionPointerCallee(IGF, functionValue, selfValue,
-                                           std::move(calleeInfo));
+                                           std::move(calleeInfo), false);
 
     case SILFunctionType::Representation::CFunctionPointer:
       assert(!selfValue && "C function pointer has self?");
@@ -2053,8 +2053,10 @@ Callee LoweredValue::getCallee(IRGenFunction &IGF,
     assert(vector.size() == 2 && "thick function pointer with size != 2");
     llvm::Value *functionValue = vector[0];
     llvm::Value *contextValue = vector[1];
+    bool castToRefcountedContext = calleeInfo.OrigFnType->isNoEscape();
     return getSwiftFunctionPointerCallee(IGF, functionValue, contextValue,
-                                         std::move(calleeInfo));
+                                         std::move(calleeInfo),
+                                         castToRefcountedContext);
   }
 
   case LoweredValue::Kind::EmptyExplosion:
@@ -3818,15 +3820,21 @@ void IRGenSILFunction::visitDeallocStackInst(swift::DeallocStackInst *i) {
 }
 
 void IRGenSILFunction::visitDeallocRefInst(swift::DeallocRefInst *i) {
-  // dealloc_ref [stack] with a thick function operand releases the closure for
-  // now.
-  if (auto *PAI = dyn_cast<PartialApplyInst>(i->getOperand())) {
-    assert(i->canAllocOnStack() && PAI->canAllocOnStack() &&
-           PAI->getType().getAs<SILFunctionType>()->isNoEscape());
+  // dealloc_ref [stack] with a thick [stack] function operand destroys the
+  // closure context.
+  auto *PAI = dyn_cast<PartialApplyInst>(i->getOperand());
+  auto *TTTFI = dyn_cast<ThinToThickFunctionInst>(i->getOperand());
+  if (PAI || TTTFI) {
+    auto opdTy = PAI ? PAI->getType() : TTTFI->getType();
+    auto opdOnStack = PAI ? PAI->canAllocOnStack() : TTTFI->canAllocOnStack();
+    assert(i->canAllocOnStack() && opdOnStack &&
+           opdTy.getAs<SILFunctionType>()->isNoEscape());
+    (void)opdOnStack;
     Explosion self = getLoweredExplosion(i->getOperand());
-    destroyPartialApplyStack(*this, self, PAI->getType());
+    destroyPartialApplyStack(*this, self, opdTy);
     return;
   }
+
   // Lower the operand.
   Explosion self = getLoweredExplosion(i->getOperand());
   auto selfValue = self.claimNext();
