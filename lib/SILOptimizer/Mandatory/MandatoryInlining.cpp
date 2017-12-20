@@ -345,6 +345,7 @@ static SILFunction *getCalleeFunction(
   // one "thin to thick function" instructions, since those are the patterns
   // generated when using auto closures.
   if (auto *PAI = dyn_cast<PartialApplyInst>(CalleeValue)) {
+    return nullptr;
 
     // Collect the applied arguments and their convention.
     collectPartiallyAppliedArguments(PAI, CaptureArgs, FullArgs);
@@ -353,6 +354,7 @@ static SILFunction *getCalleeFunction(
     IsThick = true;
     PartialApply = PAI;
   } else if (auto *TTTFI = dyn_cast<ThinToThickFunctionInst>(CalleeValue)) {
+    return nullptr;
     CalleeValue = TTTFI->getOperand();
     IsThick = true;
   }
