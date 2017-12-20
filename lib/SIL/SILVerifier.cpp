@@ -1056,10 +1056,80 @@ public:
           return clas->hasKnownSwiftImplementation();
         return false;
       };
-      
+
       // The context argument must be a swift-refcounted box or class.
       require(isSwiftRefcounted(PAI->getArguments().front()->getType()),
               "partial_apply context argument must be swift-refcounted");
+    }
+    // Verify that no dealloc_ref [stack] is executed before a use.
+    if (PAI->canAllocOnStack()) {
+      llvm::SmallSetVector<SILBasicBlock *, 16> DeadAt;
+      llvm::SmallSetVector<SILInstruction *, 16> Uses;
+
+      // Collect uses and kills.
+      for (auto *Use : PAI->getUses()) {
+        auto *UserInst = Use->getUser();
+        if (auto *DRI = dyn_cast<DeallocRefInst>(UserInst))
+          DeadAt.insert(DRI->getParent());
+        else
+          Uses.insert(UserInst);
+      }
+
+      auto isUseBeforeDealloc = [&](const SILInstruction *ScanStartInst,
+                                    const SILInstruction *UserInst) {
+        auto InstIter = ScanStartInst->getIterator();
+        while (++InstIter != ScanStartInst->getParent()->end()) {
+          auto *CurInst = &*InstIter;
+          if (CurInst == UserInst)
+            break;
+          if (isa<DeallocRefInst>(CurInst))
+            return false;
+        }
+        return true;
+      };
+
+      for (auto *UserInst : Uses) {
+        auto *UserBB = UserInst->getParent();
+        llvm::SmallSetVector<SILBasicBlock *, 32> Visited;
+        SmallVector<SILBasicBlock *, 32> Worklist;
+        Worklist.push_back(UserBB);
+
+        while (Worklist.empty() == false) {
+          auto *CurBlock = Worklist.pop_back_val();
+          Visited.insert(CurBlock);
+          // We found the partial_apply [stack].
+          if (PAI->getParent() == CurBlock) {
+            if (DeadAt.count(UserBB)) {
+              // Verify that the use is before any dealloc_ref.
+              require(isUseBeforeDealloc(PAI, UserInst),
+                      "use of partial_apply [stack] after dealloc_ref [stack]");
+            }
+            // Stop searching backwards.
+            continue;
+          }
+
+          // dealloc_ref [stack] in the same block as use.
+          if (DeadAt.count(CurBlock) && CurBlock == UserBB) {
+            require(isUseBeforeDealloc(&*CurBlock->begin(), UserInst),
+                    "use of partial_apply [stack] after dealloc_ref [stack]");
+          } else if (DeadAt.count(CurBlock)) { // Found a dealloc_ref [stack]
+                                               // before the use.
+            require(false,
+                    "use of partial_apply [stack] after dealloc_ref [stack]");
+          }
+
+          // Check predecessors blocks.
+          for (SILBasicBlock *PredBB : CurBlock->getPredecessorBlocks()) {
+            if (!Visited.count(PredBB)) {
+              Worklist.push_back(PredBB);
+            } else {
+              // Make sure we don't reach a dead block via a cycle.
+              require(!DeadAt.count(PredBB),
+                      "use of partial_apply [stack] after dealloc_ref [stack]");
+            }
+          }
+        }
+      }
     }
   }
 
