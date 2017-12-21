@@ -1195,6 +1195,11 @@ public:
   ManagedValue emitManagedRValueWithCleanup(SILValue v,
                                             const TypeLowering &lowering);
 
+  ManagedValue emitManagedRValueWithPartialApplyStackCleanup(SILValue v);
+  ManagedValue
+  emitManagedRValueWithPartialApplyStackCleanup(SILValue v,
+                                                const TypeLowering &lowering);
+
   ManagedValue emitManagedBufferWithCleanup(SILValue addr);
   ManagedValue emitManagedBufferWithCleanup(SILValue addr,
                                             const TypeLowering &lowering);
