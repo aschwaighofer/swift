@@ -2955,10 +2955,8 @@ static ManagedValue createThunk(SILGenFunction &SGF,
                              subs, fn.ensurePlusOne(SGF, loc).forward(SGF),
                              SILType::getPrimitiveObjectType(expectedType),
                              expectedType->isNoEscape());
-  if (expectedType->isNoEscape()) {
-    return SGF.emitManagedRValueWithPartialApplyStackCleanup(thunkValue,
-                                                             expectedTL);
-  }
+  if (expectedType->isNoEscape())
+    SGF.enterPartialApplyStackCleanup(thunkedFn);
 
   return SGF.emitManagedRValueWithCleanup(thunkedFn, expectedTL);
 }
@@ -3191,7 +3189,9 @@ SILGenFunction::createNoEscapingClosure(SILLocation loc,
       escapingFunctionValue.ensurePlusOne(*this, loc).forward(*this),
       SILType::getPrimitiveObjectType(noEscapingFnTy), true);
 
-  return emitManagedRValueWithPartialApplyStackCleanup(thunkedFn);
+  enterPartialApplyStackCleanup(thunkedFn);
+
+  return emitManagedRValueWithCleanup(thunkedFn);
 }
 
 ManagedValue Transform::transformFunction(ManagedValue fn,

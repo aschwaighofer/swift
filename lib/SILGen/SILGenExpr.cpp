@@ -328,20 +328,6 @@ ManagedValue SILGenFunction::emitManagedBorrowedRValueWithCleanup(
   return ManagedValue(borrowed, CleanupHandle::invalid());
 }
 
-ManagedValue
-SILGenFunction::emitManagedRValueWithPartialApplyStackCleanup(SILValue v) {
-  auto &lowering = getTypeLowering(v->getType());
-  return emitManagedRValueWithPartialApplyStackCleanup(v, lowering);
-}
-
-ManagedValue SILGenFunction::emitManagedRValueWithPartialApplyStackCleanup(
-    SILValue v, const TypeLowering &lowering) {
-  assert(lowering.getLoweredType().getObjectType() ==
-             v->getType().getObjectType() &&
-         lowering.isTrivial());
-  return ManagedValue(v, enterPartialApplyStackCleanup(v));
-}
-
 ManagedValue SILGenFunction::emitManagedRValueWithCleanup(SILValue v) {
   auto &lowering = getTypeLowering(v->getType());
   return emitManagedRValueWithCleanup(v, lowering);
@@ -1924,8 +1910,7 @@ static ManagedValue convertFunctionRepresentation(SILGenFunction &SGF,
               sourceTy, SILFunctionType::Representation::Thick)),
           resultFormalTy->isNoEscape());
       if (resultFormalTy->isNoEscape()) {
-        assert(false);
-        return SGF.emitManagedRValueWithPartialApplyStackCleanup(v);
+        SGF.enterPartialApplyStackCleanup(v);
       }
       // FIXME: what if other reabstraction is required?
       return ManagedValue(v, source.getCleanup());
