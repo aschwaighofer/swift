@@ -3001,6 +3001,9 @@ private:
   ManagedValue emitConvertedArgument(ArgumentSource &&arg,
                                      Conversion conversion,
                                      SGFContext C) {
+    // Forward partial apply destroy cleanups to enclosing scope.
+    PostponePartialApplyCleanup postpone(SGF);
+
     auto loc = arg.getLocation();
     Scope scope(SGF, loc);
 

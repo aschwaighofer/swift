@@ -26,6 +26,7 @@
 #include "swift/SIL/PrettyStackTrace.h"
 #include "swift/SIL/SILArgument.h"
 #include "swift/SIL/SILDebuggerClient.h"
+#include "swift/SIL/SILInstruction.h"
 #include "swift/SIL/SILType.h"
 #include "swift/SIL/TypeLowering.h"
 #include "llvm/ADT/SmallString.h"
@@ -370,6 +371,25 @@ public:
   }
 };
 } // end anonymous namespace
+
+PostponePartialApplyCleanup::PostponePartialApplyCleanup(SILGenFunction &sgf)
+    : SGF(sgf) {
+  previouslyActiveCleanup = SGF.currentlyActivePostponerForPartialApplyCleanup;
+  SGF.currentlyActivePostponerForPartialApplyCleanup = this;
+}
+
+void PostponePartialApplyCleanup::postponeCleanup(
+    SingleValueInstruction *forClosure) {
+  deferredCleanups.push_back(forClosure);
+}
+
+void PostponePartialApplyCleanup::transferCleanups() {
+  for (auto *closure: deferredCleanups) {
+    SGF.Cleanups.pushCleanup<PartialApplyStackCleanup>(SILValue(closure));
+  }
+
+  SGF.currentlyActivePostponerForPartialApplyCleanup = previouslyActiveCleanup;
+}
 
 namespace {
 /// An initialization of a local 'var'.
@@ -1291,10 +1311,16 @@ CleanupHandle SILGenFunction::enterDestroyCleanup(SILValue valueOrAddr) {
   return Cleanups.getTopCleanup();
 }
 
-CleanupHandle SILGenFunction::enterPartialApplyStackCleanup(SILValue closure) {
+void SILGenFunction::enterPartialApplyStackCleanup(
+    SingleValueInstruction *closure) {
   assert(cast<PartialApplyInst>(closure)->canAllocOnStack());
-  Cleanups.pushCleanup<PartialApplyStackCleanup>(closure);
-  return Cleanups.getTopCleanup();
+  // If an postpone point is active apply the cleanup to the postpone point.
+  if (currentlyActivePostponerForPartialApplyCleanup) {
+    currentlyActivePostponerForPartialApplyCleanup->postponeCleanup(closure);
+    return;
+  }
+
+  Cleanups.pushCleanup<PartialApplyStackCleanup>(SILValue(closure));
 }
 
 namespace {

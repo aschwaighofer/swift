@@ -26,6 +26,7 @@ namespace swift {
 class SILBasicBlock;
 class SILFunction;
 class SILValue;
+class SingleValueInstruction;
 
 namespace Lowering {
 
@@ -254,6 +255,21 @@ public:
   CleanupCloner(SILGenBuilder &builder, const RValue &rv);
 
   ManagedValue clone(SILValue value) const;
+};
+
+/// Intercept partial apply destroy cleanups and apply them at the end of the
+/// lifetime of this RAII object.
+class PostponePartialApplyCleanup {
+  SILGenFunction &SGF;
+  PostponePartialApplyCleanup *previouslyActiveCleanup = nullptr;
+  SmallVector<SingleValueInstruction *, 16> deferredCleanups;
+
+  void transferCleanups();
+public:
+  PostponePartialApplyCleanup(SILGenFunction &SGF);
+  ~PostponePartialApplyCleanup() { transferCleanups(); }
+
+  void postponeCleanup(SingleValueInstruction *forClosure);
 };
 
 } // end namespace Lowering

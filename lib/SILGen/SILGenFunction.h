@@ -243,6 +243,10 @@ public:
   /// \brief This records information about the currently active cleanups.
   CleanupManager Cleanups;
 
+  /// Currently active postponed PartialApplyCleanup.
+  PostponePartialApplyCleanup *currentlyActivePostponerForPartialApplyCleanup =
+      nullptr;
+
   /// \brief The current context where formal evaluation cleanups are managed.
   FormalEvaluationContext FormalEvalContext;
 
@@ -1752,8 +1756,8 @@ public:
 
   /// Enter a cleanup to emit a dealloc_ref [stack] of the specified
   /// partial_apply [stack].
-  CleanupHandle enterPartialApplyStackCleanup(SILValue partialApply);
-  
+  void enterPartialApplyStackCleanup(SingleValueInstruction *partialApply);
+
   /// Enter a cleanup to emit a DeinitExistentialAddr or DeinitExistentialBox
   /// of the specified value.
   CleanupHandle enterDeinitExistentialCleanup(SILValue valueOrAddr,
