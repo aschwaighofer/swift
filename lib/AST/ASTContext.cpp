@@ -3941,6 +3941,10 @@ SILFunctionType::SILFunctionType(GenericSignature *genericSig, ExtInfo ext,
              && "interface type of result should not contain error types");
       assert(!result.getType()->hasArchetype()
              && "interface type of result should not contain context archetypes");
+      if (auto *FnType = result.getType()->getAs<SILFunctionType>()) {
+        assert(FnType->isNoEscape() &&
+               "Cannot return an @noescape function type");
+      }
     }
     for (auto yield : getYields()) {
       (void)yield;
