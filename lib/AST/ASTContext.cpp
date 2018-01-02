@@ -3959,7 +3959,7 @@ SILFunctionType::SILFunctionType(GenericSignature *genericSig, ExtInfo ext,
   for (auto result : getResults()) {
     (void)result;
     if (auto *FnType = result.getType()->getAs<SILFunctionType>()) {
-      assert(FnType->isNoEscape() &&
+      assert(!FnType->isNoEscape() &&
              "Cannot return an @noescape function type");
     }
   }
