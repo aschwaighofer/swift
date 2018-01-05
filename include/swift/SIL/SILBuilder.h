@@ -789,6 +789,12 @@ public:
                                               getFunction(), OpenedArchetypes));
   }
 
+  ConvertFunctionToTrivialInst *
+  createConvertFunctionToTrivial(SILLocation Loc, SILValue Op, SILType Ty) {
+    return insert(ConvertFunctionToTrivialInst::create(
+        getSILDebugLocation(Loc), Op, Ty, getFunction(), OpenedArchetypes));
+  }
+
   ThinFunctionToPointerInst *
   createThinFunctionToPointer(SILLocation Loc, SILValue Op, SILType Ty) {
     return insert(new (getModule()) ThinFunctionToPointerInst(

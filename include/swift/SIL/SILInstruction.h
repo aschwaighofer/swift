@@ -3837,6 +3837,28 @@ class ConvertFunctionInst final
          SILFunction &F, SILOpenedArchetypesState &OpenedArchetypes);
 };
 
+/// ConvertFunctionToTrivialInst - Change the type of a escaping function value
+/// to a trivial function type (@noescape T -> U).
+class ConvertFunctionToTrivialInst final
+    : public UnaryInstructionWithTypeDependentOperandsBase<
+          SILInstructionKind::ConvertFunctionToTrivialInst,
+          ConvertFunctionToTrivialInst, ConversionInst> {
+  friend SILBuilder;
+
+  ConvertFunctionToTrivialInst(SILDebugLocation DebugLoc, SILValue Operand,
+                               ArrayRef<SILValue> TypeDependentOperands,
+                               SILType Ty)
+      : UnaryInstructionWithTypeDependentOperandsBase(
+            DebugLoc, Operand, TypeDependentOperands, Ty) {
+    assert(!Operand->getType().castTo<SILFunctionType>()->isNoEscape());
+    assert(Ty.castTo<SILFunctionType>()->isNoEscape());
+  }
+
+  static ConvertFunctionToTrivialInst *
+  create(SILDebugLocation DebugLoc, SILValue Operand, SILType Ty,
+         SILFunction &F, SILOpenedArchetypesState &OpenedArchetypes);
+};
+
 /// ThinFunctionToPointerInst - Convert a thin function pointer to a
 /// Builtin.RawPointer.
 class ThinFunctionToPointerInst

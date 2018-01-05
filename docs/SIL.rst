@@ -4607,6 +4607,21 @@ in the following ways:
 The function types may also differ in attributes, except that the
 ``convention`` attribute cannot be changed.
 
+convert_function_to_trivial
+```````````````````````````
+::
+
+  sil-instruction ::= 'convert_function_to_trivial' sil-operand 'to' sil-type
+  %1 = convert_function_to_trivial %0 : $T -> U to $@noescape T' -> U'
+  // %0 must be of a function type $T -> U ABI-compatible with $T' -> U'
+  //   (see convert_function)
+  // %1 will be of the trivial type $@noescape T -> U
+
+Converts an escaping (non-trivial) function type to an ``@noescape`` trivial
+function type. Something must guarantee the lifetime of the input ``%0`` for the
+duration of the use ``%1``.
+
+
 thin_function_to_pointer
 ````````````````````````
 

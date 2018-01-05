@@ -986,6 +986,7 @@ public:
   void visitCondFailInst(CondFailInst *i);
   
   void visitConvertFunctionInst(ConvertFunctionInst *i);
+  void visitConvertFunctionToTrivialInst(ConvertFunctionToTrivialInst *i);
   void visitThinFunctionToPointerInst(ThinFunctionToPointerInst *i);
   void visitPointerToThinFunctionInst(PointerToThinFunctionInst *i);
   void visitUpcastInst(UpcastInst *i);
@@ -4153,6 +4154,18 @@ void IRGenSILFunction::visitConvertFunctionInst(swift::ConvertFunctionInst *i) {
   // This instruction is specified to be a no-op.
   Explosion temp = getLoweredExplosion(i->getOperand());
   setLoweredExplosion(i, temp);
+}
+
+void IRGenSILFunction::visitConvertFunctionToTrivialInst(
+    swift::ConvertFunctionToTrivialInst *i) {
+  // This instruction makes the context trivial.
+  Explosion in = getLoweredExplosion(i->getOperand());
+  llvm::Value *fn = in.claimNext();
+  llvm::Value *ctx = in.claimNext();
+  Explosion out;
+  out.add(fn);
+  out.add(Builder.CreateBitCast(ctx, IGM.OpaquePtrTy));
+  setLoweredExplosion(i, out);
 }
 
 void IRGenSILFunction::visitThinFunctionToPointerInst(

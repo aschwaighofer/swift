@@ -1433,6 +1433,9 @@ public:
   void visitConvertFunctionInst(ConvertFunctionInst *CI) {
     printUncheckedConversionInst(CI, CI->getOperand());
   }
+  void visitConvertFunctionToTrivialInst(ConvertFunctionToTrivialInst *CI) {
+    printUncheckedConversionInst(CI, CI->getOperand());
+  }
   void visitThinFunctionToPointerInst(ThinFunctionToPointerInst *CI) {
     printUncheckedConversionInst(CI, CI->getOperand());
   }
