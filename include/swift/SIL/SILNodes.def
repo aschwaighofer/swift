@@ -312,6 +312,8 @@ ABSTRACT_VALUE_AND_INST(SingleValueInstruction, ValueBase, SILInstruction)
                       ConversionInst, None, DoesNotRelease)
     SINGLE_VALUE_INST(ConvertFunctionInst, convert_function,
                       ConversionInst, None, DoesNotRelease)
+    SINGLE_VALUE_INST(ConvertFunctionToTrivialInst, convert_function_to_trivial,
+                      ConversionInst, None, DoesNotRelease)
     SINGLE_VALUE_INST(ThinFunctionToPointerInst, thin_function_to_pointer,
                       ConversionInst, None, DoesNotRelease)
     SINGLE_VALUE_INST(PointerToThinFunctionInst, pointer_to_thin_function,

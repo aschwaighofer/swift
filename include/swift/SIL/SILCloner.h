@@ -980,6 +980,16 @@ SILCloner<ImplClass>::visitConvertFunctionInst(ConvertFunctionInst *Inst) {
                                        getOpType(Inst->getType())));
 }
 
+template <typename ImplClass>
+void SILCloner<ImplClass>::visitConvertFunctionToTrivialInst(
+    ConvertFunctionToTrivialInst *Inst) {
+  getBuilder().setCurrentDebugScope(getOpScope(Inst->getDebugScope()));
+  doPostProcess(Inst, getBuilder().createConvertFunctionToTrivial(
+                          getOpLocation(Inst->getLoc()),
+                          getOpValue(Inst->getOperand()),
+                          getOpType(Inst->getType())));
+}
+
 template<typename ImplClass>
 void SILCloner<ImplClass>::visitThinFunctionToPointerInst(
                                            ThinFunctionToPointerInst *Inst) {

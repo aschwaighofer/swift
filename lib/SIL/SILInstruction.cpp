@@ -742,6 +742,10 @@ namespace {
       return true;
     }
 
+    bool visitConvertFunctionToTrivialInst(ConvertFunctionToTrivialInst *RHS) {
+      return true;
+    }
+
     bool visitObjCMetatypeToObjectInst(ObjCMetatypeToObjectInst *RHS) {
       return true;
     }

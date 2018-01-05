@@ -3162,6 +3162,22 @@ public:
         opTI, resTI, "convert_function cannot change function ABI");
   }
 
+  void checkConvertFunctionToTrivialInst(ConvertFunctionToTrivialInst *ICI) {
+    auto opTI = requireObjectType(SILFunctionType, ICI->getOperand(),
+                                  "convert_function_to_trivial operand");
+    auto resTI = ICI->getType().castTo<SILFunctionType>();
+
+    // FIXME: Not yet, to be enabled when this is true.
+    // require(resTI->isTrivial(F.getModule()),
+    //         "convert_function_to_trivial should produce a trivial result type");
+
+    // convert_function_to_trivial is required to be an ABI-compatible
+    // conversion once escapability is the same on both sides.
+    requireABICompatibleFunctionTypes(
+        opTI, resTI->getWithExtInfo(resTI->getExtInfo().withNoEscape(false)),
+        "convert_function_to_trivial cannot change function ABI");
+  }
+
   void checkThinFunctionToPointerInst(ThinFunctionToPointerInst *CI) {
     auto opTI = requireObjectType(SILFunctionType, CI->getOperand(),
                                   "thin_function_to_pointer operand");

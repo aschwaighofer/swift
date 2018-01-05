@@ -2846,6 +2846,7 @@ bool SILParser::parseSILInstruction(SILBuilder &B) {
   case SILInstructionKind::ThickToObjCMetatypeInst:
   case SILInstructionKind::ObjCToThickMetatypeInst:
   case SILInstructionKind::ConvertFunctionInst:
+  case SILInstructionKind::ConvertFunctionToTrivialInst:
   case SILInstructionKind::ObjCExistentialMetatypeToObjectInst:
   case SILInstructionKind::ObjCMetatypeToObjectInst: {
     SILType Ty;
@@ -2882,6 +2883,9 @@ bool SILParser::parseSILInstruction(SILBuilder &B) {
       break;
     case SILInstructionKind::ConvertFunctionInst:
       ResultVal = B.createConvertFunction(InstLoc, Val, Ty);
+      break;
+    case SILInstructionKind::ConvertFunctionToTrivialInst:
+      ResultVal = B.createConvertFunctionToTrivial(InstLoc, Val, Ty);
       break;
     case SILInstructionKind::AddressToPointerInst:
       ResultVal = B.createAddressToPointer(InstLoc, Val, Ty);
