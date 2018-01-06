@@ -2842,6 +2842,9 @@ SILFunctionType::isABICompatibleWith(CanSILFunctionType other) const {
   if (getRepresentation() != other->getRepresentation())
     return ABICompatibilityCheckResult::DifferentFunctionRepresentations;
 
+  if (isNoEscape() != other->isNoEscape())
+    return ABICompatibilityCheckResult::DifferentFunctionRepresentations;
+
   // Check the results.
   if (getNumResults() != other->getNumResults())
     return ABICompatibilityCheckResult::DifferentNumberOfResults;

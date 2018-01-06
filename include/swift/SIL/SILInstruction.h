@@ -3830,7 +3830,11 @@ class ConvertFunctionInst final
   ConvertFunctionInst(SILDebugLocation DebugLoc, SILValue Operand,
                       ArrayRef<SILValue> TypeDependentOperands, SILType Ty)
       : UnaryInstructionWithTypeDependentOperandsBase(
-            DebugLoc, Operand, TypeDependentOperands, Ty) {}
+            DebugLoc, Operand, TypeDependentOperands, Ty) {
+    assert(Operand->getType().castTo<SILFunctionType>()->isNoEscape() ==
+           Ty.castTo<SILFunctionType>()->isNoEscape() &&
+           "Change of escapeness is not ABI compatible");
+  }
 
   static ConvertFunctionInst *
   create(SILDebugLocation DebugLoc, SILValue Operand, SILType Ty,
