@@ -3377,6 +3377,8 @@ Callee irgen::getSwiftFunctionPointerCallee(IRGenFunction &IGF,
 
   FunctionPointer fn(fnPtr, sig);
 
+  if (dataPtr->getType() == IGF.IGM.OpaquePtrTy)
+    dataPtr = IGF.Builder.CreateBitCast(dataPtr, IGF.IGM.RefCountedPtrTy);
   return Callee(std::move(calleeInfo), fn, dataPtr);
 }
 
