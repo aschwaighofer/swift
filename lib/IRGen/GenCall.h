@@ -119,7 +119,8 @@ namespace irgen {
   Callee getSwiftFunctionPointerCallee(IRGenFunction &IGF,
                                        llvm::Value *fnPtr,
                                        llvm::Value *contextPtr,
-                                       CalleeInfo &&info);
+                                       CalleeInfo &&info,
+                                       bool castOpaqueToRefcountedContext);
 } // end namespace irgen
 } // end namespace swift
 
