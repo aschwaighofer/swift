@@ -4444,7 +4444,10 @@ void IRGenSILFunction::visitThinToThickFunctionInst(
   Explosion from = getLoweredExplosion(i->getOperand());
   Explosion to;
   to.add(from.claimNext());
-  to.add(IGM.RefCountedNull);
+  if (i->getType().castTo<SILFunctionType>()->isNoEscape())
+    to.add(llvm::ConstantPointerNull::get(IGM.OpaquePtrTy));
+  else
+    to.add(IGM.RefCountedNull);
   setLoweredExplosion(i, to);
 }
 
