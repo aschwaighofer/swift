@@ -1286,6 +1286,7 @@ PostponedCleanup::~PostponedCleanup() {
 void PostponedCleanup::extractCleanups() {
   for (auto cleanup : deferredCleanups)
     SGF.Cleanups.forwardCleanup(cleanup);
+  extractCleanupsCalled = true;
 }
 
 void PostponedCleanup::transferCleanups() {
