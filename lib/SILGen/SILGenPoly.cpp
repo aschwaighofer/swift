@@ -2966,7 +2966,7 @@ static ManagedValue createThunk(SILGenFunction &SGF,
   SingleValueInstruction *noEscapeThunkFn =
       SGF.B.createConvertFunctionToTrivial(loc, thunkedFn,
                                            expectedTL.getLoweredType());
-  SGF.enterDestroyCleanup(thunkedFn);
+  SGF.enterPostponedCleanup(thunkedFn);
   noEscapeThunkFn = SGF.B.createMarkDependence(loc, noEscapeThunkFn, thunkedFn);
   return SGF.emitManagedRValueWithCleanup(noEscapeThunkFn);
 }
@@ -3223,7 +3223,8 @@ ManagedValue Transform::transformFunction(ManagedValue fn,
            !fnType->isNoEscape() && expectedFnType->isNoEscape() &&
            "Expect a escaping to noescape conversion");
     SILType resTy = SILType::getPrimitiveObjectType(expectedFnType);
-    auto fnValue = fn.borrow(SGF, Loc).getValue();
+    auto fnValue = fn.forward(SGF);
+    SGF.enterPostponedCleanup(fnValue);
     SingleValueInstruction *noEscapeThunkFn =
         SGF.B.createConvertFunctionToTrivial(Loc, fnValue,
                                              resTy);

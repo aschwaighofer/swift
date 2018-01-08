@@ -43,6 +43,8 @@ class CalleeTypeInfo;
 class ResultPlan;
 using ResultPlanPtr = std::unique_ptr<ResultPlan>;
 class ArgumentScope;
+class PostponedCleanup;
+class Scope;
 
 enum class ApplyOptions : unsigned {
   /// No special treatment is required.
@@ -245,6 +247,10 @@ public:
 
   /// \brief The current context where formal evaluation cleanups are managed.
   FormalEvaluationContext FormalEvalContext;
+
+  /// Currently active postponed cleanups.
+  PostponedCleanup *CurrentlyActivePostponedCleanup = nullptr;
+  void enterPostponedCleanup(SILValue forValue);
 
   /// \brief Values to end dynamic access enforcement on.  A hack for
   /// materializeForSet.
@@ -1309,7 +1315,7 @@ public:
                    SILLocation loc, ManagedValue fn, SubstitutionList subs,
                    ArrayRef<ManagedValue> args,
                    const CalleeTypeInfo &calleeTypeInfo, ApplyOptions options,
-                   SGFContext evalContext);
+                   SGFContext evalContext, PostponedCleanup &&cleanup);
 
   RValue emitApplyOfDefaultArgGenerator(SILLocation loc,
                                         ConcreteDeclRef defaultArgsOwner,
@@ -1855,6 +1861,30 @@ public:
     }
     SGF.CurFunctionSection = SavedSection;
   }
+};
+
+class PostponedCleanup {
+  friend SILGenFunction;
+  friend Scope;
+
+  SmallVector<std::pair<CleanupHandle, SILValue>, 16> deferredCleanups;
+  SILGenFunction &SGF;
+  PostponedCleanup *previouslyActiveCleanup;
+
+  void postponeCleanup(CleanupHandle cleanup, SILValue forValue);
+  void end();
+public:
+  PostponedCleanup(SILGenFunction &SGF);
+  ~PostponedCleanup();
+
+  PostponedCleanup(PostponedCleanup &&other)
+      : deferredCleanups(std::move(other.deferredCleanups)), SGF(other.SGF),
+        previouslyActiveCleanup(other.previouslyActiveCleanup) {}
+
+  PostponedCleanup() = delete;
+  PostponedCleanup(const PostponedCleanup &) = delete;
+  PostponedCleanup &operator=(const PostponedCleanup &) = delete;
+  PostponedCleanup &operator=(PostponedCleanup &&other) = delete;
 };
 
 } // end namespace Lowering
