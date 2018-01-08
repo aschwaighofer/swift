@@ -3821,6 +3821,7 @@ public:
     enum innerty {
       None,
       DifferentFunctionRepresentations,
+      ABIEscapeToNoEscapeConversion,
       DifferentNumberOfResults,
       DifferentReturnValueConventions,
       ABIIncompatibleReturnValues,
@@ -3840,6 +3841,10 @@ public:
     ABICompatibilityCheckResult() = delete;
 
     bool isCompatible() const { return kind == innerty::None; }
+    bool isCompatibleUpToNoEscapeConversion() {
+      return kind == innerty::None ||
+             kind == innerty::ABIEscapeToNoEscapeConversion;
+    }
 
     bool hasPayload() const { return payload.hasValue(); }
     uintptr_t getPayload() const { return payload.getValue(); }

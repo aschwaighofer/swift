@@ -2845,9 +2845,6 @@ SILFunctionType::isABICompatibleWith(CanSILFunctionType other) const {
   if (getRepresentation() != other->getRepresentation())
     return ABICompatibilityCheckResult::DifferentFunctionRepresentations;
 
-  if (isNoEscape() != other->isNoEscape())
-    return ABICompatibilityCheckResult::DifferentFunctionRepresentations;
-
   // Check the results.
   if (getNumResults() != other->getNumResults())
     return ABICompatibilityCheckResult::DifferentNumberOfResults;
@@ -2896,6 +2893,11 @@ SILFunctionType::isABICompatibleWith(CanSILFunctionType other) const {
       return {ABICompatibilityCheckResult::ABIIncompatibleParameterType, i};
   }
 
+  // This needs to be checked last because the result implies everying else has
+  // already been checked and this is the only difference.
+  if (isNoEscape() != other->isNoEscape())
+    return ABICompatibilityCheckResult::ABIEscapeToNoEscapeConversion;
+
   return ABICompatibilityCheckResult::None;
 }
 
@@ -2924,6 +2926,8 @@ StringRef SILFunctionType::ABICompatibilityCheckResult::getMessage() const {
     return "Differing parameter convention";
   case innerty::ABIIncompatibleParameterType:
     return "ABI incompatible parameter type.";
+  case innerty::ABIEscapeToNoEscapeConversion:
+    return "Escape to no escape conversion";
   }
   llvm_unreachable("Covered switch isn't completely covered?!");
 }
