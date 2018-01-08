@@ -915,12 +915,20 @@ SILGenFunction::emitBlockToFunc(SILLocation loc,
   SingleValueInstruction *thunkedFn = B.createPartialApply(
       loc, thunkValue, SILType::getPrimitiveObjectType(substFnTy), subs,
       block.forward(*this), SILType::getPrimitiveObjectType(loweredFuncTy));
-  if (loweredFuncTy->isNoEscape()) {
-    auto &funcTL = getTypeLowering(loweredFuncTy);
-    thunkedFn =
-        B.createConvertFunction(loc, thunkedFn, funcTL.getLoweredType());
+
+  if (!loweredFuncTy->isNoEscape()) {
+    return emitManagedRValueWithCleanup(thunkedFn);
   }
-  return emitManagedRValueWithCleanup(thunkedFn);
+
+  // Handle the escaping to noescape conversion.
+  assert(loweredFuncTy->isNoEscape());
+
+  auto &funcTL = getTypeLowering(loweredFuncTy);
+  SingleValueInstruction *noEscapeThunkFn =
+      B.createConvertFunctionToTrivial(loc, thunkedFn, funcTL.getLoweredType());
+  enterDestroyCleanup(thunkedFn);
+  noEscapeThunkFn = B.createMarkDependence(loc, noEscapeThunkFn, thunkedFn);
+  return emitManagedRValueWithCleanup(noEscapeThunkFn);
 }
 
 static ManagedValue emitCBridgedToNativeValue(SILGenFunction &SGF,
