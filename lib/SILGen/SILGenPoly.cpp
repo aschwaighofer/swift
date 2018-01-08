@@ -2954,11 +2954,18 @@ static ManagedValue createThunk(SILGenFunction &SGF,
                              SILType::getPrimitiveObjectType(substFnType),
                              subs, fn.ensurePlusOne(SGF, loc).forward(SGF),
                              SILType::getPrimitiveObjectType(expectedType));
-  if (expectedType->isNoEscape()) {
-    thunkedFn = SGF.B.createConvertFunction(loc, thunkedFn,
-                                            expectedTL.getLoweredType());
+  if (!expectedType->isNoEscape()) {
+    return SGF.emitManagedRValueWithCleanup(thunkedFn, expectedTL);
   }
-  return SGF.emitManagedRValueWithCleanup(thunkedFn, expectedTL);
+
+  // Handle the escaping to noescape conversion.
+  assert(expectedType->isNoEscape());
+  SingleValueInstruction *noEscapeThunkFn =
+      SGF.B.createConvertFunctionToTrivial(loc, thunkedFn,
+                                           expectedTL.getLoweredType());
+  SGF.enterDestroyCleanup(thunkedFn);
+  noEscapeThunkFn = SGF.B.createMarkDependence(loc, noEscapeThunkFn, thunkedFn);
+  return SGF.emitManagedRValueWithCleanup(noEscapeThunkFn);
 }
 
 static CanSILFunctionType buildWithoutActuallyEscapingThunkType(
@@ -3181,18 +3188,22 @@ ManagedValue Transform::transformFunction(ManagedValue fn,
 
   // We do not, conversion is trivial.
   auto expectedEI = expectedFnType->getExtInfo();
-  auto newEI = expectedEI.withRepresentation(fnType->getRepresentation());
+  auto newEI = expectedEI.withRepresentation(fnType->getRepresentation())
+                   .withNoEscape(fnType->isNoEscape());
   auto newFnType =
       adjustFunctionType(expectedFnType, newEI, fnType->getCalleeConvention(),
                          fnType->getWitnessMethodConformanceOrNone());
-  // Apply any ABI-compatible conversions before doing thin-to-thick.
+
+  // Apply any ABI-compatible conversions before doing thin-to-thick or
+  // escaping->noescape conversion.
   if (fnType != newFnType) {
     SILType resTy = SILType::getPrimitiveObjectType(newFnType);
     fn = SGF.B.createConvertFunction(Loc, fn, resTy);
   }
 
   // Now do thin-to-thick if necessary.
-  if (newFnType != expectedFnType) {
+  if (newFnType != expectedFnType &&
+      fnType->getRepresentation() == SILFunctionTypeRepresentation::Thin) {
     assert(expectedEI.getRepresentation() ==
            SILFunctionTypeRepresentation::Thick &&
            "all other conversions should have been handled by "
@@ -3200,6 +3211,21 @@ ManagedValue Transform::transformFunction(ManagedValue fn,
     SILType resTy = SILType::getPrimitiveObjectType(expectedFnType);
     fn = SGF.emitManagedRValueWithCleanup(
         SGF.B.createThinToThickFunction(Loc, fn.forward(SGF), resTy));
+  } else if (newFnType != expectedFnType) {
+    // Escaping to noescape conversion.
+    assert(expectedFnType->getRepresentation() ==
+               SILFunctionTypeRepresentation::Thick &&
+           fnType->getRepresentation() ==
+               SILFunctionTypeRepresentation::Thick &&
+           !fnType->isNoEscape() && expectedFnType->isNoEscape() &&
+           "Expect a escaping to noescape conversion");
+    SILType resTy = SILType::getPrimitiveObjectType(expectedFnType);
+    auto fnValue = fn.borrow(SGF, Loc).getValue();
+    SingleValueInstruction *noEscapeThunkFn =
+        SGF.B.createConvertFunctionToTrivial(Loc, fnValue,
+                                             resTy);
+    fn = SGF.emitManagedRValueWithCleanup(
+        SGF.B.createMarkDependence(Loc, noEscapeThunkFn, fnValue));
   }
 
   return fn;
