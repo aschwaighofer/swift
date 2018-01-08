@@ -2914,7 +2914,8 @@ static ManagedValue createThunk(SILGenFunction &SGF,
   // Declare the thunk.
   SubstitutionMap interfaceSubs;
   GenericEnvironment *genericEnv = nullptr;
-  auto toType = expectedType;
+  auto toType = expectedType->getWithExtInfo(
+      expectedType->getExtInfo().withNoEscape(false));
   auto thunkType = SGF.buildThunkType(sourceType, toType,
                                       inputSubstType,
                                       outputSubstType,
@@ -2953,8 +2954,10 @@ static ManagedValue createThunk(SILGenFunction &SGF,
     SGF.B.createPartialApply(loc, thunkValue,
                              SILType::getPrimitiveObjectType(substFnType),
                              subs, fn.ensurePlusOne(SGF, loc).forward(SGF),
-                             SILType::getPrimitiveObjectType(expectedType));
+                             SILType::getPrimitiveObjectType(toType));
+
   if (!expectedType->isNoEscape()) {
+    assert(toType == expectedType);
     return SGF.emitManagedRValueWithCleanup(thunkedFn, expectedTL);
   }
 
