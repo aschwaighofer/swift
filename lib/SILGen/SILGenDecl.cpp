@@ -1271,6 +1271,34 @@ CleanupHandle SILGenFunction::enterDestroyCleanup(SILValue valueOrAddr) {
   return Cleanups.getTopCleanup();
 }
 
+PostponedCleanup::PostponedCleanup(SILGenFunction &sgf)
+    : SGF(sgf), previouslyActiveCleanup(sgf.CurrentlyActivePostponedCleanup),
+      extractCleanupsCalled(false) {
+  SGF.CurrentlyActivePostponedCleanup = this;
+}
+
+PostponedCleanup::~PostponedCleanup() {
+  assert(extractCleanupsCalled);
+  transferCleanups();
+  SGF.CurrentlyActivePostponedCleanup = previouslyActiveCleanup;
+}
+
+void PostponedCleanup::extractCleanups() {
+  for (auto cleanup : deferredCleanups)
+    SGF.Cleanups.forwardCleanup(cleanup);
+}
+
+void PostponedCleanup::transferCleanups() {
+  for (auto cleanup : deferredValues)
+    SGF.enterDestroyCleanup(cleanup);
+}
+
+void SILGenFunction::enterPostponedCleanup(SILValue forValue) {
+  auto handle = enterDestroyCleanup(forValue);
+  if (CurrentlyActivePostponedCleanup)
+    CurrentlyActivePostponedCleanup->postponeCleanup(handle, forValue);
+}
+
 namespace {
   /// A cleanup that deinitializes an opaque existential container
   /// before a value has been stored into it, or after its value was taken.

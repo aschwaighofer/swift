@@ -43,6 +43,7 @@ class CalleeTypeInfo;
 class ResultPlan;
 using ResultPlanPtr = std::unique_ptr<ResultPlan>;
 class ArgumentScope;
+class PostponedCleanup;
 
 enum class ApplyOptions : unsigned {
   /// No special treatment is required.
@@ -245,6 +246,10 @@ public:
 
   /// \brief The current context where formal evaluation cleanups are managed.
   FormalEvaluationContext FormalEvalContext;
+
+  /// Currently active postponed cleanups.
+  PostponedCleanup *CurrentlyActivePostponedCleanup;
+  void enterPostponedCleanup(SILValue forValue);
 
   /// \brief Values to end dynamic access enforcement on.  A hack for
   /// materializeForSet.
@@ -1860,6 +1865,30 @@ public:
     }
     SGF.CurFunctionSection = SavedSection;
   }
+};
+
+/// Intercept cleanups and apply them at the end of the lifetime of this RAII
+/// object to the current scope if extractCleanups was called.
+class PostponedCleanup {
+  friend SILGenFunction;
+  SmallVector<CleanupHandle,  16> deferredCleanups;
+  SmallVector<SILValue,  16> deferredValues;
+
+  SILGenFunction &SGF;
+  PostponedCleanup *previouslyActiveCleanup;
+  bool extractCleanupsCalled;
+
+  void transferCleanups();
+
+  void postponeCleanup(CleanupHandle cleanup, SILValue forValue) {
+    deferredCleanups.push_back(cleanup);
+    deferredValues.push_back(forValue);
+  }
+public:
+  PostponedCleanup(SILGenFunction &SGF);
+  ~PostponedCleanup();
+
+  void extractCleanups();
 };
 
 } // end namespace Lowering

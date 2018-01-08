@@ -2966,7 +2966,8 @@ static ManagedValue createThunk(SILGenFunction &SGF,
   SingleValueInstruction *noEscapeThunkFn =
       SGF.B.createConvertFunctionToTrivial(loc, thunkedFn,
                                            expectedTL.getLoweredType());
-  SGF.enterDestroyCleanup(thunkedFn);
+  SGF.enterPostponedCleanup(thunkedFn);
+  //SGF.enterDestroyCleanup(thunkedFn);
   noEscapeThunkFn = SGF.B.createMarkDependence(loc, noEscapeThunkFn, thunkedFn);
   return SGF.emitManagedRValueWithCleanup(noEscapeThunkFn);
 }

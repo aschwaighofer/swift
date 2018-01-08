@@ -2990,10 +2990,16 @@ private:
                                      Conversion conversion,
                                      SGFContext C) {
     auto loc = arg.getLocation();
+
+    PostponedCleanup postponedCleanup(SGF);
+
     Scope scope(SGF, loc);
 
     // TODO: honor C here.
     auto result = std::move(arg).getConverted(SGF, conversion);
+
+    // Setup postponed cleanups by extracting them out of the current 'scope'.
+    postponedCleanup.extractCleanups();
 
     return scope.popPreservingValue(result);
   }

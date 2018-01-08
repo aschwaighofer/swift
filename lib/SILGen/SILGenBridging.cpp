@@ -931,7 +931,7 @@ SILGenFunction::emitBlockToFunc(SILLocation loc,
   auto &funcTL = getTypeLowering(loweredFuncTy);
   SingleValueInstruction *noEscapeThunkFn =
       B.createConvertFunctionToTrivial(loc, thunkedFn, funcTL.getLoweredType());
-  enterDestroyCleanup(thunkedFn);
+  enterPostponedCleanup(thunkedFn);
   noEscapeThunkFn = B.createMarkDependence(loc, noEscapeThunkFn, thunkedFn);
   return emitManagedRValueWithCleanup(noEscapeThunkFn);
 }
