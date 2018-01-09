@@ -3,16 +3,13 @@
 var escapeHatch: Any = 0
 
 // CHECK-LABEL: sil hidden @$S25without_actually_escaping9letEscape1fyycyyc_tF
+// CHECK:   bb0([[ARG:%.*]] : @trivial $@noescape @callee_guaranteed () -> ()):
+// CHECK:   [[THUNK:%.*]] = function_ref @$SIg_Ieg_TR : $@convention(thin) (@guaranteed @noescape @callee_guaranteed () -> ()) -> ()
+// CHECK:   [[ESC:%.*]] = partial_apply [callee_guaranteed] [[THUNK]]([[ARG]]) : $@convention(thin) (@guaranteed @noescape @callee_guaranteed () -> ()) -> ()
+// CHECK:   [[ESC2:%.*]] = mark_dependence [[ESC]] : $@callee_guaranteed () -> () on  [[ARG]] : $@noescape @callee_guaranteed () -> ()
+// CHECK:   [[USE:%.*]] = function_ref @$S25without_actually_escaping9letEscape1fyycyyc_tFyycyyccfU_ : $@convention(thin) (@owned @callee_guaranteed () -> ()) -> @owned @callee_guaranteed () -> ()
+// CHECK:   [[R:%.*]] = apply [[USE]]([[ESC2]]) : $@convention(thin) (@owned @callee_guaranteed () -> ()) -> @owned @callee_guaranteed () -> ()
+// CHECK:   return [[R]] : $@callee_guaranteed () -> ()
 func letEscape(f: () -> ()) -> () -> () {
-  // CHECK: bb0([[ARG:%.*]] : @owned $@noescape @callee_guaranteed () -> ()):
-  // TODO: Use a canary wrapper instead of just copying the nonescaping value
-  // CHECK: [[BORROWED_ARG:%.*]] = begin_borrow [[ARG]]
-  // CHECK: [[ESCAPABLE_COPY:%.*]] = copy_value [[BORROWED_ARG]]
-  // CHECK: [[CONVERT:%.*]] = convert_function [[ESCAPABLE_COPY]]
-  // CHECK: [[SUB_CLOSURE:%.*]] = function_ref @
-  // CHECK: [[RESULT:%.*]] = apply [[SUB_CLOSURE]]([[CONVERT]])
-  // CHECK: end_borrow [[BORROWED_ARG]] from [[ARG]]
-  // CHECK: destroy_value [[ARG]]
-  // CHECK: return [[RESULT]]
   return withoutActuallyEscaping(f) { return $0 }
 }
