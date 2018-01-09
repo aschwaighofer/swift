@@ -248,7 +248,7 @@ public:
   FormalEvaluationContext FormalEvalContext;
 
   /// Currently active postponed cleanups.
-  PostponedCleanup *CurrentlyActivePostponedCleanup;
+  PostponedCleanup *CurrentlyActivePostponedCleanup = nullptr;
   void enterPostponedCleanup(SILValue forValue);
 
   /// \brief Values to end dynamic access enforcement on.  A hack for
