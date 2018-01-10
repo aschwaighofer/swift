@@ -2990,16 +2990,10 @@ private:
                                      Conversion conversion,
                                      SGFContext C) {
     auto loc = arg.getLocation();
-
-    PostponedCleanup postponedCleanup(SGF);
-
     Scope scope(SGF, loc);
 
     // TODO: honor C here.
     auto result = std::move(arg).getConverted(SGF, conversion);
-
-    // Setup postponed cleanups by extracting them out of the current 'scope'.
-    postponedCleanup.extractCleanups();
 
     return scope.popPreservingValue(result);
   }
@@ -3732,6 +3726,7 @@ namespace {
       auto params = lowering.claimParams(origParamType, getSubstArgType(),
                                          foreignError, foreignSelf);
 
+
       ArgEmitter emitter(SGF, lowering.Rep, params, args, delayedArgs,
                          foreignError, foreignSelf);
       emitter.emitTopLevel(std::move(ArgValue), origParamType);
@@ -3985,6 +3980,7 @@ CallEmission::applyNormalCall(SGFContext C) {
   ResultPlanPtr resultPlan = ResultPlanBuilder::computeResultPlan(
       SGF, calleeTypeInfo, uncurriedSites.back().Loc, uncurriedContext);
   ArgumentScope argScope(SGF, uncurriedSites.back().Loc);
+  PostponedCleanup postponedCleanup(SGF);
 
   // Emit the arguments.
   SmallVector<ManagedValue, 4> uncurriedArgs;

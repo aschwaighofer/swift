@@ -44,6 +44,7 @@ class ResultPlan;
 using ResultPlanPtr = std::unique_ptr<ResultPlan>;
 class ArgumentScope;
 class PostponedCleanup;
+class Scope;
 
 enum class ApplyOptions : unsigned {
   /// No special treatment is required.
@@ -1871,24 +1872,32 @@ public:
 /// object to the current scope if extractCleanups was called.
 class PostponedCleanup {
   friend SILGenFunction;
-  SmallVector<CleanupHandle,  16> deferredCleanups;
-  SmallVector<SILValue,  16> deferredValues;
+  friend Scope;
+
+  SmallVector<CleanupHandle, 16> deferredCleanups;
+  SmallVector<Scope *, 16> deferredCleanupScopes;
+  SmallVector<SILValue, 16> deferredValues;
 
   SILGenFunction &SGF;
   PostponedCleanup *previouslyActiveCleanup;
-  bool extractCleanupsCalled;
+  Scope *currentlyActiveScope;
+  bool needToCallExtractCleanups;
 
   void transferCleanups();
 
   void postponeCleanup(CleanupHandle cleanup, SILValue forValue) {
+    assert(currentlyActiveScope);
     deferredCleanups.push_back(cleanup);
+    deferredCleanupScopes.push_back(currentlyActiveScope);
     deferredValues.push_back(forValue);
+    needToCallExtractCleanups = true;
   }
+
 public:
   PostponedCleanup(SILGenFunction &SGF);
   ~PostponedCleanup();
 
-  void extractCleanups();
+  void extractCleanupsFor(Scope *);
 };
 
 } // end namespace Lowering

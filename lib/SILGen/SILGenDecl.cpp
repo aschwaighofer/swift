@@ -1273,20 +1273,24 @@ CleanupHandle SILGenFunction::enterDestroyCleanup(SILValue valueOrAddr) {
 
 PostponedCleanup::PostponedCleanup(SILGenFunction &sgf)
     : SGF(sgf), previouslyActiveCleanup(sgf.CurrentlyActivePostponedCleanup),
-      extractCleanupsCalled(false) {
+      currentlyActiveScope(nullptr), needToCallExtractCleanups(false) {
   SGF.CurrentlyActivePostponedCleanup = this;
 }
 
 PostponedCleanup::~PostponedCleanup() {
-  assert(extractCleanupsCalled);
+  assert(!needToCallExtractCleanups);
   transferCleanups();
   SGF.CurrentlyActivePostponedCleanup = previouslyActiveCleanup;
 }
 
-void PostponedCleanup::extractCleanups() {
-  for (auto cleanup : deferredCleanups)
-    SGF.Cleanups.forwardCleanup(cleanup);
-  extractCleanupsCalled = true;
+void PostponedCleanup::extractCleanupsFor(Scope *scope) {
+  needToCallExtractCleanups = false;
+  unsigned idx = 0;
+  for (auto cleanup : deferredCleanups) {
+    if (deferredCleanupScopes[idx] == scope)
+      SGF.Cleanups.forwardCleanup(cleanup);
+    idx++;
+  }
 }
 
 void PostponedCleanup::transferCleanups() {

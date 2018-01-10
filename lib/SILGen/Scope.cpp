@@ -120,6 +120,9 @@ RValue Scope::popPreservingValue(RValue &&rv) {
 }
 
 void Scope::popImpl() {
+  if (currentlyActivePostponedCleanup)
+    currentlyActivePostponedCleanup->extractCleanupsFor(this);
+
   cleanups.stack.checkIterator(depth);
   cleanups.stack.checkIterator(cleanups.innermostScope);
   assert(cleanups.innermostScope == depth && "popping scopes out of order");
