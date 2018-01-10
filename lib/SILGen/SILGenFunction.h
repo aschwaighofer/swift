@@ -1320,7 +1320,7 @@ public:
                    SILLocation loc, ManagedValue fn, SubstitutionList subs,
                    ArrayRef<ManagedValue> args,
                    const CalleeTypeInfo &calleeTypeInfo, ApplyOptions options,
-                   SGFContext evalContext);
+                   SGFContext evalContext, PostponedCleanup &&cleanup);
 
   RValue emitApplyOfDefaultArgGenerator(SILLocation loc,
                                         ConcreteDeclRef defaultArgsOwner,
@@ -1868,36 +1868,29 @@ public:
   }
 };
 
-/// Intercept cleanups and apply them at the end of the lifetime of this RAII
-/// object to the current scope if extractCleanups was called.
 class PostponedCleanup {
   friend SILGenFunction;
   friend Scope;
 
-  SmallVector<CleanupHandle, 16> deferredCleanups;
-  SmallVector<Scope *, 16> deferredCleanupScopes;
-  SmallVector<SILValue, 16> deferredValues;
-
+  SmallVector<std::pair<CleanupHandle, SILValue>, 16> deferredCleanups;
   SILGenFunction &SGF;
   PostponedCleanup *previouslyActiveCleanup;
-  Scope *currentlyActiveScope;
-  bool needToCallExtractCleanups;
 
-  void transferCleanups();
-
-  void postponeCleanup(CleanupHandle cleanup, SILValue forValue) {
-    assert(currentlyActiveScope);
-    deferredCleanups.push_back(cleanup);
-    deferredCleanupScopes.push_back(currentlyActiveScope);
-    deferredValues.push_back(forValue);
-    needToCallExtractCleanups = true;
-  }
-
+  void postponeCleanup(CleanupHandle cleanup, SILValue forValue);
+  void end();
 public:
   PostponedCleanup(SILGenFunction &SGF);
   ~PostponedCleanup();
 
-  void extractCleanupsFor(Scope *);
+  PostponedCleanup(PostponedCleanup &&other)
+      : deferredCleanups(std::move(other.deferredCleanups)),
+        SGF(other.SGF),
+        previouslyActiveCleanup(other.previouslyActiveCleanup) {}
+
+  PostponedCleanup() = delete;
+  PostponedCleanup(const PostponedCleanup &) = delete;
+  PostponedCleanup &operator=(const PostponedCleanup &) = delete;
+  PostponedCleanup &operator=(PostponedCleanup &&other) = delete;
 };
 
 } // end namespace Lowering

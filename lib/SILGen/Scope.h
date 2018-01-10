@@ -42,8 +42,6 @@ public:
     assert(depth.isValid());
     cleanups.stack.checkIterator(cleanups.innermostScope);
     cleanups.innermostScope = depth;
-    if (currentlyActivePostponedCleanup)
-      currentlyActivePostponedCleanup->currentlyActiveScope = this;
   }
 
   explicit Scope(SILGenFunction &SGF, SILLocation loc)

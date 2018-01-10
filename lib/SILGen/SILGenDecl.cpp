@@ -1272,30 +1272,21 @@ CleanupHandle SILGenFunction::enterDestroyCleanup(SILValue valueOrAddr) {
 }
 
 PostponedCleanup::PostponedCleanup(SILGenFunction &sgf)
-    : SGF(sgf), previouslyActiveCleanup(sgf.CurrentlyActivePostponedCleanup),
-      currentlyActiveScope(nullptr), needToCallExtractCleanups(false) {
+    : SGF(sgf),
+      previouslyActiveCleanup(sgf.CurrentlyActivePostponedCleanup) {
   SGF.CurrentlyActivePostponedCleanup = this;
 }
 
 PostponedCleanup::~PostponedCleanup() {
-  assert(!needToCallExtractCleanups);
-  transferCleanups();
+}
+
+void PostponedCleanup::end() {
   SGF.CurrentlyActivePostponedCleanup = previouslyActiveCleanup;
 }
 
-void PostponedCleanup::extractCleanupsFor(Scope *scope) {
-  needToCallExtractCleanups = false;
-  unsigned idx = 0;
-  for (auto cleanup : deferredCleanups) {
-    if (deferredCleanupScopes[idx] == scope)
-      SGF.Cleanups.forwardCleanup(cleanup);
-    idx++;
-  }
-}
-
-void PostponedCleanup::transferCleanups() {
-  for (auto cleanup : deferredValues)
-    SGF.enterDestroyCleanup(cleanup);
+void PostponedCleanup::postponeCleanup(CleanupHandle cleanup,
+                                       SILValue forValue) {
+  deferredCleanups.push_back(std::make_pair(cleanup, forValue));
 }
 
 void SILGenFunction::enterPostponedCleanup(SILValue forValue) {
