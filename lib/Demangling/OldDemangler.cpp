@@ -1948,6 +1948,12 @@ private:
     if (c == 'K') {
       return demangleFunctionType(Node::Kind::AutoClosureType);
     }
+    if (c == 'E') {
+      return demangleFunctionType(Node::Kind::EscapingFunctionType);
+    }
+    if (c == 'A') {
+      return demangleFunctionType(Node::Kind::EscapingAutoClosureType);
+    }
     if (c == 'M') {
       NodePointer type = demangleType();
       if (!type)

@@ -1182,6 +1182,16 @@ void Remangler::mangleAutoClosureType(Node *node) {
   mangleChildNodes(node); // argument tuple, result type
 }
 
+void Remangler::mangleEscapingFunctionType(Node *node) {
+  Out << 'E';
+  mangleChildNodes(node); // argument tuple, result type
+}
+
+void Remangler::mangleEscapingAutoClosureType(Node *node) {
+  Out << 'A';
+  mangleChildNodes(node); // argument tuple, result type
+}
+
 void Remangler::mangleThinFunctionType(Node *node) {
   Out << "Xf";
   mangleChildNodes(node); // argument tuple, result type
