@@ -327,6 +327,8 @@ private:
     case Node::Kind::DirectMethodReferenceAttribute:
     case Node::Kind::Directness:
     case Node::Kind::DynamicAttribute:
+    case Node::Kind::EscapingAutoClosureType:
+    case Node::Kind::EscapingFunctionType:
     case Node::Kind::ExplicitClosure:
     case Node::Kind::Extension:
     case Node::Kind::FieldOffset:
@@ -1037,6 +1039,14 @@ NodePointer NodePrinter::print(NodePointer Node, bool asPrefixContext) {
     return nullptr;
   case Node::Kind::Index:
     Printer << Node->getIndex();
+    return nullptr;
+  case Node::Kind::EscapingFunctionType:
+    Printer << "@escaping ";
+    printFunctionType(nullptr, Node);
+    return nullptr;
+  case Node::Kind::EscapingAutoClosureType:
+    Printer << "@autoclosure @escaping ";
+    printFunctionType(nullptr, Node);
     return nullptr;
   case Node::Kind::AutoClosureType:
     Printer << "@autoclosure ";
