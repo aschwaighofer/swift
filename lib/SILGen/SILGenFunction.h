@@ -1883,8 +1883,7 @@ public:
   ~PostponedCleanup();
 
   PostponedCleanup(PostponedCleanup &&other)
-      : deferredCleanups(std::move(other.deferredCleanups)),
-        SGF(other.SGF),
+      : deferredCleanups(std::move(other.deferredCleanups)), SGF(other.SGF),
         previouslyActiveCleanup(other.previouslyActiveCleanup) {}
 
   PostponedCleanup() = delete;

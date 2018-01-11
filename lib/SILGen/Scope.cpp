@@ -134,6 +134,7 @@ void Scope::popImpl() {
       auto &top = deferredCleanups.back();
       auto topCleanupDepth = top.first.getDepth();
       if (topCleanupDepth > depth.getDepth()) {
+        cleanups.forwardCleanup(top.first);
         cleanupsToPropagateToOuterScope.push_back(top.second);
         deferredCleanups.pop_back();
         inScope = true;
