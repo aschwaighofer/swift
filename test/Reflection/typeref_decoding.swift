@@ -38,7 +38,7 @@
 // CHECK: (metatype
 // CHECK:   (class TypesToReflect.C))
 
-// CHECK: aFunction: (TypesToReflect.C, TypesToReflect.S, TypesToReflect.E, Swift.Int) -> Swift.Int
+// CHECK: aFunction: @escaping (TypesToReflect.C, TypesToReflect.S, TypesToReflect.E, Swift.Int) -> Swift.Int
 // CHECK: (function
 // CHECK:   (parameters
 // CHECK:     (class TypesToReflect.C)
@@ -48,7 +48,7 @@
 // CHECK:   (result
 // CHECK:     (struct Swift.Int))
 
-// CHECK: aFunctionWithVarArgs: (TypesToReflect.C, TypesToReflect.S...) -> ()
+// CHECK: aFunctionWithVarArgs: @escaping (TypesToReflect.C, TypesToReflect.S...) -> ()
 // CHECK: (function
 // CHECK:   (parameters
 // CHECK:     (class TypesToReflect.C)
@@ -57,7 +57,7 @@
 // CHECK:   (result
 // CHECK:     (tuple))
 
-// CHECK: aFunctionWithInout1: (inout TypesToReflect.C) -> ()
+// CHECK: aFunctionWithInout1: @escaping (inout TypesToReflect.C) -> ()
 // CHECK: (function
 // CHECK:  (parameters
 // CHECK:    (inout
@@ -65,7 +65,7 @@
 // CHECK:  (result
 // CHECK:    (tuple))
 
-// CHECK: aFunctionWithInout2: (TypesToReflect.C, inout Swift.Int) -> ()
+// CHECK: aFunctionWithInout2: @escaping (TypesToReflect.C, inout Swift.Int) -> ()
 // CHECK: (function
 // CHECK:  (parameters
 // CHECK:    (class TypesToReflect.C)
@@ -74,7 +74,7 @@
 // CHECK:  (result
 // CHECK:    (tuple))
 
-// CHECK: aFunctionWithInout3: (inout TypesToReflect.C, inout Swift.Int) -> ()
+// CHECK: aFunctionWithInout3: @escaping (inout TypesToReflect.C, inout Swift.Int) -> ()
 // CHECK: (function
 // CHECK:  (parameters
 // CHECK:    (inout
@@ -84,7 +84,7 @@
 // CHECK:  (result
 // CHECK:    (tuple))
 
-// CHECK: aFunctionWithShared: (__shared TypesToReflect.C) -> ()
+// CHECK: aFunctionWithShared: @escaping (__shared TypesToReflect.C) -> ()
 // CHECK: (function
 // CHECK:  (parameters
 // CHECK:    (shared
@@ -123,7 +123,7 @@
 // CHECK: (metatype
 // CHECK:   (class TypesToReflect.C))
 
-// CHECK: aFunction: (TypesToReflect.C, TypesToReflect.S, TypesToReflect.E, Swift.Int) -> Swift.Int
+// CHECK: aFunction: @escaping (TypesToReflect.C, TypesToReflect.S, TypesToReflect.E, Swift.Int) -> Swift.Int
 // CHECK: (function
 // CHECK:   (parameters
 // CHECK:     (class TypesToReflect.C)
@@ -152,7 +152,7 @@
 // CHECK: Enum: TypesToReflect.E
 // CHECK: (enum TypesToReflect.E)
 
-// CHECK: Function: (TypesToReflect.C, TypesToReflect.S, TypesToReflect.E, Swift.Int) -> ()
+// CHECK: Function: @escaping (TypesToReflect.C, TypesToReflect.S, TypesToReflect.E, Swift.Int) -> ()
 // CHECK: (function
 // CHECK:   (parameters
 // CHECK:     (class TypesToReflect.C)
@@ -215,7 +215,7 @@
 // CHECK: (bound_generic_enum TypesToReflect.E1
 // CHECK:   (generic_type_parameter depth=0 index=0))
 
-// CHECK: function: (TypesToReflect.C1<A>) -> (TypesToReflect.S1<A>) -> (TypesToReflect.E1<A>) -> Swift.Int
+// CHECK: function: @escaping (TypesToReflect.C1<A>) -> @escaping (TypesToReflect.S1<A>) -> @escaping (TypesToReflect.E1<A>) -> Swift.Int
 // CHECK: (function
 // CHECK:   (parameters
 // CHECK:     (bound_generic_class TypesToReflect.C1
@@ -260,7 +260,7 @@
 // CHECK: (bound_generic_enum TypesToReflect.E1
 // CHECK:   (generic_type_parameter depth=0 index=0))
 
-// CHECK: function: (TypesToReflect.C1<A>) -> (TypesToReflect.S1<A>) -> (TypesToReflect.E1<A>) -> Swift.Int
+// CHECK: function: @escaping (TypesToReflect.C1<A>) -> @escaping (TypesToReflect.S1<A>) -> @escaping (TypesToReflect.E1<A>) -> Swift.Int
 // CHECK: (function
 // CHECK:   (parameters
 // CHECK:     (bound_generic_class TypesToReflect.C1
@@ -309,7 +309,7 @@
 // CHECK: (bound_generic_enum TypesToReflect.E3
 // CHECK:   (generic_type_parameter depth=0 index=0))
 
-// CHECK: function: (TypesToReflect.C3<A>) -> (TypesToReflect.S3<A>) -> (TypesToReflect.E3<A>) -> Swift.Int
+// CHECK: function: @escaping (TypesToReflect.C3<A>) -> @escaping (TypesToReflect.S3<A>) -> @escaping (TypesToReflect.E3<A>) -> Swift.Int
 // CHECK: (function
 // CHECK:   (parameters
 // CHECK:     (bound_generic_class TypesToReflect.C3
@@ -367,7 +367,7 @@
 // CHECK:   (bound_generic_enum TypesToReflect.E1
 // CHECK:     (generic_type_parameter depth=0 index=0)))
 
-// CHECK: function: (TypesToReflect.C1<A>) -> (TypesToReflect.S1<A>) -> (TypesToReflect.E1<A>) -> Swift.Int
+// CHECK: function: @escaping (TypesToReflect.C1<A>) -> @escaping (TypesToReflect.S1<A>) -> @escaping (TypesToReflect.E1<A>) -> Swift.Int
 // CHECK: (function
 // CHECK:   (parameters
 // CHECK:     (bound_generic_class TypesToReflect.C1
@@ -416,7 +416,7 @@
 // CHECK:   (bound_generic_enum TypesToReflect.E2
 // CHECK:     (generic_type_parameter depth=0 index=0)))
 
-// CHECK: function: (TypesToReflect.C2<A>) -> (TypesToReflect.S2<A>) -> (TypesToReflect.E2<A>) -> Swift.Int
+// CHECK: function: @escaping (TypesToReflect.C2<A>) -> @escaping (TypesToReflect.S2<A>) -> @escaping (TypesToReflect.E2<A>) -> Swift.Int
 // CHECK: (function
 // CHECK:   (parameters
 // CHECK:     (bound_generic_class TypesToReflect.C2
@@ -469,7 +469,7 @@
 // CHECK:   (bound_generic_enum TypesToReflect.E3
 // CHECK:     (generic_type_parameter depth=0 index=0)))
 
-// CHECK: function: (TypesToReflect.C3<A>) -> (TypesToReflect.S3<A>) -> (TypesToReflect.E3<A>) -> Swift.Int
+// CHECK: function: @escaping (TypesToReflect.C3<A>) -> @escaping (TypesToReflect.S3<A>) -> @escaping (TypesToReflect.E3<A>) -> Swift.Int
 // CHECK: (function
 // CHECK:   (parameters
 // CHECK:     (bound_generic_class TypesToReflect.C3
@@ -530,7 +530,7 @@
 // CHECK: Int: Swift.Int
 // CHECK: (struct Swift.Int)
 
-// CHECK: Function: (A) -> TypesToReflect.E1<A>
+// CHECK: Function: @escaping (A) -> TypesToReflect.E1<A>
 // CHECK: (function
 // CHECK:   (parameters
 // CHECK:     (generic_type_parameter depth=0 index=0)
@@ -567,7 +567,7 @@
 // CHECK: (bound_generic_enum TypesToReflect.E2
 // CHECK:   (generic_type_parameter depth=0 index=0))
 
-// CHECK: Function: (A.Type) -> TypesToReflect.E1<A>
+// CHECK: Function: @escaping (A.Type) -> TypesToReflect.E1<A>
 // CHECK: (function
 // CHECK:   (parameters
 // CHECK:     (metatype
@@ -609,7 +609,7 @@
 // CHECK: (bound_generic_enum TypesToReflect.E3
 // CHECK:   (generic_type_parameter depth=0 index=0))
 
-// CHECK: Function: (A.Type.Type) -> TypesToReflect.E1<A>
+// CHECK: Function: @escaping (A.Type.Type) -> TypesToReflect.E1<A>
 // CHECK: (function
 // CHECK:   (parameters
 // CHECK:     (metatype

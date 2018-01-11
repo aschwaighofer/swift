@@ -930,7 +930,8 @@ NodePointer Demangler::popFunctionParamLabels(NodePointer Type) {
   if (FuncType->getKind() == Node::Kind::DependentGenericType)
     FuncType = FuncType->getChild(1)->getFirstChild();
 
-  if (FuncType->getKind() != Node::Kind::FunctionType)
+  if (FuncType->getKind() != Node::Kind::FunctionType &&
+      FuncType->getKind() != Node::Kind::EscapingFunctionType)
     return nullptr;
 
   auto ParameterType = FuncType->getFirstChild();
@@ -1896,6 +1897,10 @@ NodePointer Demangler::demangleWitness() {
 
 NodePointer Demangler::demangleSpecialType() {
   switch (auto specialChar = nextChar()) {
+    case 'E':
+      return popFunctionType(Node::Kind::EscapingFunctionType);
+    case 'A':
+      return popFunctionType(Node::Kind::EscapingAutoClosureType);
     case 'f':
       return popFunctionType(Node::Kind::ThinFunctionType);
     case 'K':

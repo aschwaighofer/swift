@@ -534,6 +534,16 @@ void Remangler::mangleAutoClosureType(Node *node) {
   Buffer << "XK";
 }
 
+void Remangler::mangleEscapingAutoClosureType(Node *node) {
+  mangleChildNodesReversed(node); // argument tuple, result type
+  Buffer << "XA";
+}
+
+void Remangler::mangleEscapingFunctionType(Node *node) {
+  mangleChildNodesReversed(node); // argument tuple, result type
+  Buffer << "XE";
+}
+
 void Remangler::mangleBoundGenericClass(Node *node) {
   mangleAnyNominalType(node);
 }
