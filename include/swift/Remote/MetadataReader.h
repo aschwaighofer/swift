@@ -330,7 +330,8 @@ public:
       auto flags = FunctionTypeFlags()
                        .withConvention(Function->getConvention())
                        .withThrows(Function->throws())
-                       .withParameterFlags(Function->hasParameterFlags());
+                       .withParameterFlags(Function->hasParameterFlags())
+                       .withEscaping(Function->isEscaping());
       auto BuiltFunction =
           Builder.createFunctionType(Parameters, Result, flags);
       TypeCache[MetadataAddress] = BuiltFunction;
