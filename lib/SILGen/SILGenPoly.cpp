@@ -2957,7 +2957,6 @@ static ManagedValue createThunk(SILGenFunction &SGF,
                              SILType::getPrimitiveObjectType(toType));
 
   if (!expectedType->isNoEscape()) {
-    assert(toType == expectedType);
     return SGF.emitManagedRValueWithCleanup(thunkedFn, expectedTL);
   }
 
