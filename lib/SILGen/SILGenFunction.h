@@ -1870,16 +1870,23 @@ class PostponedCleanup {
   SmallVector<std::pair<CleanupHandle, SILValue>, 16> deferredCleanups;
   SILGenFunction &SGF;
   PostponedCleanup *previouslyActiveCleanup;
+  bool active;
+  bool applyRecursively;
 
   void postponeCleanup(CleanupHandle cleanup, SILValue forValue);
-  void end();
 public:
   PostponedCleanup(SILGenFunction &SGF);
+  PostponedCleanup(SILGenFunction &SGF, bool applyRecursively);
   ~PostponedCleanup();
 
   PostponedCleanup(PostponedCleanup &&other)
       : deferredCleanups(std::move(other.deferredCleanups)), SGF(other.SGF),
-        previouslyActiveCleanup(other.previouslyActiveCleanup) {}
+        previouslyActiveCleanup(other.previouslyActiveCleanup),
+        active(other.active), applyRecursively(other.applyRecursively) {
+    other.active = false;
+  }
+
+  void end();
 
   PostponedCleanup() = delete;
   PostponedCleanup(const PostponedCleanup &) = delete;

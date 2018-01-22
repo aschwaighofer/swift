@@ -1271,17 +1271,29 @@ CleanupHandle SILGenFunction::enterDestroyCleanup(SILValue valueOrAddr) {
   return Cleanups.getTopCleanup();
 }
 
+PostponedCleanup::PostponedCleanup(SILGenFunction &sgf, bool recursive)
+    : SGF(sgf), previouslyActiveCleanup(sgf.CurrentlyActivePostponedCleanup),
+      active(true), applyRecursively(recursive) {
+  SGF.CurrentlyActivePostponedCleanup = this;
+}
 PostponedCleanup::PostponedCleanup(SILGenFunction &sgf)
-    : SGF(sgf),
-      previouslyActiveCleanup(sgf.CurrentlyActivePostponedCleanup) {
+    : SGF(sgf), previouslyActiveCleanup(sgf.CurrentlyActivePostponedCleanup),
+      active(true),
+      applyRecursively(previouslyActiveCleanup
+                           ? previouslyActiveCleanup->applyRecursively
+                           : false) {
   SGF.CurrentlyActivePostponedCleanup = this;
 }
 
 PostponedCleanup::~PostponedCleanup() {
+  if (active) {
+    end();
+  }
 }
 
 void PostponedCleanup::end() {
   SGF.CurrentlyActivePostponedCleanup = previouslyActiveCleanup;
+  active = false;
 }
 
 void PostponedCleanup::postponeCleanup(CleanupHandle cleanup,

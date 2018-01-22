@@ -152,6 +152,13 @@ void Scope::popImpl() {
   cleanups.popTopDeadCleanups(cleanups.innermostScope);
 
   // Propagate the cleanup to the current parent scope.
-  for (auto valueToCleanup : cleanupsToPropagateToOuterScope)
-    cleanups.SGF.enterDestroyCleanup(valueToCleanup);
+  for (auto valueToCleanup : cleanupsToPropagateToOuterScope) {
+    auto handle = cleanups.SGF.enterDestroyCleanup(valueToCleanup);
+    // Reapply postponement in parent scope.
+    if (currentlyActivePostponedCleanup->applyRecursively &&
+        currentlyActivePostponedCleanup->previouslyActiveCleanup) {
+      currentlyActivePostponedCleanup->previouslyActiveCleanup->deferredCleanups
+          .push_back(std::make_pair(handle, valueToCleanup));
+    }
+  }
 }
