@@ -847,6 +847,7 @@ static bool needSpaceBeforeType(NodePointer Type) {
     case Node::Kind::Type:
       return needSpaceBeforeType(Type->getFirstChild());
     case Node::Kind::FunctionType:
+    case Node::Kind::EscapingFunctionType:
     case Node::Kind::UncurriedFunctionType:
     case Node::Kind::DependentGenericType:
       return false;
@@ -1973,6 +1974,7 @@ printEntity(NodePointer Entity, bool asPrefixContext, TypePrinting TypePr,
       while (t->getKind() == Node::Kind::DependentGenericType)
         t = t->getChild(1)->getChild(0);
       if (t->getKind() != Node::Kind::FunctionType &&
+          t->getKind() != Node::Kind::EscapingFunctionType &&
           t->getKind() != Node::Kind::UncurriedFunctionType &&
           t->getKind() != Node::Kind::CFunctionPointer &&
           t->getKind() != Node::Kind::ThinFunctionType) {
