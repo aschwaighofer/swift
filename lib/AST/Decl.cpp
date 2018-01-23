@@ -1727,8 +1727,8 @@ static AnyFunctionType::ExtInfo
 mapSignatureExtInfo(AnyFunctionType::ExtInfo info,
                     bool topLevelFunction) {
   if (topLevelFunction)
-    return AnyFunctionType::ExtInfo();
-  return AnyFunctionType::ExtInfo()
+    return AnyFunctionType::ExtInfo(info.isNoEscape());
+  return AnyFunctionType::ExtInfo(info.isNoEscape())
       .withRepresentation(info.getRepresentation())
       .withIsAutoClosure(info.isAutoClosure())
       .withThrows(info.throws());
@@ -1856,7 +1856,7 @@ CanType ValueDecl::getOverloadSignatureType() const {
     return GenericFunctionType::get(genericSig,
                                     TupleType::getEmpty(ctx),
                                     TupleType::getEmpty(ctx),
-                                    AnyFunctionType::ExtInfo())
+                                    AnyFunctionType::ExtInfo(true))
              ->getCanonicalType();
   }
 
@@ -2755,7 +2755,7 @@ void ClassDecl::addImplicitDestructor() {
 
   // Assign DD the interface type (Self) -> () -> ()
   ArrayRef<AnyFunctionType::Param> noParams;
-  AnyFunctionType::ExtInfo info;
+  AnyFunctionType::ExtInfo info(true);
   Type selfTy = selfDecl->getInterfaceType();
   Type voidTy = TupleType::getEmpty(ctx);
   Type funcTy = FunctionType::get(noParams, voidTy, info);
@@ -5273,14 +5273,15 @@ bool EnumElementDecl::computeType() {
 
   // The type of the enum element is either (T) -> T or (T) -> ArgType -> T.
   if (auto inputTy = getArgumentTypeLoc().getType()) {
-    resultTy = FunctionType::get(inputTy->mapTypeOutOfContext(), resultTy);
+    resultTy =
+        FunctionType::get(inputTy->mapTypeOutOfContext(), resultTy, false);
   }
 
   if (auto *genericSig = ED->getGenericSignatureOfContext())
     resultTy = GenericFunctionType::get(genericSig, selfTy, resultTy,
-                                        AnyFunctionType::ExtInfo());
+                                        AnyFunctionType::ExtInfo(true));
   else
-    resultTy = FunctionType::get(selfTy, resultTy);
+    resultTy = FunctionType::get(selfTy, resultTy, true);
 
   // Record the interface type.
   setInterfaceType(resultTy);

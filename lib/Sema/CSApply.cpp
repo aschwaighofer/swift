@@ -5591,7 +5591,8 @@ Expr *ExprRewriter::coerceCallArguments(
     }
     
     // Rebuild the function type.
-    funcType = FunctionType::get(paramType, funcType->getResult());
+    funcType = FunctionType::get(paramType, funcType->getResult(),
+                                 funcTy->getExtInfo());
   }
 
   bool allParamsMatch = cs.getType(arg)->isEqual(paramType);

@@ -2553,22 +2553,22 @@ public:
     
   public:
     // Constructor with all defaults.
-    ExtInfo() : Bits(0) {
+    ExtInfo(bool IsNoEscape) : Bits(0 | (IsNoEscape ? NoEscapeMask : 0)) {
       assert(getRepresentation() == Representation::Swift);
     }
 
     // Constructor for polymorphic type.
-    ExtInfo(Representation Rep, bool Throws) {
+    ExtInfo(Representation Rep, bool Throws, bool IsNoEscape) {
       Bits = ((unsigned) Rep) | (Throws ? ThrowsMask : 0);
+      Bits |= (IsNoEscape ? NoEscapeMask : 0);
     }
 
     // Constructor with no defaults.
     ExtInfo(Representation Rep,
             bool IsAutoClosure, bool IsNoEscape,
             bool Throws)
-      : ExtInfo(Rep, Throws) {
+      : ExtInfo(Rep, Throws, IsNoEscape) {
       Bits |= (IsAutoClosure ? AutoClosureMask : 0);
-      Bits |= (IsNoEscape ? NoEscapeMask : 0);
     }
 
     bool isAutoClosure() const { return Bits & AutoClosureMask; }
@@ -2710,7 +2710,7 @@ public:
   GenericSignature *getOptGenericSignature() const;
   
   ExtInfo getExtInfo() const {
-    return ExtInfo(Bits.AnyFunctionType.ExtInfo);
+    return ExtInfo((unsigned) Bits.AnyFunctionType.ExtInfo);
   }
 
   /// \brief Get the representation of the function type.
@@ -2752,8 +2752,8 @@ BEGIN_CAN_TYPE_WRAPPER(AnyFunctionType, Type)
   using ExtInfo = AnyFunctionType::ExtInfo;
   using CanParamArrayRef = AnyFunctionType::CanParamArrayRef;
 
-  static CanAnyFunctionType get(CanGenericSignature signature,
-                                CanType input, CanType result);
+  static CanAnyFunctionType get(CanGenericSignature signature, CanType input,
+                                CanType result, bool IsNoEscape);
   static CanAnyFunctionType get(CanGenericSignature signature,
                                 CanType input, CanType result,
                                 const ExtInfo &extInfo);
@@ -2788,8 +2788,8 @@ class FunctionType final : public AnyFunctionType,
       
 public:
   /// 'Constructor' Factory Function
-  static FunctionType *get(Type Input, Type Result) {
-    return get(Input, Result, ExtInfo());
+  static FunctionType *get(Type Input, Type Result, bool IsNoEscape) {
+    return get(Input, Result, ExtInfo(IsNoEscape));
   }
 
   static FunctionType *get(Type Input, Type Result, const ExtInfo &Info);
@@ -2815,8 +2815,8 @@ private:
                const ExtInfo &Info);
 };
 BEGIN_CAN_TYPE_WRAPPER(FunctionType, AnyFunctionType)
-  static CanFunctionType get(CanType input, CanType result) {
-    auto fnType = FunctionType::get(input, result);
+  static CanFunctionType get(CanType input, CanType result, bool IsNoEscape) {
+    auto fnType = FunctionType::get(input, result, IsNoEscape);
     return cast<FunctionType>(fnType->getCanonicalType());
   }
   static CanFunctionType get(CanType input, CanType result,
@@ -2974,8 +2974,8 @@ END_CAN_TYPE_WRAPPER(GenericFunctionType, AnyFunctionType)
 
 inline CanAnyFunctionType
 CanAnyFunctionType::get(CanGenericSignature signature,
-                        CanType input, CanType result) {
-  return get(signature, input, result, ExtInfo());
+                        CanType input, CanType result, bool IsNoEscape) {
+  return get(signature, input, result, ExtInfo(IsNoEscape));
 }
 
 inline CanAnyFunctionType

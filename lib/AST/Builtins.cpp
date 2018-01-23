@@ -145,7 +145,7 @@ StringRef swift::getBuiltinBaseName(ASTContext &C, StringRef Name,
 /// Build a builtin function declaration.
 static FuncDecl *
 getBuiltinFunction(Identifier Id, ArrayRef<Type> argTypes, Type ResType,
-                   FunctionType::ExtInfo Info = FunctionType::ExtInfo()) {
+                   FunctionType::ExtInfo Info = FunctionType::ExtInfo(true)) {
   auto &Context = ResType->getASTContext();
   
   SmallVector<TupleTypeElt, 4> tupleElts;
@@ -211,7 +211,7 @@ getBuiltinGenericFunction(Identifier Id,
   GenericSignature *Sig = Env->getGenericSignature();
 
   Type InterfaceType = GenericFunctionType::get(Sig, ArgParamType, ResType,
-                                                AnyFunctionType::ExtInfo());
+                                                AnyFunctionType::ExtInfo(true));
 
   ModuleDecl *M = Context.TheBuiltinModule;
   DeclContext *DC = &M->getMainFile(FileUnitKind::Builtin);
@@ -605,7 +605,7 @@ makeTuple(const Gs & ...elementGenerators) {
 template <class T, class U>
 static BuiltinGenericSignatureBuilder::FunctionGenerator<T,U>
 makeFunction(const T &arg, const U &result,
-             FunctionType::ExtInfo extInfo = FunctionType::ExtInfo()) {
+             FunctionType::ExtInfo extInfo = FunctionType::ExtInfo(true)) {
   return { arg, result, extInfo };
 }
 
@@ -1118,7 +1118,8 @@ static ValueDecl *getOnceOperation(ASTContext &Context,
   auto HandleTy = Context.TheRawPointerType;
   auto VoidTy = Context.TheEmptyTupleType;
   auto Thin = FunctionType::ExtInfo(FunctionTypeRepresentation::CFunctionPointer,
-                                    /*throws*/ false);
+                                    /*throws*/ false,
+                                    true);
   if (withContext) {
     auto ContextTy = Context.TheRawPointerType;
     auto ContextArg = ParenType::get(Context, ContextTy);
@@ -1338,7 +1339,7 @@ getSwiftFunctionTypeForIntrinsic(unsigned iid, ArrayRef<Type> TypeArgs,
   // Translate LLVM function attributes to Swift function attributes.
   llvm::AttributeList attrs =
       llvm::Intrinsic::getAttributes(getGlobalLLVMContext(), ID);
-  Info = FunctionType::ExtInfo();
+  Info = FunctionType::ExtInfo(true);
   if (attrs.hasAttribute(llvm::AttributeList::FunctionIndex,
                          llvm::Attribute::NoReturn)) {
     ResultTy = Context.getNeverType();
@@ -1432,7 +1433,7 @@ ValueDecl *swift::getBuiltinValueDecl(ASTContext &Context, Identifier Id) {
   if (unsigned ID = getLLVMIntrinsicID(OperationName)) {
     SmallVector<Type, 8> ArgElts;
     Type ResultTy;
-    FunctionType::ExtInfo Info;
+    FunctionType::ExtInfo Info(true);
     if (getSwiftFunctionTypeForIntrinsic(ID, Types, Context, ArgElts, ResultTy,
                                          Info))
       return getBuiltinFunction(Id, ArgElts, ResultTy, Info);
