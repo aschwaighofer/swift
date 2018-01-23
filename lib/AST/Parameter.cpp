@@ -161,15 +161,13 @@ Type ParameterList::getFullInterfaceType(Type resultType,
                                          ArrayRef<ParameterList*> PLL,
                                          const ASTContext &C) {
   auto result = resultType;
-  unsigned param = PLL.size() - 1;
   for (auto PL : reversed(PLL)) {
     auto paramType = PL->getInterfaceType(C);
-    bool isNoEscape = (param == 0);
-    --param;
-    result = FunctionType::get(paramType, result, isNoEscape);
+    result = FunctionType::get(paramType, result);
   }
   return result;
 }
+
 
 /// Return the full source range of this parameter list.
 SourceRange ParameterList::getSourceRange() const {

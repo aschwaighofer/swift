@@ -456,9 +456,9 @@ makeEnumRawValueConstructor(ClangImporter::Implementation &Impl,
 
   auto optEnumTy = OptionalType::get(enumTy);
 
-  auto fnTy = FunctionType::get(paramPL->getType(C), optEnumTy, false);
-  auto allocFnTy = FunctionType::get(metaTy, fnTy, true);
-  auto initFnTy = FunctionType::get(enumTy, fnTy, true);
+  auto fnTy = FunctionType::get(paramPL->getType(C), optEnumTy);
+  auto allocFnTy = FunctionType::get(metaTy, fnTy);
+  auto initFnTy = FunctionType::get(enumTy, fnTy);
   ctorDecl->setInterfaceType(allocFnTy);
   ctorDecl->setInitializerInterfaceType(initFnTy);
   ctorDecl->setValidationStarted();
@@ -482,7 +482,7 @@ makeEnumRawValueConstructor(ClangImporter::Implementation &Impl,
                                     Substitution(enumTy, {}) });
   auto reinterpretCastRef
     = new (C) DeclRefExpr(concreteDeclRef, DeclNameLoc(), /*implicit*/ true);
-  reinterpretCastRef->setType(FunctionType::get({rawTy}, enumTy, true));
+  reinterpretCastRef->setType(FunctionType::get({rawTy}, enumTy));
 
   auto reinterpreted = CallExpr::createImplicit(C, reinterpretCastRef,
                                                 { paramRef }, { Identifier() });
@@ -568,7 +568,7 @@ static AccessorDecl *makeEnumRawValueGetter(ClangImporter::Implementation &Impl,
                                     Substitution(rawTy, {}) });
   auto reinterpretCastRef
     = new (C) DeclRefExpr(concreteDeclRef, DeclNameLoc(), /*implicit*/ true);
-  reinterpretCastRef->setType(FunctionType::get({enumTy}, rawTy, true));
+  reinterpretCastRef->setType(FunctionType::get({enumTy}, rawTy));
 
   auto reinterpreted = CallExpr::createImplicit(C, reinterpretCastRef,
                                                 { selfRef }, { Identifier() });
@@ -1177,9 +1177,9 @@ createDefaultConstructor(ClangImporter::Implementation &Impl,
   auto selfType = structDecl->getDeclaredInterfaceType();
   auto selfMetatype = MetatypeType::get(selfType);
   auto emptyTy = TupleType::getEmpty(context);
-  auto fnTy = FunctionType::get(emptyTy, selfType, false);
-  auto allocFnTy = FunctionType::get(selfMetatype, fnTy, true);
-  auto initFnTy = FunctionType::get(selfType, fnTy, true);
+  auto fnTy = FunctionType::get(emptyTy, selfType);
+  auto allocFnTy = FunctionType::get(selfMetatype, fnTy);
+  auto initFnTy = FunctionType::get(selfType, fnTy);
   constructor->setInterfaceType(allocFnTy);
   constructor->setInitializerInterfaceType(initFnTy);
   constructor->setValidationStarted();
@@ -1210,7 +1210,7 @@ createDefaultConstructor(ClangImporter::Implementation &Impl,
   auto zeroInitializerRef =
     new (context) DeclRefExpr(concreteDeclRef, DeclNameLoc(),
                               /*implicit*/ true);
-  zeroInitializerRef->setType(FunctionType::get(emptyTuple, selfType, true));
+  zeroInitializerRef->setType(FunctionType::get(emptyTuple, selfType));
 
   auto call = CallExpr::createImplicit(context, zeroInitializerRef, {}, {});
   call->setType(selfType);
@@ -1292,9 +1292,9 @@ createValueConstructor(ClangImporter::Implementation &Impl,
   auto paramTy = paramLists[1]->getType(context);
   auto selfType = structDecl->getDeclaredTypeInContext();
   auto selfMetatype = MetatypeType::get(selfType);
-  auto fnTy = FunctionType::get(paramTy, selfType, false);
-  auto allocFnTy = FunctionType::get(selfMetatype, fnTy, true);
-  auto initFnTy = FunctionType::get(selfType, fnTy, true);
+  auto fnTy = FunctionType::get(paramTy, selfType);
+  auto allocFnTy = FunctionType::get(selfMetatype, fnTy);
+  auto initFnTy = FunctionType::get(selfType, fnTy);
   constructor->setInterfaceType(allocFnTy);
   constructor->setInitializerInterfaceType(initFnTy);
   constructor->setValidationStarted();
@@ -1612,9 +1612,8 @@ static Type getGenericMethodType(DeclContext *dc, AnyFunctionType *fnType) {
   if (!sig)
     return fnType;
 
-  Type interfaceType =
-      GenericFunctionType::get(sig, fnType->getParams(), fnType->getResult(),
-                               AnyFunctionType::ExtInfo(fnType->isNoEscape()));
+  Type interfaceType = GenericFunctionType::get(
+      sig, fnType->getParams(), fnType->getResult(), AnyFunctionType::ExtInfo());
 
   return interfaceType;
 }
