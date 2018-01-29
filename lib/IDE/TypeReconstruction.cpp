@@ -1372,7 +1372,9 @@ static void VisitNodeFunctionType(
     }
   }
   CreateFunctionType(ast, arg_type_result, return_type_result,
-                     /*escaping=*/true, throws, result);
+                     cur_node->getKind() ==
+                         Demangle::Node::Kind::EscapingFunctionType,
+                     throws, result);
 }
 
 static void VisitNodeImplFunctionType(
@@ -2161,6 +2163,7 @@ static void VisitNode(
     break;
 
   case Demangle::Node::Kind::FunctionType:
+  case Demangle::Node::Kind::EscapingFunctionType:
   case Demangle::Node::Kind::UncurriedFunctionType: // Out of order on
                                                     // purpose.
     VisitNodeFunctionType(ast, node, result);
