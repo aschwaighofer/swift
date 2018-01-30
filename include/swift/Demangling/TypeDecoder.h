@@ -309,6 +309,8 @@ class TypeDecoder {
             flags =
               flags.withConvention(FunctionMetadataConvention::Block);
           }
+        } else if (child->getKind() == NodeKind::ImplEscaping) {
+          flags = flags.withEscaping(true);
         }
       }
 
