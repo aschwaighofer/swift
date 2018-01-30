@@ -3485,9 +3485,6 @@ public:
       Printer.printStructurePost(PrintStructureKind::BuiltinAttribute);
       Printer << " ";
     }
-    if (!info.isNoEscape()) {
-      Printer.printSimpleAttr("@escaping") << " ";
-    }
   }
 
   void printFunctionExtInfo(
