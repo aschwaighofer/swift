@@ -1042,11 +1042,10 @@ NodePointer NodePrinter::print(NodePointer Node, bool asPrefixContext) {
     Printer << Node->getIndex();
     return nullptr;
   case Node::Kind::EscapingFunctionType:
-    Printer << "@escaping ";
     printFunctionType(nullptr, Node);
     return nullptr;
   case Node::Kind::EscapingAutoClosureType:
-    Printer << "@autoclosure @escaping ";
+    Printer << "@autoclosure ";
     printFunctionType(nullptr, Node);
     return nullptr;
   case Node::Kind::AutoClosureType:
