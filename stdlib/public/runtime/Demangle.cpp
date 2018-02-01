@@ -462,9 +462,9 @@ swift::_swift_buildDemanglingForMetadata(const Metadata *type,
     switch (func->getConvention()) {
     case FunctionMetadataConvention::Swift:
       if (!func->isEscaping())
-        kind = Node::Kind::FunctionType;
+        kind = Node::Kind::NoEscapeFunctionType;
       else
-        kind = Node::Kind::EscapingFunctionType;
+        kind = Node::Kind::FunctionType;
       break;
     case FunctionMetadataConvention::Block:
       kind = Node::Kind::ObjCBlock;

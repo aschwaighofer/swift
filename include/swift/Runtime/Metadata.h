@@ -655,7 +655,7 @@ const ExtraInhabitantsValueWitnessTable
 // The @escaping () -> () table can be used for arbitrary escaping function types.
 SWIFT_RUNTIME_EXPORT
 const ExtraInhabitantsValueWitnessTable
-  VALUE_WITNESS_SYM(ESCAPING_FUNCTION_MANGLING);     // @escaping () -> ()
+  VALUE_WITNESS_SYM(NOESCAPE_FUNCTION_MANGLING);     // @noescape () -> ()
 
 // The @convention(thin) () -> () table can be used for arbitrary thin function types.
 SWIFT_RUNTIME_EXPORT

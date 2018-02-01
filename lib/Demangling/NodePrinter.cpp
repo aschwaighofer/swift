@@ -328,7 +328,7 @@ private:
     case Node::Kind::Directness:
     case Node::Kind::DynamicAttribute:
     case Node::Kind::EscapingAutoClosureType:
-    case Node::Kind::EscapingFunctionType:
+    case Node::Kind::NoEscapeFunctionType:
     case Node::Kind::ExplicitClosure:
     case Node::Kind::Extension:
     case Node::Kind::FieldOffset:
@@ -855,7 +855,7 @@ static bool needSpaceBeforeType(NodePointer Type) {
     case Node::Kind::Type:
       return needSpaceBeforeType(Type->getFirstChild());
     case Node::Kind::FunctionType:
-    case Node::Kind::EscapingFunctionType:
+    case Node::Kind::NoEscapeFunctionType:
     case Node::Kind::UncurriedFunctionType:
     case Node::Kind::DependentGenericType:
       return false;
@@ -1041,7 +1041,7 @@ NodePointer NodePrinter::print(NodePointer Node, bool asPrefixContext) {
   case Node::Kind::Index:
     Printer << Node->getIndex();
     return nullptr;
-  case Node::Kind::EscapingFunctionType:
+  case Node::Kind::NoEscapeFunctionType:
     printFunctionType(nullptr, Node);
     return nullptr;
   case Node::Kind::EscapingAutoClosureType:
@@ -2014,7 +2014,7 @@ printEntity(NodePointer Entity, bool asPrefixContext, TypePrinting TypePr,
       while (t->getKind() == Node::Kind::DependentGenericType)
         t = t->getChild(1)->getChild(0);
       if (t->getKind() != Node::Kind::FunctionType &&
-          t->getKind() != Node::Kind::EscapingFunctionType &&
+          t->getKind() != Node::Kind::NoEscapeFunctionType &&
           t->getKind() != Node::Kind::UncurriedFunctionType &&
           t->getKind() != Node::Kind::CFunctionPointer &&
           t->getKind() != Node::Kind::ThinFunctionType) {

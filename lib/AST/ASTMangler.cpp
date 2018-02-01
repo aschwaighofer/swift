@@ -1597,7 +1597,7 @@ void ASTMangler::appendFunctionType(AnyFunctionType *fn) {
         return appendOperator("XK");
       else
         return appendOperator("XA");
-    } else if (!fn->isNoEscape()) {
+    } else if (fn->isNoEscape()) {
       return appendOperator("XE");
     }
     return appendOperator("c");

@@ -373,7 +373,7 @@ static NodePointer applyParamLabels(NodePointer LabelList, NodePointer OrigType,
 
   auto visitTypeChild = [&](NodePointer Child) -> NodePointer {
     if (Child->getKind() != Node::Kind::FunctionType &&
-        Child->getKind() != Node::Kind::EscapingFunctionType)
+        Child->getKind() != Node::Kind::NoEscapeFunctionType)
       return Child;
 
     auto FuncType = Factory.createNode(Node::Kind::FunctionType);
@@ -1104,11 +1104,11 @@ void Remangler::mangleEntityType(Node *node, EntityContext &ctx) {
 
   // Expand certain kinds of type within the entity context.
   switch (node->getKind()) {
-  case Node::Kind::EscapingFunctionType:
+  case Node::Kind::NoEscapeFunctionType:
   case Node::Kind::FunctionType:
   case Node::Kind::UncurriedFunctionType: {
     Out << ((node->getKind() == Node::Kind::FunctionType ||
-             node->getKind() == Node::Kind::EscapingFunctionType)
+             node->getKind() == Node::Kind::NoEscapeFunctionType)
                 ? 'F'
                 : 'f');
     unsigned inputIndex = node->getNumChildren() - 2;
@@ -1232,7 +1232,7 @@ void Remangler::mangleAutoClosureType(Node *node) {
   mangleChildNodes(node); // argument tuple, result type
 }
 
-void Remangler::mangleEscapingFunctionType(Node *node) {
+void Remangler::mangleNoEscapeFunctionType(Node *node) {
   Out << 'F';
   mangleChildNodes(node); // argument tuple, result type
 }

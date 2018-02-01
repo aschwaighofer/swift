@@ -25,7 +25,7 @@ func f1_composition_objc_protocol(_: P1) { }
 
 DemangleToMetadataTests.test("@objc protocols") {
   expectEqual(type(of: f1_composition_objc_protocol),
-              _typeByMangledName("yy4main2P1_pXE")!)
+              _typeByMangledName("yy4main2P1_pc")!)
 }
 
 DemangleToMetadataTests.test("Objective-C classes") {
@@ -35,7 +35,7 @@ DemangleToMetadataTests.test("Objective-C classes") {
 func f1_composition_NSCoding(_: NSCoding) { }
 
 DemangleToMetadataTests.test("Objective-C protocols") {
-  expectEqual(type(of: f1_composition_NSCoding), _typeByMangledName("yySo8NSCoding_pXE")!)
+  expectEqual(type(of: f1_composition_NSCoding), _typeByMangledName("yySo8NSCoding_pc")!)
 }
 
 DemangleToMetadataTests.test("Classes that don't exist") {

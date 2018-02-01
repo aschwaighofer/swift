@@ -540,7 +540,7 @@ void Remangler::mangleEscapingAutoClosureType(Node *node) {
   Buffer << "XA";
 }
 
-void Remangler::mangleEscapingFunctionType(Node *node) {
+void Remangler::mangleNoEscapeFunctionType(Node *node) {
   mangleChildNodesReversed(node); // argument tuple, result type
   Buffer << "XE";
 }

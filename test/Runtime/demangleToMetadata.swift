@@ -46,7 +46,7 @@ func f2_variadic_inout(x: ()..., y: inout ()) { }
 
 DemangleToMetadataTests.test("function types") {
   // Conventions
-  expectEqual(type(of: f0), _typeByMangledName("yyXE")!)
+  expectEqual(type(of: f0), _typeByMangledName("yyc")!)
   expectEqual(type(of: f0_thin), _typeByMangledName("yyXf")!)
   expectEqual(type(of: f0_c), _typeByMangledName("yyXC")!)
 #if _runtime(_ObjC)
@@ -54,24 +54,24 @@ DemangleToMetadataTests.test("function types") {
 #endif
 
   // Throwing functions
-  expectEqual(type(of: f0_throws), _typeByMangledName("yyKXE")!)
+  expectEqual(type(of: f0_throws), _typeByMangledName("yyKc")!)
 
   // More parameters.
-  expectEqual(type(of: f1), _typeByMangledName("yyyt_tXE")!)
-  expectEqual(type(of: f2), _typeByMangledName("yyyt_yttXE")!)
+  expectEqual(type(of: f1), _typeByMangledName("yyyt_tc")!)
+  expectEqual(type(of: f2), _typeByMangledName("yyyt_yttc")!)
 
   // Variadic parameters.
-  expectEqual(type(of: f1_variadic), _typeByMangledName("yyytd_tXE")!)
+  expectEqual(type(of: f1_variadic), _typeByMangledName("yyytd_tc")!)
 
   // Inout parameters.
-  expectEqual(type(of: f1_inout), _typeByMangledName("yyytzXE")!)
+  expectEqual(type(of: f1_inout), _typeByMangledName("yyytzc")!)
 
   // Ownership parameters.
-  expectEqual(type(of: f1_shared), _typeByMangledName("yyyXlhXE")!)
-  expectEqual(type(of: f1_owned), _typeByMangledName("yyyXlXE")!)
+  expectEqual(type(of: f1_shared), _typeByMangledName("yyyXlhc")!)
+  expectEqual(type(of: f1_owned), _typeByMangledName("yyyXlc")!)
 
   // Mix-and-match.
-  expectEqual(type(of: f2_variadic_inout), _typeByMangledName("yyytd_ytztXE")!)
+  expectEqual(type(of: f2_variadic_inout), _typeByMangledName("yyytd_ytztc")!)
 
   // A function type that hasn't been built before.
   expectEqual("(Int, Float, Double, String, Character, UInt, Bool) -> ()",
@@ -80,7 +80,7 @@ DemangleToMetadataTests.test("function types") {
 
 DemangleToMetadataTests.test("metatype types") {
   expectEqual(type(of: type(of: ())), _typeByMangledName("ytm")!)
-  expectEqual(type(of: type(of: f0)), _typeByMangledName("yyXEm")!)
+  expectEqual(type(of: type(of: f0)), _typeByMangledName("yycm")!)
 }
 
 func f2_any_anyobject(_: Any, _: AnyObject) { }
@@ -97,16 +97,16 @@ func f1_composition_superclass(_: C & P1 & P2) { }
 
 DemangleToMetadataTests.test("existential types") {
   // Any, AnyObject
-  expectEqual(type(of: f2_any_anyobject), _typeByMangledName("yyyp_yXltXE")!)
+  expectEqual(type(of: f2_any_anyobject), _typeByMangledName("yyyp_yXltc")!)
 
   // References to protocols.
-  expectEqual(type(of: f1_composition), _typeByMangledName("yy4main2P1_4main2P2pXE")!)
+  expectEqual(type(of: f1_composition), _typeByMangledName("yy4main2P1_4main2P2pc")!)
 
   // Reference to protocol with AnyObject.
-  expectEqual(type(of: f1_composition_anyobject), _typeByMangledName("yy4main2P1_XlXE")!)
+  expectEqual(type(of: f1_composition_anyobject), _typeByMangledName("yy4main2P1_Xlc")!)
 
   // References to superclass.
-  expectEqual(type(of: f1_composition_superclass), _typeByMangledName("yy4main2P1_4main2P2AA1CCXcXE")!)
+  expectEqual(type(of: f1_composition_superclass), _typeByMangledName("yy4main2P1_4main2P2AA1CCXcc")!)
 
   // Demangle an existential type that hasn't been seen before.
   expectEqual("P1 & P2 & P3", String(describing: _typeByMangledName("4main2P1_4main2P24main2P3p")!))

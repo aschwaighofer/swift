@@ -139,7 +139,7 @@ const ExtraInhabitantsValueWitnessTable
 
 /// The basic value-witness table for escaping function types.
 const ExtraInhabitantsValueWitnessTable
-  swift::VALUE_WITNESS_SYM(ESCAPING_FUNCTION_MANGLING) =
+  swift::VALUE_WITNESS_SYM(NOESCAPE_FUNCTION_MANGLING) =
     ValueWitnessTableForBox<ThickFunctionBox>::table;
 
 /// The basic value-witness table for thin function types.

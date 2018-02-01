@@ -242,7 +242,7 @@ class TypeDecoder {
     case NodeKind::ObjCBlock:
     case NodeKind::CFunctionPointer:
     case NodeKind::ThinFunctionType:
-    case NodeKind::EscapingFunctionType:
+    case NodeKind::NoEscapeFunctionType:
     case NodeKind::FunctionType: {
       if (Node->getNumChildren() < 2)
         return BuiltType();
@@ -272,7 +272,7 @@ class TypeDecoder {
       flags =
           flags.withNumParameters(parameters.size())
               .withParameterFlags(hasParamFlags)
-              .withEscaping(Node->getKind() == NodeKind::EscapingFunctionType);
+              .withEscaping(Node->getKind() == NodeKind::FunctionType);
 
       auto result = decodeMangledType(Node->getChild(isThrow ? 2 : 1));
       if (!result) return BuiltType();
