@@ -776,9 +776,9 @@ static bool validateParameterType(ParamDecl *decl, DeclContext *DC,
 }
 
 /// Type check a parameter list.
-bool TypeChecker::typeCheckParameterList(ParameterList *PL, DeclContext *DC,
-                                         TypeResolutionOptions options,
-                                         GenericTypeResolver &resolver) {
+bool TypeChecker::typeCheckParameterList(
+    ParameterList *PL, DeclContext *DC, TypeResolutionOptions options,
+    GenericTypeResolver &resolver, bool bodyCouldRequireTypeOrConformance) {
   bool hadError = false;
   
   for (auto param : *PL) {
@@ -802,8 +802,15 @@ bool TypeChecker::typeCheckParameterList(ParameterList *PL, DeclContext *DC,
       if (options & TypeResolutionFlags::InExpression)
         continue;
       param->setInvalid();
-    }
-    
+    } else if (bodyCouldRequireTypeOrConformance)
+      if (auto *generic = dyn_cast<BoundGenericType>(type.getPointer())) {
+        // Generic types are sources for typemetadata and conformances. If the
+        // parameters are of dependent type then the body could potentially
+        // require their layout to recover them.
+        if (auto *nominalDecl = dyn_cast<NominalTypeDecl>(generic->getDecl()))
+          requestNominalLayout(nominalDecl);
+      }
+
     if (param->isInvalid() || type->hasError()) {
       param->markInvalid();
       hadError = true;

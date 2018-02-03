@@ -1812,7 +1812,8 @@ public:
   /// Type check a parameter list.
   bool typeCheckParameterList(ParameterList *PL, DeclContext *dc,
                               TypeResolutionOptions options,
-                              GenericTypeResolver &resolver);
+                              GenericTypeResolver &resolver,
+                              bool bodyCouldRequireTypeOrConformance);
   
   /// Coerce a pattern to the given type.
   ///
