@@ -7610,7 +7610,22 @@ namespace {
         auto *params = closure->getParameters();
         if (tc.coerceParameterListToType(params, closure, fnType))
           return { false, nullptr };
-
+        // Require layout of dependent types that could be used to materialize
+        // metadata types/conformances during IRGen.
+        for (auto param : *params) {
+          auto paramType = param->getType()->getCanonicalType();
+          if (auto *generic =
+                  dyn_cast<BoundGenericType>(paramType.getPointer())) {
+            // Generic types are sources for typemetadata and conformances. If
+            // the parameters are of dependent type then the body could
+            // potentially
+            // require their layout to recover them.
+            if (auto *nominalDecl =
+                    dyn_cast<NominalTypeDecl>(generic->getDecl())) {
+              tc.requestNominalLayout(nominalDecl);
+            }
+          }
+        }
         // If this is a single-expression closure, convert the expression
         // in the body to the result type of the closure.
         if (closure->hasSingleExpressionBody()) {
