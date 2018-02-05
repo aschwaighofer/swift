@@ -5,15 +5,21 @@
 
 // The offset of the typemetadata in the class typemetadata must match.
 
-// FILE1-LABEL: define swiftcc void @"$S4test11requestTypeyyAA3SubCyxGlF"(%T4test3SubC*)
-// FILE1:  [[T1:%.*]] = bitcast %T4test3SubC* %0 to %swift.type**
-// FILE1:  [[TYPEMETADATA:%.*]] = load %swift.type*, %swift.type** [[T1]]
-// FILE1:  [[T2:%.*]] = bitcast %swift.type* [[TYPEMETADATA]] to %swift.type**
+// FILE1: define hidden swiftcc i64 @"$S4test12AccessorTestCySiAA3SubCyxGcluig"(%T4test3SubC*, %T4test12AccessorTestC* swiftself)
+// FILE1:   [[T1:%.*]] = bitcast %T4test3SubC* %0 to %swift.type**
+// FILE1:   [[TYPEMETADATA:%.*]] = load %swift.type*, %swift.type** [[T1]] 
+// FILE1:   [[T2:%.*]] = bitcast %swift.type* [[TYPEMETADATA]] to %swift.type**
 // This offset must match the offset below.
-// FILE1:  [[T_PTR:%.*]] = getelementptr inbounds %swift.type*, %swift.type** [[T2]], i64 16
-// FILE1:  [[T:%.*]] = load %swift.type*, %swift.type** [[T_PTR]]
-public func requestType<T>(_ c: Sub<T>) {
-  print(T.self)
+// FILE1:   [[T_IN_CLASSMETADATA:%.*]] = getelementptr inbounds %swift.type*, %swift.type** [[T2]], i64 16
+// FILE1:   [[T:%.*]] = load %swift.type*, %swift.type** [[T_IN_CLASSMETADATA]] 
+// FILE1:   call %swift.type* @swift_getMetatypeMetadata(%swift.type* [[T]])
+public class AccessorTest {
+  subscript<T>(_ a: Sub<T>) -> Int {
+    get {
+      print(T.self)
+      return 1
+    }
+  }
 }
 
 // FILE2-LABEL: define private %swift.type* @create_generic_metadata_Sub(%swift.type_pattern*, i8**)
