@@ -778,7 +778,7 @@ static bool validateParameterType(ParamDecl *decl, DeclContext *DC,
 /// Request nominal layout for any types that could be sources of typemetadata
 /// or conformances.
 void TypeChecker::requestRequiredNominalTypeLayoutForParameters(
-    ParameterList *PL, bool haveInterfaceTypes) {
+    ParameterList *PL) {
   for (auto param : *PL) {
     auto type = param->hasType() ? param->getType()->getCanonicalType()
                                  : param->getTypeLoc().getType();
