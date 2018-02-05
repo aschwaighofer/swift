@@ -7,3 +7,7 @@ public class Base<T> {
 
 public class Sub<T> : Base<T> {
 }
+
+public func requestTypeThrough<T>(closure: (Sub<T>) -> (), arg: T) {
+  closure(Sub(arg))
+}
