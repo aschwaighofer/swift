@@ -5340,6 +5340,10 @@ public:
       case AccessorKind::IsMaterializeForSet:
         break;
       }
+      // Request nominal layout for any types that could be sources of
+      // typemetadata or conformances.
+      if (accessor->hasBody())
+        TC.requestRequiredNominalTypeLayoutForParameters(valueParams);
     }
 
     // Before anything else, set up the 'self' argument correctly if present.
