@@ -258,6 +258,16 @@ namespace {
       e.add(data);
     }
 
+    LoadedRef loadRefcountedPtr(IRGenFunction &IGF, SourceLoc loc,
+                                Address addr) const override {
+      assert(!isPOD(ResilienceExpansion::Maximal));
+
+      Address dataAddr = projectData(IGF, addr);
+      auto ref = IGF.Builder.CreateLoad(dataAddr);
+      // thin_to_thick functions can have a nil context.
+      return LoadedRef(ref, false);
+    }
+
     void loadAsTake(IRGenFunction &IGF, Address addr,
                     Explosion &e) const override {
       // Load the function.

@@ -1646,7 +1646,13 @@ public:
   //===--------------------------------------------------------------------===//
   // NoEscaping to Escaping closure thunk
   //===--------------------------------------------------------------------===//
-  ManagedValue
+  // Returns at +2 so that we can check uniqueness (i.e that the closure has not
+  // escaped).
+  struct WithoutActuallyEscapingValues {
+    ManagedValue forUniquenessCheck;
+    ManagedValue escapingClosure;
+  };
+  WithoutActuallyEscapingValues
   createWithoutActuallyEscapingClosure(SILLocation loc,
                                        ManagedValue noEscapingFunctionValue,
                                        SILType escapingFnTy);

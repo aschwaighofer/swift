@@ -5310,8 +5310,7 @@ RValue RValueEmitter::visitOpenExistentialExpr(OpenExistentialExpr *E,
 }
 
 RValue RValueEmitter::visitMakeTemporarilyEscapableExpr(
-    MakeTemporarilyEscapableExpr *E,
-    SGFContext C) {
+    MakeTemporarilyEscapableExpr *E, SGFContext C) {
   // Emit the non-escaping function value.
   auto functionValue =
     visit(E->getNonescapingClosureValue()).getAsSingleValue(SGF, E);
@@ -5319,20 +5318,39 @@ RValue RValueEmitter::visitMakeTemporarilyEscapableExpr(
   auto escapingFnTy = SGF.getLoweredType(E->getOpaqueValue()->getType());
 
   // Convert it to an escaping function value.
-  functionValue =
+  auto withoutActuallyEscapingValues =
       SGF.createWithoutActuallyEscapingClosure(E, functionValue, escapingFnTy);
+  RValue rvalue;
+  {
+    // Bind the opaque value to the escaping function.
+    SILGenFunction::OpaqueValueState opaqueValue{
+        withoutActuallyEscapingValues.escapingClosure,
+        /*consumable*/ true,
+        /*hasBeenConsumed*/ false,
+    };
+    SILGenFunction::OpaqueValueRAII pushOpaqueValue(SGF, E->getOpaqueValue(),
+                                                    opaqueValue);
 
-  // Bind the opaque value to the escaping function.
-  SILGenFunction::OpaqueValueState opaqueValue{
-    functionValue,
-    /*consumable*/ true,
-    /*hasBeenConsumed*/ false,
-  };
-  SILGenFunction::OpaqueValueRAII pushOpaqueValue(SGF, E->getOpaqueValue(),
-                                                  opaqueValue);
-
-  // Emit the guarded expression.
-  return visit(E->getSubExpr(), C);
+    // Emit the guarded expression.
+    rvalue = visit(E->getSubExpr(), C);
+  }
+  // If we still have a cleanup on the closure value execute it now before the
+  // uniqueness check.
+  //auto escapingClosure = withoutActuallyEscapingValues.escapingClosure;
+  auto loc = SILLocation(E);
+  //if (escapingClosure.hasCleanup()) {
+  //  SGF.B.createDestroyValue(loc, escapingClosure.forward(SGF));
+  //}
+  // Now create the verification of the withoutActuallyEscaping operand.
+  // Either we fail the uniquenes check (which means the closure has escaped)
+  // and abort or we continue and destroy the ultimate reference.
+  auto ref = withoutActuallyEscapingValues.forUniquenessCheck.forward(SGF);
+  auto borrow = SGF.B.createBeginBorrow(loc, ref);
+  auto isEscaping = SGF.B.createIsEscapingClosure(loc, borrow);
+  SGF.B.createEndBorrow(loc, borrow, ref);
+  SGF.B.createCondFail(loc, isEscaping);
+  SGF.B.createDestroyValue(loc, ref);
+  return rvalue;
 }
 
 RValue RValueEmitter::visitOpaqueValueExpr(OpaqueValueExpr *E, SGFContext C) {
