@@ -677,6 +677,13 @@ FUNCTION(IsUniquelyReferencedOrPinned_nonNull_native,
          ARGS(RefCountedPtrTy),
          ATTRS(NoUnwind, ZExt))
 
+// bool swift_isEscapingClosure(const struct HeapObject *);
+FUNCTION(IsEscapingClosure, swift_isEscapingClosure,
+         C_CC,
+         RETURNS(Int1Ty),
+         ARGS(RefCountedPtrTy),
+         ATTRS(NoUnwind, ZExt))
+
 // void swift_arrayInitWithCopy(opaque*, opaque*, size_t, type*);
 FUNCTION(ArrayInitWithCopy, swift_arrayInitWithCopy, C_CC,
          RETURNS(VoidTy),

@@ -33,6 +33,7 @@
 #include "swift/Runtime/ObjCBridge.h"
 #include "swift/Strings.h"
 #include "../SwiftShims/RuntimeShims.h"
+#include "../SwiftShims/AssertionReporting.h"
 #include "Private.h"
 #include "SwiftObject.h"
 #include "WeakReference.h"
@@ -1387,7 +1388,19 @@ bool swift::swift_isUniquelyReferencedOrPinned_native(const HeapObject *object){
   return object != nullptr &&
          swift_isUniquelyReferencedOrPinned_nonNull_native(object);
 }
-
+// Given a non-@objc object reference, return true iff the
+// object is non-nil and has a strong reference count greather than 1
+bool swift::swift_isEscapingClosure(const HeapObject *object){
+  bool isEscaping = object != nullptr &&
+                    !swift_isUniquelyReferencedOrPinned_nonNull_native(object);
+  if (isEscaping) {
+    auto *fatalErr = reinterpret_cast<const unsigned char *>("Fatal error");
+    auto *message = reinterpret_cast<const unsigned char *>(
+        "closure argument has escaped in withoutActuallyEscaping block");
+    _swift_stdlib_reportFatalError(fatalErr, 11, message, 62, 0 /* flags */);
+  }
+  return isEscaping;
+}
 /// Given a non-nil native swift object reference, return true if
 /// either the object has a strong reference count of 1 or its
 /// pinned flag is set.

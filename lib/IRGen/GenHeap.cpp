@@ -1430,6 +1430,14 @@ emitIsUniqueCall(llvm::Value *value, SourceLoc loc, bool isNonNull,
   return call;
 }
 
+llvm::Value *IRGenFunction::emitIsEscapingClosureCall(llvm::Value *value,
+                                                      SourceLoc loc) {
+  llvm::Constant *fn = IGM.getIsEscapingClosureFn();
+  llvm::CallInst *call = Builder.CreateCall(fn, value);
+  call->setDoesNotThrow();
+  return call;
+}
+
 namespace {
 /// Basic layout and common operations for box types.
 class BoxTypeInfo : public HeapTypeInfo<BoxTypeInfo> {

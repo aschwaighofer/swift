@@ -280,6 +280,11 @@ SWIFT_RUNTIME_EXPORT
 bool swift_isUniquelyReferencedOrPinned_nonNull_native(
   const struct HeapObject *);
 
+/// Is this native Swift pointer non-null and has a reference count greater than
+/// one.
+SWIFT_RUNTIME_EXPORT
+bool swift_isEscapingClosure(const struct HeapObject *);
+
 /// Deallocate the given memory.
 ///
 /// It must have been returned by swift_allocObject and the strong reference
