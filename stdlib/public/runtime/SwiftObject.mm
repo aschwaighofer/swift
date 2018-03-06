@@ -1392,13 +1392,13 @@ bool swift::swift_isUniquelyReferencedOrPinned_native(const HeapObject *object){
 // Given a non-@objc object reference, return true iff the
 // object is non-nil and has a strong reference count greather than 1
 bool swift::swift_isEscapingClosure(const HeapObject *object) {
-  bool isEscaping = object != nullptr &&
-                    !swift_isUniquelyReferencedOrPinned_nonNull_native(object);
+  bool isEscaping =
+      object != nullptr && !object->refcounts.isUniquelyReferenced();
   if (isEscaping) {
     auto *fatalErr = reinterpret_cast<const unsigned char *>("Fatal error");
     auto *message = reinterpret_cast<const unsigned char *>(
-        "closure argument has escaped in withoutActuallyEscaping block");
-    _swift_stdlib_reportFatalError(fatalErr, 11, message, 6, 0 /* flags */);
+        "closure argument was escaped in withoutActuallyEscaping block");
+    _swift_stdlib_reportFatalError(fatalErr, 11, message, 62, 0 /* flags */);
   }
   return isEscaping;
 }
@@ -1409,12 +1409,12 @@ bool swift::swift_isEscapingClosureAtFileLocation(const HeapObject *object,
                                                   const unsigned char *filename,
                                                   int32_t filenameLength,
                                                   int32_t line) {
-  bool isEscaping = object != nullptr &&
-                    !swift_isUniquelyReferencedOrPinned_nonNull_native(object);
+  bool isEscaping =
+      object != nullptr && !object->refcounts.isUniquelyReferenced();
   if (isEscaping) {
     auto *fatalErr = reinterpret_cast<const unsigned char *>("Fatal error");
     auto *message = reinterpret_cast<const unsigned char *>(
-        "closure argument has escaped in withoutActuallyEscaping block");
+        "closure argument was escaped in withoutActuallyEscaping block");
     _swift_stdlib_reportFatalErrorInFile(fatalErr, 11, message, 62, filename,
                                          filenameLength, line, 0 /* flags */);
   }
