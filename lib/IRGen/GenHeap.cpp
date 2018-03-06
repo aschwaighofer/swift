@@ -1431,11 +1431,24 @@ emitIsUniqueCall(llvm::Value *value, SourceLoc loc, bool isNonNull,
 }
 
 llvm::Value *IRGenFunction::emitIsEscapingClosureCall(llvm::Value *value,
-                                                      SourceLoc loc) {
-  llvm::Constant *fn = IGM.getIsEscapingClosureFn();
-  llvm::CallInst *call = Builder.CreateCall(fn, value);
+                                                      SourceLoc sourceLoc) {
+  if (IGM.DebugInfo) {
+    auto loc = IGM.DebugInfo->decodeSourceLoc(sourceLoc);
+    auto line = llvm::ConstantInt::get(IGM.Int32Ty, loc.Line);
+    auto filename = IGM.getAddrOfGlobalString(loc.Filename);
+    auto filenameLength =
+        llvm::ConstantInt::get(IGM.Int32Ty, loc.Filename.size());
+    llvm::CallInst *call =
+        Builder.CreateCall(IGM.getIsEscapingClosureAtFileLocationFn(),
+                           {value, filename, filenameLength, line});
+    call->setDoesNotThrow();
+    return call;
+  }
+  llvm::CallInst *call =
+      Builder.CreateCall(IGM.getIsEscapingClosureFn(), value);
   call->setDoesNotThrow();
   return call;
+
 }
 
 namespace {
