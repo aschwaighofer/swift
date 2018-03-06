@@ -1393,7 +1393,7 @@ bool swift::swift_isUniquelyReferencedOrPinned_native(const HeapObject *object){
 // object is non-nil and has a strong reference count greather than 1
 bool swift::swift_isEscapingClosure(const HeapObject *object) {
   bool isEscaping =
-      object != nullptr && !object->refcounts.isUniquelyReferenced();
+      object != nullptr && !object->refCounts.isUniquelyReferenced();
   if (isEscaping) {
     auto *fatalErr = reinterpret_cast<const unsigned char *>("Fatal error");
     auto *message = reinterpret_cast<const unsigned char *>(
@@ -1410,7 +1410,7 @@ bool swift::swift_isEscapingClosureAtFileLocation(const HeapObject *object,
                                                   int32_t filenameLength,
                                                   int32_t line) {
   bool isEscaping =
-      object != nullptr && !object->refcounts.isUniquelyReferenced();
+      object != nullptr && !object->refCounts.isUniquelyReferenced();
   if (isEscaping) {
     auto *fatalErr = reinterpret_cast<const unsigned char *>("Fatal error");
     auto *message = reinterpret_cast<const unsigned char *>(
