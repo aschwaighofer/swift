@@ -98,7 +98,8 @@ public func functionWithIndirectResilientEnum(_ ia: IndirectApproach) -> Indirec
 
 // CHECK-LABEL: define{{( protected)?}} swiftcc void @"$S15enum_resilience31constructResilientEnumNoPayload010resilient_A06MediumOyF"
 public func constructResilientEnumNoPayload() -> Medium {
-// CHECK:      [[METADATA:%.*]] = call %swift.type* @"$S14resilient_enum6MediumOMa"()
+// CHECK:      [[TAG:%.*]] = load i32, i32* @"$S14resilient_enum6MediumO5PaperyA2CmFWC"
+// CHECK-NEXT: [[METADATA:%.*]] = call %swift.type* @"$S14resilient_enum6MediumOMa"()
 // CHECK-NEXT: [[METADATA_ADDR:%.*]] = bitcast %swift.type* [[METADATA]] to i8***
 // CHECK-NEXT: [[VWT_ADDR:%.*]] = getelementptr inbounds i8**, i8*** [[METADATA_ADDR]], [[INT:i32|i64]] -1
 // CHECK-NEXT: [[VWT:%.*]] = load i8**, i8*** [[VWT_ADDR]]
@@ -106,7 +107,7 @@ public func constructResilientEnumNoPayload() -> Medium {
 // CHECK-NEXT: [[WITNESS_ADDR:%.*]] = getelementptr inbounds i8*, i8** [[VWT]], i32 17
 // CHECK-NEXT: [[WITNESS:%.*]] = load i8*, i8** [[WITNESS_ADDR]]
 // CHECK-NEXT: [[WITNESS_FN:%.*]] = bitcast i8* [[WITNESS]]
-// CHECK-NEXT: call void [[WITNESS_FN]](%swift.opaque* noalias %0, i32 0, %swift.type* [[METADATA]])
+// CHECK-NEXT: call void [[WITNESS_FN]](%swift.opaque* noalias %0, i32 [[TAG]], %swift.type* [[METADATA]])
 
 // CHECK-NEXT: ret void
   return Medium.Paper
@@ -124,6 +125,7 @@ public func constructResilientEnumPayload(_ s: Size) -> Medium {
 // CHECK-NEXT: [[WITNESS_FN:%.*]] = bitcast i8* [[WITNESS]]
 // CHECK-NEXT: [[COPY:%.*]] = call %swift.opaque* %initializeWithCopy(%swift.opaque* noalias %0, %swift.opaque* noalias %1, %swift.type* [[METADATA]])
 
+// CHECK-NEXT: [[TAG:%.*]] = load i32, i32* @"$S14resilient_enum6MediumO8PostcardyAC0A7_struct4SizeVcACmFWC"
 // CHECK-NEXT: [[METADATA2:%.*]] = call %swift.type* @"$S14resilient_enum6MediumOMa"()
 // CHECK-NEXT: [[METADATA_ADDR2:%.*]] = bitcast %swift.type* [[METADATA2]] to i8***
 // CHECK-NEXT: [[VWT_ADDR2:%.*]] = getelementptr inbounds i8**, i8*** [[METADATA_ADDR2]], [[INT:i32|i64]] -1
@@ -132,7 +134,7 @@ public func constructResilientEnumPayload(_ s: Size) -> Medium {
 // CHECK-NEXT: [[WITNESS_ADDR:%.*]] = getelementptr inbounds i8*, i8** [[VWT2]], i32 17
 // CHECK-NEXT: [[WITNESS:%.*]] = load i8*, i8** [[WITNESS_ADDR]]
 // CHECK-NEXT: [[WITNESS_FN:%.*]] = bitcast i8* [[WITNESS]]
-// CHECK-NEXT: call void [[WITNESS_FN]](%swift.opaque* noalias %0, i32 -2, %swift.type* [[METADATA2]])
+// CHECK-NEXT: call void [[WITNESS_FN]](%swift.opaque* noalias %0, i32 [[TAG]], %swift.type* [[METADATA2]])
 
 // CHECK-NEXT: [[WITNESS_ADDR:%.*]] = getelementptr inbounds i8*, i8** [[VWT]], i32 1
 // CHECK-NEXT: [[WITNESS:%.*]] = load i8*, i8** [[WITNESS_ADDR]]
@@ -167,25 +169,39 @@ public func constructResilientEnumPayload(_ s: Size) -> Medium {
 // CHECK: [[WITNESS_FN:%.*]] = bitcast i8* [[WITNESS]]
 // CHECK: [[TAG:%.*]] = call i32 %getEnumTag(%swift.opaque* noalias [[ENUM_STORAGE]], %swift.type* [[METADATA]])
 
-// CHECK: switch i32 [[TAG]], label %[[DEFAULT_CASE:.*]] [
-// CHECK:   i32 -1, label %[[PAMPHLET_CASE:.*]]
-// CHECK:   i32 0, label %[[PAPER_CASE:.*]]
-// CHECK:   i32 1, label %[[CANVAS_CASE:.*]]
-// CHECK: ]
+// CHECK:  [[PAMPHLET_CASE_TAG:%.*]] = load i32, i32* @"$S14resilient_enum6MediumO8PamphletyA2CcACmFWC"
+// CHECK:  [[PAMPHLET_CASE:%.*]] = icmp eq i32 [[TAG]], [[PAMPHLET_CASE_TAG]]
+// CHECK:  br i1 [[PAMPHLET_CASE]], label %[[PAMPHLET_CASE_LABEL:.*]], label %[[PAPER_CHECK:.*]]
 
-// CHECK: ; <label>:[[PAPER_CASE]]
+// CHECK:  <label>:[[PAPER_CHECK]]:
+// CHECK:  [[PAPER_CASE_TAG:%.*]] = load i32, i32* @"$S14resilient_enum6MediumO5PaperyA2CmFWC"
+// CHECK:  [[PAPER_CASE:%.*]] = icmp eq i32 [[TAG]], [[PAPER_CASE_TAG]]
+// CHECK:  br i1 [[PAPER_CASE]], label %[[PAPER_CASE_LABEL:.*]], label %[[CANVAS_CHECK:.*]]
+
+// CHECK:  <label>:[[CANVAS_CHECK]]:
+// CHECK:  [[CANVAS_CASE_TAG:%.*]] = load i32, i32* @"$S14resilient_enum6MediumO6CanvasyA2CmFWC"
+// CHECK:  [[CANVAS_CASE:%.*]] = icmp eq i32 [[TAG]], [[CANVAS_CASE_TAG]]
+// CHECK:  br i1 [[CANVAS_CASE]], label %[[CANVAS_CASE_LABEL:.*]], label %[[DEFAULT_CASE:.*]]
+
+// CHECK: ; <label>:[[PAPER_CASE_LABEL]]
 // CHECK: br label %[[END:.*]]
 
-// CHECK: ; <label>:[[CANVAS_CASE]]
+// CHECK: ; <label>:[[CANVAS_CASE_LABEL]]
 // CHECK: br label %[[END]]
 
-// CHECK: ; <label>:[[PAMPHLET_CASE]]
+// CHECK: ; <label>:[[PAMPHLET_CASE_LABEL]]
+// CHECK: swift_projectBox
 // CHECK: br label %[[END]]
 
 // CHECK: ; <label>:[[DEFAULT_CASE]]
+// CHECK: br label %[[DEFAULT_CASE_DESTROY:.*]]
+
+// CHECK: <label>:[[DEFAULT_CASE_DESTROY]]
+// CHeCK: call void %destroy
 // CHECK: br label %[[END]]
 
 // CHECK: ; <label>:[[END]]
+// CHECK: = phi i64 [ 3, %[[DEFAULT_CASE_DESTROY]] ], [ {{.*}}, %[[PAMPHLET_CASE_LABEL]] ], [ 2, %[[CANVAS_CASE_LABEL]] ], [ 1, %[[PAPER_CASE_LABEL]] ]
 // CHECK: ret
 
 public func resilientSwitchTest(_ m: Medium) -> Int {
