@@ -953,9 +953,9 @@ static OpaqueValue *tuple_initializeBufferWithTakeOfBuffer(ValueBuffer *dest,
 }
 
 template <bool IsPOD, bool IsInline>
-static int tuple_getEnumTagSinglePayload(const OpaqueValue *enumAddr,
-                                         unsigned numEmptyCases,
-                                         const Metadata *self) {
+static unsigned tuple_getEnumTagSinglePayload(const OpaqueValue *enumAddr,
+                                              unsigned numEmptyCases,
+                                              const Metadata *self) {
   auto *witnesses = self->getValueWitnesses();
   auto size = witnesses->getSize();
   auto numExtraInhabitants = witnesses->getNumExtraInhabitants();
@@ -970,7 +970,7 @@ static int tuple_getEnumTagSinglePayload(const OpaqueValue *enumAddr,
 
 template <bool IsPOD, bool IsInline>
 static void
-tuple_storeEnumTagSinglePayload(OpaqueValue *enumAddr, int whichCase,
+tuple_storeEnumTagSinglePayload(OpaqueValue *enumAddr, unsigned whichCase,
                                 unsigned numEmptyCases, const Metadata *self) {
   auto *witnesses = self->getValueWitnesses();
   auto size = witnesses->getSize();
@@ -1394,9 +1394,9 @@ static OpaqueValue *pod_direct_initializeWithCopy(OpaqueValue *dest,
 #define pod_direct_assignWithTake pod_direct_initializeWithCopy
 #define pod_indirect_assignWithTake pod_direct_initializeWithCopy
 
-static int pod_direct_getEnumTagSinglePayload(const OpaqueValue *enumAddr,
-                                              unsigned numEmptyCases,
-                                              const Metadata *self) {
+static unsigned pod_direct_getEnumTagSinglePayload(const OpaqueValue *enumAddr,
+                                                   unsigned numEmptyCases,
+                                                   const Metadata *self) {
   auto *witnesses = self->getValueWitnesses();
   auto size = witnesses->getSize();
   auto numExtraInhabitants = witnesses->getNumExtraInhabitants();
@@ -1410,7 +1410,7 @@ static int pod_direct_getEnumTagSinglePayload(const OpaqueValue *enumAddr,
 }
 
 static void pod_direct_storeEnumTagSinglePayload(OpaqueValue *enumAddr,
-                                                 int whichCase,
+                                                 unsigned whichCase,
                                                  unsigned numEmptyCases,
                                                  const Metadata *self) {
   auto *witnesses = self->getValueWitnesses();
