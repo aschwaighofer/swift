@@ -221,7 +221,7 @@ ManagedValue SILGenBuilder::createConvertEscapeToNoEscape(
              SILFunctionTypeRepresentation::Thick &&
          !fnType->isNoEscape() && resultFnType->isNoEscape() &&
          "Expect a escaping to noescape conversion");
-
+  postponeToNoEscapeCleanup = false;
   SILValue fnValue = postponeToNoEscapeCleanup
                          ? fn.ensurePlusOne(SGF, loc).forward(SGF)
                          : fn.getValue();
