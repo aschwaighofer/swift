@@ -75,4 +75,12 @@ public func bridgeNoescapeBlock() {
   noescapeBlock(returnOptionalEscape())
 }
 
+@_silgen_name("takeNoEscape")
+public func takeNoEscape(_ closure: () ->())
 
+public class C { func baz() {}}
+
+public func testTakeNoEscape(_ c: C) {
+  takeNoEscape{ c.baz() }
+  takeNoEscape{ c.baz() }
+}
