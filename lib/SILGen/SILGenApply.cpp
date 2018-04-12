@@ -259,6 +259,8 @@ public:
 
   const Kind kind;
 
+  bool isMaterializeForSet = false;
+
   // Move, don't copy.
   Callee(const Callee &) = delete;
   Callee &operator=(const Callee &) = delete;
@@ -3695,6 +3697,15 @@ CallEmission::applyNormalCall(SGFContext C) {
 
   auto mv = callee.getFnValue(SGF, isCurried, borrowedSelf);
 
+  // Materialize for set could temporarily escape its arguments.
+  if (callee.isMaterializeForSet) {
+    auto indices = ArrayRef<ManagedValue>(uncurriedArgs).slice(2);
+    for (auto index : indices) {
+      auto *toNoEscape = dyn_cast<ConvertEscapeToNoEscapeInst>(index.getValue());
+      if (!toNoEscape) continue;
+      toNoEscape->setEscapedByUser();
+    }
+  }
   // Emit the uncurried call.
   firstLevelResult.value = SGF.emitApply(
       std::move(resultPlan), std::move(argScope), uncurriedLoc.getValue(), mv,
@@ -5121,6 +5132,8 @@ emitMaterializeForSetAccessor(SILLocation loc, SILDeclRef materializeForSet,
                                                      materializeForSet,
                                                      substitutions, selfValue,
                                                      isSuper, isDirectUse);
+  callee.isMaterializeForSet = true;
+
   bool hasSelf = (bool)selfValue;
   auto accessType = callee.getSubstFormalType();
 
