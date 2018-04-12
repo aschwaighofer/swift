@@ -3676,7 +3676,7 @@ CallEmission::applyNormalCall(SGFContext C) {
       SGF, calleeTypeInfo, uncurriedSites.back().Loc, uncurriedContext);
 
   ArgumentScope argScope(SGF, uncurriedSites.back().Loc);
-  PostponedCleanup postpone(SGF);
+
   // Emit the arguments.
   SmallVector<ManagedValue, 4> uncurriedArgs;
   Optional<SILLocation> uncurriedLoc;
@@ -3710,7 +3710,7 @@ CallEmission::applyNormalCall(SGFContext C) {
   firstLevelResult.value = SGF.emitApply(
       std::move(resultPlan), std::move(argScope), uncurriedLoc.getValue(), mv,
       callee.getSubstitutions(), uncurriedArgs, calleeTypeInfo, options,
-      uncurriedContext, postpone);
+      uncurriedContext);
   firstLevelResult.foreignSelf = calleeTypeInfo.foreignSelf;
   return firstLevelResult;
 }
@@ -4035,7 +4035,6 @@ RValue CallEmission::applyRemainingCallSites(RValue &&result,
     ResultPlanPtr resultPtr =
         ResultPlanBuilder::computeResultPlan(SGF, calleeTypeInfo, loc, context);
     ArgumentScope argScope(SGF, loc);
-    PostponedCleanup postpone(SGF);
 
     std::move(extraSites[i])
         .emit(SGF, origParamType, paramLowering, siteArgs, delayedArgs,
@@ -4046,7 +4045,7 @@ RValue CallEmission::applyRemainingCallSites(RValue &&result,
 
     result = SGF.emitApply(std::move(resultPtr), std::move(argScope), loc,
                            functionMV, {}, siteArgs, calleeTypeInfo,
-                           ApplyOptions::None, context, postpone);
+                           ApplyOptions::None, context);
   }
 
   return std::move(result);
@@ -4099,8 +4098,7 @@ RValue SILGenFunction::emitApply(ResultPlanPtr &&resultPlan,
                                  ManagedValue fn, SubstitutionList subs,
                                  ArrayRef<ManagedValue> args,
                                  const CalleeTypeInfo &calleeTypeInfo,
-                                 ApplyOptions options, SGFContext evalContext,
-                                 PostponedCleanup &postponedCleanup) {
+                                 ApplyOptions options, SGFContext evalContext) {
   auto substFnType = calleeTypeInfo.substFnType;
   auto substResultType = calleeTypeInfo.substResultType;
 
@@ -4161,7 +4159,6 @@ RValue SILGenFunction::emitApply(ResultPlanPtr &&resultPlan,
 
   // Emit the raw application.
   loc.decodeDebugLoc(SGM.M.getASTContext().SourceMgr);
-  postponedCleanup.end();
   SILValue rawDirectResult = emitRawApply(
       *this, loc, fn, subs, args, substFnType, options, indirectResultAddrs);
 
@@ -4282,9 +4279,8 @@ RValue SILGenFunction::emitMonomorphicApply(
   ResultPlanPtr resultPlan = ResultPlanBuilder::computeResultPlan(
       *this, calleeTypeInfo, loc, evalContext);
   ArgumentScope argScope(*this, loc);
-  PostponedCleanup postpone(*this);
   return emitApply(std::move(resultPlan), std::move(argScope), loc, fn, {},
-                   args, calleeTypeInfo, options, evalContext, postpone);
+                   args, calleeTypeInfo, options, evalContext);
 }
 
 /// Emit either an 'apply' or a 'try_apply', with the error branch of
@@ -4474,10 +4470,8 @@ SILGenFunction::emitApplyOfLibraryIntrinsic(SILLocation loc,
   ResultPlanPtr resultPlan =
       ResultPlanBuilder::computeResultPlan(*this, calleeTypeInfo, loc, ctx);
   ArgumentScope argScope(*this, loc);
-  PostponedCleanup postpone(*this);
   return emitApply(std::move(resultPlan), std::move(argScope), loc, mv, subs,
-                   finalArgs, calleeTypeInfo, ApplyOptions::None, ctx,
-                   postpone);
+                   finalArgs, calleeTypeInfo, ApplyOptions::None, ctx);
 }
 
 static StringRef
