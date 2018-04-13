@@ -2982,8 +2982,15 @@ bool SILParser::parseSILInstruction(SILBuilder &B) {
     bool not_guaranteed = false;
     bool escaped = false;
     if (Opcode == SILInstructionKind::ConvertEscapeToNoEscapeInst) {
-      if (parseSILOptional(not_guaranteed, *this, "not_guaranteed"))
-        return true;
+      StringRef attrName;
+      if (parseSILOptional(attrName, *this)) {
+        if (attrName.equals("escaped"))
+          escaped = true;
+        else if (attrName.equals("not_guaranteed"))
+          not_guaranteed = true;
+        else
+          return true;
+      }
       if (parseSILOptional(escaped, *this, "escaped"))
         return true;
     }
