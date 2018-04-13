@@ -115,17 +115,64 @@ void extendLifetimeToEndOfFunction(SILFunction &Fn,
   }
 }
 
-bool tryExtendLifetimeToLastUse(ConvertEscapeToNoEscapeInst *Cvt) {
+SILInstruction *lookThroughRebastractionUsers(
+    SILInstruction *Inst,
+    llvm::DenseMap<SILInstruction *, SILInstruction *> &Memoized) {
+
+  // Try a cached lookup.
+  auto Res = Memoized.find(Inst);
+  if (Res != Memoized.end())
+    return Res->second;
+
+  // Cache recursive results.
+  auto memoizeResult = [&] (SILInstruction *from, SILInstruction *toResult) {
+    Memoized[from] = toResult;
+    return toResult;
+  };
+
+  // If we have a convert_function, just look at its user.
+  if (auto *Cvt = dyn_cast<ConvertFunctionInst>(Inst))
+    return memoizeResult(Inst, lookThroughRebastractionUsers(
+                                   getSingleNonDebugUser(Cvt), Memoized));
+  if (auto *Cvt = dyn_cast<ConvertEscapeToNoEscapeInst>(Inst))
+    return memoizeResult(Inst, lookThroughRebastractionUsers(
+                                   getSingleNonDebugUser(Cvt), Memoized));
+
+  // If we have a partial_apply user look at its single (non release) user.
+  auto *PA = dyn_cast<PartialApplyInst>(Inst);
+  if (!PA) return Inst;
+
+  SILInstruction *SingleNonDebugNonRefCountUser = nullptr;
+  for (auto *Usr : getNonDebugUses(PA)) {
+    auto *I = Usr->getUser();
+    if (onlyAffectsRefCount(I))
+      continue;
+    if (SingleNonDebugNonRefCountUser) {
+      SingleNonDebugNonRefCountUser = nullptr;
+      break;
+    }
+    SingleNonDebugNonRefCountUser = I;
+  }
+
+  return memoizeResult(Inst, lookThroughRebastractionUsers(
+                                 SingleNonDebugNonRefCountUser, Memoized));
+}
+
+bool tryExtendLifetimeToLastUse(
+    ConvertEscapeToNoEscapeInst *Cvt,
+    llvm::DenseMap<SILInstruction *, SILInstruction *> &Memoized) {
   // Don't optimize converts that might have been escaped by the function call
   // (materializeForSet 'escapes' its arguments into the writeback buffer).
   if (Cvt->isEscapedByUser())
     return false;
+
   // If there is a single user that is an apply this is simple: extend the
   // lifetime of the operand until after the apply.
-  auto SingleUser = getSingleNonDebugUser(Cvt);
+  auto SingleUser = lookThroughRebastractionUsers(Cvt, Memoized);
   if (!SingleUser)
     return false;
 
+  // Handle an apply.
   if (auto SingleApplyUser = FullApplySite::isa(SingleUser)) {
     // FIXME: Don't know how-to handle begin_apply/end_apply yet.
     if (auto *Begin =
@@ -258,6 +305,11 @@ static bool trySwitchEnumPeephole(ConvertEscapeToNoEscapeInst *Cvt) {
 
 static bool fixupConvertEscapeToNoEscapeLifetime(SILFunction &Fn) {
   bool Changed = false;
+
+  // tryExtendLifetimeToLastUse uses a cache of recursive instruction use
+  // queries.
+  llvm::DenseMap<SILInstruction *, SILInstruction *> MemoizedQueries;
+
   for (auto &BB : Fn) {
     auto I = BB.begin();
     while (I != BB.end()) {
@@ -274,7 +326,7 @@ static bool fixupConvertEscapeToNoEscapeLifetime(SILFunction &Fn) {
         continue;
       }
 
-      if (tryExtendLifetimeToLastUse(Cvt)) {
+      if (tryExtendLifetimeToLastUse(Cvt, MemoizedQueries)) {
         Changed |= true;
         continue;
       }
