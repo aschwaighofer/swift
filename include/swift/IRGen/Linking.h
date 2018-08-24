@@ -101,6 +101,10 @@ class LinkEntity {
     // This field appears in associated conformance access functions.
     AssociatedConformanceIndexShift = 8,
     AssociatedConformanceIndexMask = ~KindMask,
+
+    // This field appears in SILFunction.
+    IsDynamicallyReplaceableImplShift = 8,
+    IsDynamicallyReplaceableImplMask = ~KindMask,
   };
 #define LINKENTITY_SET_FIELD(field, value) (value << field##Shift)
 #define LINKENTITY_GET_FIELD(value, field) ((value & field##Mask) >> field##Shift)
@@ -224,6 +228,14 @@ class LinkEntity {
     /// is stored in the data.
     DefaultAssociatedConformanceAccessor,
 
+    /// The original implementation of a dynamically replaceable function.
+    /// The pointer is a AbstractStorageDecl*.
+    DynamicallyReplaceableFunctionImpl,
+
+    /// A global function pointer for dynamically replaceable functions.
+    /// The pointer is a AbstractStorageDecl*.
+    DynamicallyReplaceableFunctionVariableAST,
+
     /// A SIL function. The pointer is a SILFunction*.
     SILFunction,
 
@@ -313,6 +325,9 @@ class LinkEntity {
 
     /// A coroutine continuation prototype function.
     CoroutineContinuationPrototype,
+
+    /// A global function pointer for dynamically replaceable functions.
+    DynamicallyReplaceableFunctionVariable,
   };
   friend struct llvm::DenseMapInfo<LinkEntity>;
 
@@ -321,7 +336,7 @@ class LinkEntity {
   }
 
   static bool isDeclKind(Kind k) {
-    return k <= Kind::DefaultAssociatedConformanceAccessor;
+    return k <= Kind::DynamicallyReplaceableFunctionVariableAST;
   }
   static bool isTypeKind(Kind k) {
     return k >= Kind::ProtocolWitnessTableLazyAccessFunction;
@@ -703,12 +718,15 @@ public:
     return entity;
   }
 
-  static LinkEntity forSILFunction(SILFunction *F)
-  {
+  static LinkEntity
+  forSILFunction(SILFunction *F, bool IsDynamicallyReplaceableImplementation) {
     LinkEntity entity;
     entity.Pointer = F;
     entity.SecondaryPointer = nullptr;
-    entity.Data = LINKENTITY_SET_FIELD(Kind, unsigned(Kind::SILFunction));
+    entity.Data =
+        LINKENTITY_SET_FIELD(Kind, unsigned(Kind::SILFunction)) |
+        LINKENTITY_SET_FIELD(IsDynamicallyReplaceableImpl,
+                             (unsigned)IsDynamicallyReplaceableImplementation);
     return entity;
   }
 
@@ -835,6 +853,29 @@ public:
     return entity;
   }
 
+  static LinkEntity forDynamicallyReplaceableFunctionVariable(SILFunction *F) {
+    LinkEntity entity;
+    entity.Pointer = F;
+    entity.SecondaryPointer = nullptr;
+    entity.Data = LINKENTITY_SET_FIELD(
+        Kind, unsigned(Kind::DynamicallyReplaceableFunctionVariable));
+    return entity;
+  }
+
+  static LinkEntity
+  forDynamicallyReplaceableFunctionVariable(AbstractFunctionDecl *decl) {
+    LinkEntity entity;
+    entity.setForDecl(Kind::DynamicallyReplaceableFunctionVariableAST, decl);
+    return entity;
+  }
+
+  static LinkEntity
+  forDynamicallyReplaceableFunctionImpl(AbstractFunctionDecl *decl) {
+    LinkEntity entity;
+    entity.setForDecl(Kind::DynamicallyReplaceableFunctionImpl, decl);
+    return entity;
+  }
+
   void mangle(llvm::raw_ostream &out) const;
   void mangle(SmallVectorImpl<char> &buffer) const;
   std::string mangleAsString() const;
@@ -861,7 +902,8 @@ public:
   }
 
   SILFunction *getSILFunction() const {
-    assert(getKind() == Kind::SILFunction);
+    assert(getKind() == Kind::SILFunction ||
+           getKind() == Kind::DynamicallyReplaceableFunctionVariable);
     return reinterpret_cast<SILFunction*>(Pointer);
   }
 
@@ -897,7 +939,10 @@ public:
     assert(getKind() == Kind::AssociatedTypeWitnessTableAccessFunction);
     return reinterpret_cast<ProtocolDecl*>(Pointer);
   }
-
+  bool isDynamicallyReplaceable() const {
+    assert(getKind() == Kind::SILFunction);
+    return LINKENTITY_GET_FIELD(Data, IsDynamicallyReplaceableImpl);
+  }
   bool isValueWitness() const { return getKind() == Kind::ValueWitness; }
   CanType getType() const {
     assert(isTypeKind(getKind()));
