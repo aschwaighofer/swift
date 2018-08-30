@@ -1464,6 +1464,76 @@ bool Parser::parseNewDeclAttribute(DeclAttributes &Attributes, SourceLoc AtLoc,
     break;
   }
 
+
+  case DAK_DynamicReplacement: {
+    // Parse the leading '('.
+    if (Tok.isNot(tok::l_paren)) {
+      diagnose(Loc, diag::attr_expected_lparen, AttrName,
+               DeclAttribute::isDeclModifier(DK));
+      return false;
+    }
+
+    SourceLoc LParenLoc = consumeToken(tok::l_paren);
+    DeclName replacedFunction;
+    {
+      SyntaxParsingContext ContentContext(
+          SyntaxContext, SyntaxKind::NamedAttributeStringArgument);
+
+      // Parse 'for'.
+      if (Tok.getText() != "for") {
+        diagnose(Loc, diag::attr_dynamic_replacement_expected_for);
+        return false;
+      }
+      auto ForLoc = consumeToken();
+
+      // Parse ':'.
+      if (Tok.getText() != ":") {
+        diagnose(ForLoc, diag::attr_dynamic_replacement_expected_colon);
+        return false;
+      }
+      auto ColonLoc = consumeToken(tok::colon);
+
+      // Parse '"'function-name'"'
+     if (Tok.isNot(tok::string_literal)) {
+        diagnose(ColonLoc, diag::attr_dynamic_replacement_expected_function);
+        return false;
+      }
+      auto fun = getStringLiteralIfNotInterpolated(*this, Loc, Tok,
+                                                   "_dynamicReplacement(for:)");
+      if (!fun.hasValue()) {
+        diagnose(Loc, diag::attr_dynamic_replacement_expected_function);
+        return false;
+      }
+      auto FuncNameLoc = consumeToken(tok::string_literal);
+
+      auto replacedFun = parseDeclName(Context, fun.getValue());
+      if (!replacedFun) {
+        diagnose(FuncNameLoc, diag::attr_dynamic_replacement_expected_function);
+        return false;
+      }
+      if (!replacedFun.getBaseName().isSpecial() && replacedFun.getBaseName() == "subscript") {
+        replacedFun =
+            DeclName(Context, DeclBaseName::createSubscript(), replacedFun.getArgumentNames());
+      }
+      replacedFunction = replacedFun;
+    }
+
+    // Parse the matching ')'.
+    SourceLoc RParenLoc;
+    bool Invalid = parseMatchingToken(
+        tok::r_paren, RParenLoc, diag::attr_dynamic_replacement_expected_rparen,
+        LParenLoc);
+    if (Invalid) {
+      return false;
+    }
+
+
+    DynamicReplacementAttr *attr = DynamicReplacementAttr::create(
+        Context, AtLoc, Loc, LParenLoc, replacedFunction, RParenLoc);
+    Attributes.add(attr);
+    break;
+  }
+
   case DAK_Specialize: {
     if (Tok.isNot(tok::l_paren)) {
       diagnose(Loc, diag::attr_expected_lparen, AttrName,

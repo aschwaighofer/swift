@@ -592,6 +592,10 @@ public:
   /// computed.
   llvm::DenseMap<AnyFunctionRef, std::vector<Expr*>> LocalCFunctionPointers;
 
+  // A list of declarations annotated with the @_dynamicReplacement(for:)
+  // attribute. We need to check them late so that types are available.
+  llvm::SetVector<ValueDecl *> DynamicReplacements;
+
 private:
   /// Return statements with functions as return values.
   llvm::DenseMap<AbstractFunctionDecl *, llvm::DenseSet<ReturnStmt *>>
@@ -1090,6 +1094,7 @@ public:
 
   void checkDeclAttributesEarly(Decl *D);
   void checkDeclAttributes(Decl *D);
+  void checkDynamicReplacementAttribute(ValueDecl *D);
   void checkTypeModifyingDeclAttributes(VarDecl *var);
 
   void checkReferenceOwnershipAttr(VarDecl *D, ReferenceOwnershipAttr *attr);

@@ -771,6 +771,12 @@ namespace {
       if (VD->isDynamic()) {
         OS << " dynamic";
       }
+      if (auto *attr =
+              VD->getAttrs().getAttribute<DynamicReplacementAttr>()) {
+        OS << " @_dynamicReplacement(for: \"";
+        OS << attr->getReplacedFunctionName();
+        OS << "\")";
+      }
     }
 
     void printCommon(NominalTypeDecl *NTD, const char *Name,
@@ -914,6 +920,7 @@ namespace {
 
     void printCommonAFD(AbstractFunctionDecl *D, const char *Type) {
       printCommon(D, Type, FuncColor);
+
       if (!D->getCaptureInfo().isTrivial()) {
         OS << " ";
         D->getCaptureInfo().print(OS);

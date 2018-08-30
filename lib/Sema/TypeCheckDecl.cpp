@@ -2762,6 +2762,9 @@ public:
     }
 
     triggerAccessorSynthesis(TC, SD);
+    if (SD->getAttrs().hasAttribute<DynamicReplacementAttr>()) {
+      TC.checkDynamicReplacementAttribute(SD);
+    }
   }
 
   void visitTypeAliasDecl(TypeAliasDecl *TAD) {
@@ -3203,6 +3206,12 @@ public:
   void visitVarDecl(VarDecl *VD) {
     // Delay type-checking on VarDecls until we see the corresponding
     // PatternBindingDecl.
+
+    // Except if there is a dynamic replacement attribute.
+    if (VD->getAttrs().hasAttribute<DynamicReplacementAttr>()) {
+      TC.validateDecl(VD);
+      TC.checkDynamicReplacementAttribute(VD);
+    }
   }
 
   /// Determine whether the given declaration requires a definition.
@@ -3274,6 +3283,10 @@ public:
     } else {
       // Record the body.
       TC.definedFunctions.push_back(FD);
+    }
+
+    if (FD->getAttrs().hasAttribute<DynamicReplacementAttr>()) {
+      TC.checkDynamicReplacementAttribute(FD);
     }
   }
 
@@ -3470,6 +3483,10 @@ public:
       TC.diagnose(CD->getLoc(), diag::missing_initializer_def);
     } else {
       TC.definedFunctions.push_back(CD);
+    }
+
+    if (CD->getAttrs().hasAttribute<DynamicReplacementAttr>()) {
+      TC.checkDynamicReplacementAttribute(CD);
     }
   }
 

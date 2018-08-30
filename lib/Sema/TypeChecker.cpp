@@ -553,6 +553,10 @@ static void typeCheckFunctionsAndExternalDecls(SourceFile &SF, TypeChecker &TC) 
     TC.computeCaptures(FD);
   }
 
+  for (auto *VD : TC.DynamicReplacements) {
+    TC.checkDynamicReplacementAttribute(VD);
+  }
+
   // Check error-handling correctness for all the functions defined in
   // this file.  This can depend on all of their interior function
   // bodies having been type-checked.

@@ -965,6 +965,20 @@ public:
     setCallee(std::move(theCallee));
   }
 
+  /// Is this a call to the dynamically replaced function inside of a
+  /// '@_dynamicReplacement(for:)' function.
+  bool isCallToReplacedInDynamicReplacement(AbstractFunctionDecl *afd,
+                                            bool &isObjCReplacementSelfCall) {
+    if (auto *func = dyn_cast_or_null<ValueDecl>(SGF.FunctionDC->getAsDecl())) {
+      auto *repl = func->getAttrs().getAttribute<DynamicReplacementAttr>();
+      if (repl && repl->getReplacedFunction() == afd) {
+        isObjCReplacementSelfCall = func->isObjC();
+        return true;
+      }
+    }
+    return false;
+  }
+
   bool isClassMethod(DeclRefExpr *e, AbstractFunctionDecl *afd) {
     if (e->getAccessSemantics() != AccessSemantics::Ordinary)
       return false;
@@ -987,6 +1001,21 @@ public:
 
     // Ok, we're dynamically dispatched.
     return true;
+  }
+
+  static bool isSelfParameter(Expr *expr) {
+    if (auto *inout = dyn_cast<InOutExpr>(expr))
+      return isSelfParameter(inout->getSubExpr());
+    if (auto *derivedToBase = dyn_cast<DerivedToBaseExpr>(expr))
+      return isSelfParameter(derivedToBase->getSubExpr());
+
+    auto *declRef = dyn_cast<DeclRefExpr>(expr);
+    if (!declRef)
+      return false;
+    auto *varDecl = dyn_cast<VarDecl>(declRef->getDecl());
+    if (!varDecl)
+      return false;
+    return varDecl->isSelfParameter();
   }
 
   void processClassMethod(DeclRefExpr *e, AbstractFunctionDecl *afd) {
@@ -1024,6 +1053,18 @@ public:
     } else {
       ArgumentSource selfArgSource(thisCallSite->getArg());
       setSelfParam(std::move(selfArgSource), thisCallSite);
+    }
+
+    // Directly dispatch to calls of the replaced function inside of
+    // '@_dynamicReplacement(for:)' methods.
+    bool isObjCReplacementCall = false;
+    if (isCallToReplacedInDynamicReplacement(afd, isObjCReplacementCall) &&
+        isSelfParameter(thisCallSite->getArg())) {
+      auto constant = SILDeclRef(afd, kind).asForeign(
+          !isObjCReplacementCall && requiresForeignEntryPoint(e->getDecl()));
+      auto subs = e->getDeclRef().getSubstitutions();
+      setCallee(Callee::forDirect(SGF, constant, subs, e));
+      return;
     }
 
     auto constant = SILDeclRef(afd, kind)
@@ -1388,7 +1429,16 @@ public:
                          ? SILDeclRef::Kind::Allocator
                          : SILDeclRef::Kind::Initializer);
 
-    constant = constant.asForeign(requiresForeignEntryPoint(ctorRef->getDecl()));
+    bool isObjCReplacementSelfCall = false;
+    bool isSelfCallToReplacedInDynamicReplacement =
+        isSelfParameter(arg) &&
+        isCallToReplacedInDynamicReplacement(
+            cast<AbstractFunctionDecl>(constant.getDecl()),
+            isObjCReplacementSelfCall);
+
+    constant =
+        constant.asForeign(!isObjCReplacementSelfCall &&
+                           requiresForeignEntryPoint(ctorRef->getDecl()));
 
     // Determine the callee. This is normally the allocating
     // entry point, unless we're delegating to an ObjC initializer.
@@ -1397,8 +1447,9 @@ public:
       setCallee(Callee::forWitnessMethod(
           SGF, self.getType().getASTType(),
           constant, subs, expr));
-    } else if ((useAllocatingCtor || constant.isForeign)
-            && getMethodDispatch(ctorRef->getDecl()) == MethodDispatch::Class) {
+    } else if ((useAllocatingCtor || constant.isForeign) &&
+               !isSelfCallToReplacedInDynamicReplacement &&
+               getMethodDispatch(ctorRef->getDecl()) == MethodDispatch::Class) {
       // Dynamic dispatch to the initializer.
       Scope S(SGF, expr);
       setCallee(Callee::forClassMethod(
