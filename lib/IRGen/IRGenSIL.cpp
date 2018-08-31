@@ -1619,6 +1619,9 @@ void IRGenSILFunction::emitSILFunction() {
   
   assert(!CurSILFn->empty() && "function has no basic blocks?!");
 
+  if (CurSILFn->getDynamicallyReplacedFunction())
+    IGM.IRGen.addDynamicReplacement(CurSILFn);
+
   // Configure the dominance resolver.
   // TODO: consider re-using a dom analysis from the PassManager
   // TODO: consider using a cheaper analysis at -O0
@@ -1835,7 +1838,13 @@ void IRGenSILFunction::visitSILBasicBlock(SILBasicBlock *BB) {
 void IRGenSILFunction::visitFunctionRefInst(FunctionRefInst *i) {
   auto fn = i->getReferencedFunction();
 
-  llvm::Constant *fnPtr = IGM.getAddrOfSILFunction(fn, NotForDefinition);
+  // Inside of a dynamic_replacement_for:"f" function calls to f should call the
+  // original implementation of f.
+  bool shouldCallDynamicallyReplaceableImplFunc =
+      CurSILFn->getDynamicallyReplacedFunction() == fn;
+
+  llvm::Constant *fnPtr = IGM.getAddrOfSILFunction(
+      fn, NotForDefinition, false, shouldCallDynamicallyReplaceableImplFunc);
 
   auto sig = IGM.getSignature(fn->getLoweredFunctionType());
 

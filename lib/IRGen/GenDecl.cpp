@@ -1058,8 +1058,10 @@ void IRGenerator::emitGlobalTopLevel(bool emitForParallelEmission) {
   // Emit SIL functions.
   for (SILFunction &f : PrimaryIGM->getSILModule()) {
     // Eagerly emit functions that are externally visible. Functions with code
-    // coverage instrumentation must also be eagerly emitted.
+    // coverage instrumentation must also be eagerly emitted. So must functions
+    // that are a dynamic replacement for another.
     if (!f.isPossiblyUsedExternally() &&
+        !f.getDynamicallyReplacedFunction() &&
         !hasCodeCoverageInstrumentation(f, PrimaryIGM->getSILModule()))
       continue;
 
@@ -1269,6 +1271,78 @@ void IRGenerator::noteUseOfTypeGlobals(NominalTypeDecl *type,
     entry.IsDescriptorEmitted = false; // clear this in case it was true
     LazyTypeContextDescriptors.push_back(type);
   }
+}
+static std::string getDynamicReplacementSection(IRGenModule &IGM) {
+  std::string sectionName;
+  switch (IGM.TargetInfo.OutputObjectFormat) {
+  case llvm::Triple::MachO:
+    sectionName = "__DATA, __swift5_replace, regular, no_dead_strip";
+    break;
+  case llvm::Triple::ELF:
+    sectionName = "swift5_replace";
+    break;
+  case llvm::Triple::COFF:
+    sectionName = ".swift5_replace";
+    break;
+  default:
+    llvm_unreachable("Don't know how to emit field records table for "
+                     "the selected object format.");
+  }
+  return sectionName;
+}
+
+static llvm::GlobalVariable *
+getGlobalForDynamicallyReplaceableThunk(IRGenModule &IGM, LinkEntity &entity,
+                                        ForDefinition_t forDefinition) {
+  auto global = IGM.Module.getGlobalVariable(entity.mangleAsString(),
+                                             /*allowInternal*/ true);
+  if (global) {
+    if (forDefinition)
+      updateLinkageForDefinition(IGM, global, entity);
+    return cast<llvm::GlobalVariable>(global);
+  }
+
+  LinkInfo link = LinkInfo::get(IGM, entity, forDefinition);
+  auto var =
+      createVariable(IGM, link, IGM.Int8PtrTy, IGM.getPointerAlignment());
+
+  return var;
+}
+
+void IRGenerator::emitDynamicReplacements() {
+  if (DynamicReplacements.empty())
+    return;
+
+  auto &IGM = *getPrimaryIGM();
+
+
+  ConstantInitBuilder builder(IGM);
+  auto replacementsArray = builder.beginArray(IGM.DynamicReplacementsTy);
+
+  for (auto *newFunc : DynamicReplacements) {
+    auto *origFunc = newFunc->getDynamicallyReplacedFunction();
+    assert(origFunc);
+    auto enity =
+        LinkEntity::forDynamicallyReplaceableFunctionVariable(origFunc);
+    auto *origFuncPtr =
+        getGlobalForDynamicallyReplaceableThunk(IGM, enity, NotForDefinition);
+
+    llvm::Constant *newFnPtr = llvm::ConstantExpr::getBitCast(
+        IGM.getAddrOfSILFunction(newFunc, NotForDefinition), IGM.Int8PtrTy);
+
+    auto replacement = replacementsArray.beginStruct(IGM.DynamicReplacementsTy);
+    replacement.add(origFuncPtr);
+    replacement.add(newFnPtr);
+    replacement.finishAndAddTo(replacementsArray);
+  }
+
+  auto var = replacementsArray.finishAndCreateGlobal(
+      "\x01l_dynamic_replacements", IGM.getPointerAlignment(),
+      /*isConstant*/ true, llvm::GlobalValue::PrivateLinkage);
+
+  var->setSection(getDynamicReplacementSection(IGM));
+
+  IGM.addUsedGlobal(var);
 }
 
 void IRGenerator::emitEagerClassInitialization() {
@@ -1930,27 +2004,6 @@ static void addLLVMFunctionAttributes(SILFunction *f, Signature &signature) {
   }
 }
 
-llvm::GlobalVariable *
-getGlobalForDynamicallyReplaceableThunk(IRGenModule &IGM, LinkEntity &entity,
-                                        ForDefinition_t forDefinition) {
-  auto global = IGM.Module.getGlobalVariable(entity.mangleAsString(),
-                                             /*allowInternal*/ true);
-  if (global) {
-    if (forDefinition)
-      updateLinkageForDefinition(IGM, global, entity);
-    return cast<llvm::GlobalVariable>(global);
-  }
-
-  LinkInfo link = LinkInfo::get(IGM, entity, forDefinition);
-  auto var =
-      createVariable(IGM, link, IGM.Int8PtrTy, IGM.getPointerAlignment());
-
-  if (forDefinition)
-    IGM.addUsedGlobal(var);
-
-  return var;
-}
-
 /// Emit the thunk that dispatches to the dynamically replaceable function.
 static void emitDynamicallyReplaceableThunk(IRGenModule &IGM,
                                             SILFunction *SILFn,
@@ -1988,13 +2041,15 @@ static void emitDynamicallyReplaceableThunk(IRGenModule &IGM,
 }
 
 /// Find the entry point for a SIL function.
-llvm::Function *
-IRGenModule::getAddrOfSILFunction(SILFunction *f, ForDefinition_t forDefinition,
-                                  bool isDynamicallyReplaceableImplementation) {
+llvm::Function *IRGenModule::getAddrOfSILFunction(
+    SILFunction *f, ForDefinition_t forDefinition,
+    bool isDynamicallyReplaceableImplementation,
+    bool shouldCallDynamicallyReplaceableImplFunc) {
   assert(forDefinition || !isDynamicallyReplaceableImplementation);
+  assert(!forDefinition || !shouldCallDynamicallyReplaceableImplFunc);
 
   LinkEntity entity =
-      LinkEntity::forSILFunction(f, false);
+      LinkEntity::forSILFunction(f, shouldCallDynamicallyReplaceableImplFunc);
 
   // Check whether we've created the function already.
   // FIXME: We should integrate this into the LinkEntity cache more cleanly.

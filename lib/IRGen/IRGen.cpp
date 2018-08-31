@@ -822,6 +822,7 @@ performIRGeneration(IRGenOptions &Opts, ModuleDecl *M,
       IGM.emitBuiltinReflectionMetadata();
       IGM.emitReflectionMetadataVersion();
       irgen.emitEagerClassInitialization();
+      irgen.emitDynamicReplacements();
     }
 
     // Emit symbols for eliminated dead methods.

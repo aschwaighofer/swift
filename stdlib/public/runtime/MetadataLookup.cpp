@@ -1546,5 +1546,46 @@ void swift::gatherWrittenGenericArgs(
   }
 }
 
+struct InitializeDynamicReplacementLookup {
+  InitializeDynamicReplacementLookup() {
+    initializeDynamicReplacementLookup();
+  }
+};
+
+SWIFT_ALLOWED_RUNTIME_GLOBAL_CTOR_BEGIN
+static InitializeDynamicReplacementLookup initDynamicReplacements;
+SWIFT_ALLOWED_RUNTIME_GLOBAL_CTOR_END
+
+struct DynamicReplacementRecord {
+  int8_t **const FunctionVar;
+  int8_t *const NewFunction;
+};
+
+static void installDynamicReplacements(const DynamicReplacementRecord *begin,
+                                       const DynamicReplacementRecord *end) {
+  const DynamicReplacementRecord *curr = begin;
+  while (curr != end) {
+    *curr->FunctionVar = curr->NewFunction;
+    ++curr;
+   }
+}
+
+void swift::addImageDynamicReplacementBlockCallback(
+    const void *replacements, uintptr_t replacementsSize) {
+
+  assert(replacementsSize % sizeof(DynamicReplacementRecord) == 0 &&
+         "dynamic replacement section section not a multiple of "
+         "DynamicReplacementRecord");
+
+  // If we have a section, enqueue the protocols for lookup.
+  auto replacementsBytes = reinterpret_cast<const char *>(replacements);
+  auto recordsBegin
+    = reinterpret_cast<const DynamicReplacementRecord *>(replacements);
+  auto recordsEnd = reinterpret_cast<const DynamicReplacementRecord *>(
+      replacementsBytes + replacementsSize);
+
+  installDynamicReplacements(recordsBegin, recordsEnd);
+}
+
 #define OVERRIDE_METADATALOOKUP COMPATIBILITY_OVERRIDE
 #include "CompatibilityOverride.def"

@@ -2,7 +2,8 @@
 
 // REQUIRES: objc_interop
 
-// CHECK: @test_dynamically_replaceableTX = global i8* bitcast (void ()* @test_dynamically_replaceableTI to i8*), section "__DATA, __swift5_replace, regular, no_dead_strip"
+// CHECK: @test_dynamically_replaceableTX = global i8* bitcast (void ()* @test_dynamically_replaceableTI to i8*)
+// CHECK: @"\01l_dynamic_replacements" = private constant [1 x { i8**, i8* }] [{ i8**, i8* } { i8** @test_dynamically_replaceableTX, i8* bitcast (void ()* @test_replacement to i8*) }], section "__DATA, __swift5_replace, regular, no_dead_strip"
 // CHECK: @llvm.used = appending global {{.*}} @test_dynamically_replaceable {{.*}} @test_dynamically_replaceableTX
 
 // CHECK-LABEL: define swiftcc void @test_dynamically_replaceable()
@@ -22,4 +23,18 @@ sil [dynamically_replacable] @test_dynamically_replaceable : $@convention(thin) 
 bb0:
   %0 = tuple ()
   return %0 : $()
+}
+
+// CHECK-LABEL: define swiftcc void @test_replacement()
+// CHECK: entry:
+// CHECK:   call swiftcc void @test_dynamically_replaceableTI()
+// CHECK:   ret void
+// CHECK: }
+
+sil [dynamic_replacement_for "test_dynamically_replaceable"] @test_replacement : $@convention(thin) () -> () {
+bb0:
+  %0 = function_ref @test_dynamically_replaceable : $@convention(thin) () -> ()
+  %1 = apply %0() : $@convention(thin) () -> ()
+  %2 = tuple ()
+  return %2 : $()
 }
