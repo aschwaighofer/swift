@@ -577,21 +577,23 @@ TryApplyInst *TryApplyInst::create(
                                      normalBB, errorBB, specializationInfo);
 }
 
-FunctionRefInst::FunctionRefInst(SILDebugLocation Loc, SILFunction *F)
+FunctionRefInst::FunctionRefInst(
+    SILDebugLocation Loc, SILFunction *F,
+    bool callOriginalDynamicReplaceableImplementation)
     : InstructionBase(Loc, F->getLoweredType()),
-      Function(F) {
+      Value(F, callOriginalDynamicReplaceableImplementation) {
   F->incrementRefCount();
 }
 
 FunctionRefInst::~FunctionRefInst() {
-  if (Function)
-    Function->decrementRefCount();
+  if (getReferencedFunction())
+    getReferencedFunction()->decrementRefCount();
 }
 
 void FunctionRefInst::dropReferencedFunction() {
-  if (Function)
+  if (auto *Function = getReferencedFunction())
     Function->decrementRefCount();
-  Function = nullptr;
+  Value.setPointer(nullptr);
 }
 
 AllocGlobalInst::AllocGlobalInst(SILDebugLocation Loc,

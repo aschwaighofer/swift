@@ -1504,9 +1504,11 @@ bool SILDeserializer::readSILInstruction(SILFunction *Fn, SILBasicBlock *BB,
   case SILInstructionKind::FunctionRefInst: {
     auto Ty = MF->getType(TyID);
     StringRef FuncName = MF->getIdentifierText(ValID);
+    bool origImpl = Attr;
     ResultVal = Builder.createFunctionRef(Loc,
         getFuncForReference(FuncName,
-                            getSILType(Ty, (SILValueCategory)TyCategory)));
+                            getSILType(Ty, (SILValueCategory)TyCategory)),
+        origImpl);
     break;
   }
   case SILInstructionKind::MarkDependenceInst: {

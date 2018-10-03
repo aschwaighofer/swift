@@ -909,8 +909,10 @@ void
 SILCloner<ImplClass>::visitFunctionRefInst(FunctionRefInst *Inst) {
   SILFunction *OpFunction = getOpFunction(Inst->getReferencedFunction());
   getBuilder().setCurrentDebugScope(getOpScope(Inst->getDebugScope()));
-  recordClonedInstruction(Inst, getBuilder().createFunctionRef(
-                                    getOpLocation(Inst->getLoc()), OpFunction));
+  recordClonedInstruction(
+      Inst, getBuilder().createFunctionRef(
+                getOpLocation(Inst->getLoc()), OpFunction,
+                Inst->shouldCallDynamicallyReplaceableImplementation()));
 }
 
 template<typename ImplClass>

@@ -556,9 +556,12 @@ public:
     return createBuiltinBinaryFunction(Loc, Name, OpdTy, SILResultTy, Args);
   }
 
-  FunctionRefInst *createFunctionRef(SILLocation Loc, SILFunction *f) {
-    return insert(new (getModule())
-                      FunctionRefInst(getSILDebugLocation(Loc), f));
+  FunctionRefInst *
+  createFunctionRef(SILLocation Loc, SILFunction *f,
+                    bool callOriginalDynamicReplaceableImplementation = false) {
+    return insert(new (getModule()) FunctionRefInst(
+        getSILDebugLocation(Loc), f,
+        callOriginalDynamicReplaceableImplementation));
   }
   AllocGlobalInst *createAllocGlobal(SILLocation Loc, SILGlobalVariable *g) {
     return insert(new (getModule())

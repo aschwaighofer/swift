@@ -2809,8 +2809,9 @@ void LoadableByAddress::run() {
   for (FunctionRefInst *instr : funcRefs) {
     SILFunction *F = instr->getReferencedFunction();
     SILBuilderWithScope refBuilder(instr);
-    FunctionRefInst *newInstr =
-        refBuilder.createFunctionRef(instr->getLoc(), F);
+    FunctionRefInst *newInstr = refBuilder.createFunctionRef(
+        instr->getLoc(), F,
+        instr->shouldCallDynamicallyReplaceableImplementation());
     instr->replaceAllUsesWith(newInstr);
     instr->getParent()->erase(instr);
   }

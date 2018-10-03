@@ -2587,10 +2587,27 @@ bool SILParser::parseSILInstruction(SILBuilder &B) {
       
   case SILInstructionKind::FunctionRefInst: {
     SILFunction *Fn;
+    bool callDynamicReplaceableImplementation = false;
+    // Parse the optional '[dynamically_replaceable_impl]' string.
+    while (P.consumeIf(tok::l_square)) {
+      if (P.Tok.isNot(tok::identifier)) {
+        P.diagnose(P.Tok, diag::expected_in_attribute_list);
+        return true;
+      }
+      if (P.Tok.getText() == "dynamically_replaceable_impl") {
+        callDynamicReplaceableImplementation = true;
+      } else {
+        P.diagnose(P.Tok, diag::expected_in_attribute_list);
+        return true;
+      }
+      P.consumeToken(tok::identifier);
+      P.parseToken(tok::r_square, diag::expected_in_attribute_list);
+    }
     if (parseSILFunctionRef(InstLoc, Fn) ||
         parseSILDebugLocation(InstLoc, B))
       return true;
-    ResultVal = B.createFunctionRef(InstLoc, Fn);
+    ResultVal = B.createFunctionRef(
+        InstLoc, Fn, callDynamicReplaceableImplementation);
     break;
   }
   case SILInstructionKind::BuiltinInst: {

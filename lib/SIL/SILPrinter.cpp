@@ -1127,6 +1127,8 @@ public:
   }
 
   void visitFunctionRefInst(FunctionRefInst *FRI) {
+    if (FRI->shouldCallDynamicallyReplaceableImplementation())
+      *this << "[dynamically_replaceable_impl] ";
     FRI->getReferencedFunction()->printName(PrintState.OS);
     *this << " : " << FRI->getType();
   }

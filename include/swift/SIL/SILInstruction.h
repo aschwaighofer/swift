@@ -2220,18 +2220,23 @@ class FunctionRefInst
                              LiteralInst> {
   friend SILBuilder;
 
-  SILFunction *Function;
+  llvm::PointerIntPair<SILFunction *, 1, bool> Value;
   /// Construct a FunctionRefInst.
   ///
   /// \param DebugLoc  The location of the reference.
   /// \param F         The function being referenced.
-  FunctionRefInst(SILDebugLocation DebugLoc, SILFunction *F);
+  FunctionRefInst(SILDebugLocation DebugLoc, SILFunction *F,
+                  bool callOriginalDynamicReplaceableImplementation);
 
 public:
   ~FunctionRefInst();
 
   /// Return the referenced function.
-  SILFunction *getReferencedFunction() const { return Function; }
+  SILFunction *getReferencedFunction() const { return Value.getPointer(); }
+
+  bool shouldCallDynamicallyReplaceableImplementation() const {
+    return Value.getInt();
+  }
 
   void dropReferencedFunction();
 
