@@ -1153,7 +1153,8 @@ public:
     return emitGlobalFunctionRef(loc, constant, getConstantInfo(constant));
   }
   SILValue emitGlobalFunctionRef(SILLocation loc, SILDeclRef constant,
-                                 SILConstantInfo constantInfo);
+                                 SILConstantInfo constantInfo,
+                                 bool callDynamicallyReplaceableImpl = false);
   
   /// Returns a reference to a function value that dynamically dispatches
   /// the function in a runtime-modifiable way.

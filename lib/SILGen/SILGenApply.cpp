@@ -264,6 +264,10 @@ public:
     /// A direct standalone function call, referenceable by a FunctionRefInst.
     StandaloneFunction,
 
+    /// A direct standalone function call, referenceable by a FunctionRefInst
+    /// with the [dynamically_replaceable_impl] attribute set.
+    StandaloneFunctionDynamicallyReplaceableImpl,
+
     /// Enum case constructor call.
     EnumElement,
 
@@ -344,17 +348,16 @@ private:
 
   /// Constructor for Callee::forDirect.
   Callee(SILGenFunction &SGF, SILDeclRef standaloneFunction,
-         AbstractionPattern origFormalType,
-         CanAnyFunctionType substFormalType,
-         SubstitutionMap subs, SILLocation l)
-    : kind(Kind::StandaloneFunction), Constant(standaloneFunction),
-      OrigFormalInterfaceType(origFormalType),
-      SubstFormalInterfaceType(getSubstFormalInterfaceType(substFormalType,
-                                                           subs)),
-      Substitutions(subs),
-      Loc(l)
-  {
-  }
+         AbstractionPattern origFormalType, CanAnyFunctionType substFormalType,
+         SubstitutionMap subs, SILLocation l,
+         bool callDynamicallyReplaceableImpl = false)
+      : kind(callDynamicallyReplaceableImpl
+                 ? Kind::StandaloneFunctionDynamicallyReplaceableImpl
+                 : Kind::StandaloneFunction),
+        Constant(standaloneFunction), OrigFormalInterfaceType(origFormalType),
+        SubstFormalInterfaceType(
+            getSubstFormalInterfaceType(substFormalType, subs)),
+        Substitutions(subs), Loc(l) {}
 
   /// Constructor called by all for* factory methods except forDirect and
   /// forIndirect.
@@ -377,10 +380,13 @@ public:
   }
   static Callee forDirect(SILGenFunction &SGF, SILDeclRef c,
                           SubstitutionMap subs,
-                          SILLocation l) {
+                          SILLocation l,
+                          bool callDynamicallyReplaceableImpl = false) {
     auto &ci = SGF.getConstantInfo(c);
-    return Callee(SGF, c, ci.FormalPattern, ci.FormalType, subs, l);
+    return Callee(SGF, c, ci.FormalPattern, ci.FormalType, subs, l,
+                  callDynamicallyReplaceableImpl);
   }
+
   static Callee forEnumElement(SILGenFunction &SGF, SILDeclRef c,
                                SubstitutionMap subs,
                                SILLocation l) {
@@ -485,6 +491,7 @@ public:
       return 1;
 
     case Kind::StandaloneFunction:
+    case Kind::StandaloneFunctionDynamicallyReplaceableImpl:
     case Kind::EnumElement:
     case Kind::ClassMethod:
     case Kind::SuperMethod:
@@ -500,6 +507,7 @@ public:
     switch (kind) {
     case Kind::IndirectValue:
     case Kind::StandaloneFunction:
+    case Kind::StandaloneFunctionDynamicallyReplaceableImpl:
     case Kind::EnumElement:
       return false;
     case Kind::WitnessMethod:
@@ -584,6 +592,11 @@ public:
     case Kind::StandaloneFunction: {
       auto constantInfo = SGF.getConstantInfo(*constant);
       SILValue ref = SGF.emitGlobalFunctionRef(Loc, *constant, constantInfo);
+      return ManagedValue::forUnmanaged(ref);
+    }
+    case Kind::StandaloneFunctionDynamicallyReplaceableImpl: {
+      auto constantInfo = SGF.getConstantInfo(*constant);
+      SILValue ref = SGF.emitGlobalFunctionRef(Loc, *constant, constantInfo, true);
       return ManagedValue::forUnmanaged(ref);
     }
     case Kind::EnumElement:
@@ -680,6 +693,7 @@ public:
       assert(Substitutions.empty());
       return createCalleeTypeInfo(SGF, constant, IndirectValue.getType());
 
+    case Kind::StandaloneFunctionDynamicallyReplaceableImpl:
     case Kind::StandaloneFunction: {
       auto constantInfo = SGF.getConstantInfo(*constant);
       return createCalleeTypeInfo(SGF, constant, constantInfo.getSILType());
@@ -732,6 +746,7 @@ public:
     case Kind::SuperMethod:
     case Kind::WitnessMethod:
     case Kind::DynamicMethod:
+    case Kind::StandaloneFunctionDynamicallyReplaceableImpl:
       return None;
     }
     llvm_unreachable("bad callee kind");
@@ -1063,7 +1078,7 @@ public:
       auto constant = SILDeclRef(afd, kind).asForeign(
           !isObjCReplacementCall && requiresForeignEntryPoint(e->getDecl()));
       auto subs = e->getDeclRef().getSubstitutions();
-      setCallee(Callee::forDirect(SGF, constant, subs, e));
+      setCallee(Callee::forDirect(SGF, constant, subs, e, true));
       return;
     }
 
@@ -1118,8 +1133,20 @@ public:
         !captureInfo.hasGenericParamCaptures())
       subs = SubstitutionMap();
 
-    setCallee(Callee::forDirect(SGF, constant, subs, e));
-    
+    // Check whether we have to dispatch to the original implementation of a
+    // dynamically_replaceable inside of a dynamic_replacement(for:) function.
+    ApplyExpr *thisCallSite = callSites.back();
+    bool isObjCReplacementSelfCall = false;
+    bool isSelfCallToReplacedInDynamicReplacement =
+        (afd->getDeclContext()->isModuleScopeContext() ||
+         isSelfParameter(thisCallSite->getArg())) &&
+        isCallToReplacedInDynamicReplacement(
+            cast<AbstractFunctionDecl>(constant.getDecl()),
+            isObjCReplacementSelfCall);
+
+    setCallee(Callee::forDirect(SGF, constant, subs, e,
+                                isSelfCallToReplacedInDynamicReplacement));
+
     // If the decl ref requires captures, emit the capture params.
     if (!captureInfo.getCaptures().empty()) {
       SmallVector<ManagedValue, 4> captures;
@@ -1456,7 +1483,8 @@ public:
           SGF, constant, subs, fn));
     } else {
       // Directly call the peer constructor.
-      setCallee(Callee::forDirect(SGF, constant, subs, fn));
+      setCallee(Callee::forDirect(SGF, constant, subs, fn,
+                                  isSelfCallToReplacedInDynamicReplacement));
     }
 
     setSelfParam(std::move(selfArgSource), expr);

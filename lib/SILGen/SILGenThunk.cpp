@@ -238,9 +238,10 @@ void SILGenModule::emitNativeToForeignThunk(SILDeclRef thunk) {
   postEmitFunction(thunk, f);
 }
 
-SILValue SILGenFunction::emitGlobalFunctionRef(SILLocation loc,
-                                               SILDeclRef constant,
-                                               SILConstantInfo constantInfo) {
+SILValue
+SILGenFunction::emitGlobalFunctionRef(SILLocation loc, SILDeclRef constant,
+                                      SILConstantInfo constantInfo,
+                                      bool callDynamicallyReplaceableImpl) {
   assert(constantInfo == getConstantInfo(constant));
 
   // Builtins must be fully applied at the point of reference.
@@ -266,7 +267,7 @@ SILValue SILGenFunction::emitGlobalFunctionRef(SILLocation loc,
 
   auto f = SGM.getFunction(constant, NotForDefinition);
   assert(f->getLoweredFunctionType() == constantInfo.SILFnType);
-  return B.createFunctionRef(loc, f);
+  return B.createFunctionRef(loc, f, callDynamicallyReplaceableImpl);
 }
 
 SILFunction *SILGenModule::
