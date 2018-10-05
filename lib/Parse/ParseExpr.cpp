@@ -1995,7 +1995,8 @@ DeclName Parser::parseUnqualifiedDeclName(bool afterDot,
                                           DeclNameLoc &loc,
                                           const Diagnostic &diag,
                                           bool allowOperators,
-                                          bool allowZeroArgCompoundNames) {
+                                          bool allowZeroArgCompoundNames,
+                                          bool allowDeinitAndSubscript) {
   // Consume the base name.
   DeclBaseName baseName;
   SourceLoc baseNameLoc;
@@ -2010,6 +2011,10 @@ DeclName Parser::parseUnqualifiedDeclName(bool afterDot,
     // not as a keyword.
     if (Tok.is(tok::kw_init))
       baseName = DeclBaseName::createConstructor();
+    else if (allowDeinitAndSubscript &&Tok.is(tok::kw_deinit))
+      baseName = DeclBaseName::createDestructor();
+    else if (allowDeinitAndSubscript &&Tok.is(tok::kw_subscript))
+      baseName = DeclBaseName::createSubscript();
     else
       baseName = Context.getIdentifier(Tok.getText());
     Tok.setKind(tok::identifier);
