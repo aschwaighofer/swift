@@ -81,19 +81,10 @@ void swift::initializeTypeMetadataRecordLookup() {
     sections = sections->next;
   }
 }
-void swift::initializeDynamicReplacementLookup() {
-  const swift::MetadataSections *sections = registered;
-  while (true) {
-    const swift::MetadataSections::Range &replacements = sections->swift5_repl;
-    if (replacements.length)
-      addImageDynamicReplacementBlockCallback(reinterpret_cast<void*>(replacements.start),
-                                              replacements.length);
 
-    if (sections->next == registered)
-      break;
-    sections = sections->next;
-  }
+void swift::initializeDynamicReplacementLookup() {
 }
+
 SWIFT_RUNTIME_EXPORT
 void swift_addNewDSOImage(const void *addr) {
   const swift::MetadataSections *sections =

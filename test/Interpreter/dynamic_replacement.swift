@@ -38,8 +38,10 @@ import StdlibUnittest
 
 #if os(Linux)
   import Glibc
+  let dylibSuffix = "so"
 #else
   import Darwin
+  let dylibSuffix = "dylib"
 #endif
 
 var DynamicallyReplaceable = TestSuite("DynamicallyReplaceable")
@@ -92,7 +94,7 @@ DynamicallyReplaceable.test("DynamicallyReplaceable") {
 	checkExpectedResults(forOriginalLibrary: true)
 
   // Now, test with the module containing the replacements.
-	_ = dlopen("libModule2.dylib", RTLD_NOW)
+	_ = dlopen("libModule2."+dylibSuffix, RTLD_NOW)
 	checkExpectedResults(forOriginalLibrary: false)
 }
 

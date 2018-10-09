@@ -87,18 +87,6 @@ void swift::initializeTypeMetadataRecordLookup() {
 }
 
 void swift::initializeDynamicReplacementLookup() {
-  const swift::MetadataSections *sections = registered;
-  while (true) {
-    const swift::MetadataSections::Range &replacements =
-        sections->swift5_replace;
-    if (replacements.length)
-      addImageDynamicReplacementBlockCallback(reinterpret_cast<void*>(replacements.start),
-                                              replacements.length);
-
-    if (sections->next == registered)
-      break;
-    sections = sections->next;
-  }
 }
 
 // As ELF images are loaded, ImageInspectionInit:sectionDataInit() will call
@@ -134,7 +122,8 @@ void swift_addNewDSOImage(const void *addr) {
   const auto *replacements =
       reinterpret_cast<void *>(dynamic_replacements.start);
   if (dynamic_replacements.length)
-    addImageDynamicReplacementBlockCallback(replacements, dynamic_replacements.length);
+    addImageDynamicReplacementBlockCallback(replacements,
+                                            dynamic_replacements.length);
 }
 
 int swift::lookupSymbol(const void *address, SymbolInfo *info) {
