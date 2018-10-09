@@ -2737,6 +2737,8 @@ public:
   }
 
   void visitSubscriptDecl(SubscriptDecl *SD) {
+    TC.addImplicitDynamicAttribute(SD);
+
     TC.validateDecl(SD);
 
     if (!SD->isInvalid()) {
@@ -3204,6 +3206,8 @@ public:
   }
 
   void visitVarDecl(VarDecl *VD) {
+    TC.addImplicitDynamicAttribute(VD);
+
     // Delay type-checking on VarDecls until we see the corresponding
     // PatternBindingDecl.
 
@@ -3255,6 +3259,8 @@ public:
   }
 
   void visitFuncDecl(FuncDecl *FD) {
+    TC.addImplicitDynamicAttribute(FD);
+
     TC.validateDecl(FD);
 
     if (!FD->isInvalid()) {
@@ -3371,6 +3377,7 @@ public:
   }
 
   void visitConstructorDecl(ConstructorDecl *CD) {
+    TC.addImplicitDynamicAttribute(CD);
     TC.validateDecl(CD);
 
     if (!CD->isInvalid()) {
