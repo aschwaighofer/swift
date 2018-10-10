@@ -987,7 +987,7 @@ public:
     if (auto *func = dyn_cast_or_null<ValueDecl>(SGF.FunctionDC->getAsDecl())) {
       auto *repl = func->getAttrs().getAttribute<DynamicReplacementAttr>();
       if (repl && repl->getReplacedFunction() == afd) {
-        isObjCReplacementSelfCall = func->isObjC();
+        isObjCReplacementSelfCall = afd->isObjC();
         return true;
       }
     }
@@ -1078,7 +1078,8 @@ public:
       auto constant = SILDeclRef(afd, kind).asForeign(
           !isObjCReplacementCall && requiresForeignEntryPoint(e->getDecl()));
       auto subs = e->getDeclRef().getSubstitutions();
-      setCallee(Callee::forDirect(SGF, constant, subs, e, true));
+      setCallee(
+          Callee::forDirect(SGF, constant, subs, e, !isObjCReplacementCall));
       return;
     }
 
@@ -1145,7 +1146,8 @@ public:
             isObjCReplacementSelfCall);
 
     setCallee(Callee::forDirect(SGF, constant, subs, e,
-                                isSelfCallToReplacedInDynamicReplacement));
+                                isSelfCallToReplacedInDynamicReplacement &&
+                                    !isObjCReplacementSelfCall));
 
     // If the decl ref requires captures, emit the capture params.
     if (!captureInfo.getCaptures().empty()) {
@@ -1484,7 +1486,8 @@ public:
     } else {
       // Directly call the peer constructor.
       setCallee(Callee::forDirect(SGF, constant, subs, fn,
-                                  isSelfCallToReplacedInDynamicReplacement));
+                                  isSelfCallToReplacedInDynamicReplacement &&
+                                      !isObjCReplacementSelfCall));
     }
 
     setSelfParam(std::move(selfArgSource), expr);
