@@ -755,6 +755,21 @@ public:
 
 } // end anonymous namespace
 
+  /// Is this a call to the dynamically replaced function inside of a
+  /// '@_dynamicReplacement(for:)' function.
+  bool isCallToReplacedInDynamicReplacement(SILGenFunction &SGF, AbstractFunctionDecl *afd,
+                                            bool &isObjCReplacementSelfCall) {
+    if (auto *func = dyn_cast_or_null<ValueDecl>(SGF.FunctionDC->getAsDecl())) {
+      auto *repl = func->getAttrs().getAttribute<DynamicReplacementAttr>();
+      if (repl && repl->getReplacedFunction() == afd) {
+        isObjCReplacementSelfCall = afd->isObjC();
+        return true;
+      }
+    }
+    return false;
+  }
+
+
 //===----------------------------------------------------------------------===//
 //                           SILGenApply ASTVisitor
 //===----------------------------------------------------------------------===//
@@ -980,20 +995,6 @@ public:
     setCallee(std::move(theCallee));
   }
 
-  /// Is this a call to the dynamically replaced function inside of a
-  /// '@_dynamicReplacement(for:)' function.
-  bool isCallToReplacedInDynamicReplacement(AbstractFunctionDecl *afd,
-                                            bool &isObjCReplacementSelfCall) {
-    if (auto *func = dyn_cast_or_null<ValueDecl>(SGF.FunctionDC->getAsDecl())) {
-      auto *repl = func->getAttrs().getAttribute<DynamicReplacementAttr>();
-      if (repl && repl->getReplacedFunction() == afd) {
-        isObjCReplacementSelfCall = afd->isObjC();
-        return true;
-      }
-    }
-    return false;
-  }
-
   bool isClassMethod(DeclRefExpr *e, AbstractFunctionDecl *afd) {
     if (e->getAccessSemantics() != AccessSemantics::Ordinary)
       return false;
@@ -1073,7 +1074,7 @@ public:
     // Directly dispatch to calls of the replaced function inside of
     // '@_dynamicReplacement(for:)' methods.
     bool isObjCReplacementCall = false;
-    if (isCallToReplacedInDynamicReplacement(afd, isObjCReplacementCall) &&
+    if (isCallToReplacedInDynamicReplacement(SGF, afd, isObjCReplacementCall) &&
         isSelfParameter(thisCallSite->getArg())) {
       auto constant = SILDeclRef(afd, kind).asForeign(
           !isObjCReplacementCall && requiresForeignEntryPoint(e->getDecl()));
@@ -1142,7 +1143,7 @@ public:
         (afd->getDeclContext()->isModuleScopeContext() ||
          isSelfParameter(thisCallSite->getArg())) &&
         isCallToReplacedInDynamicReplacement(
-            cast<AbstractFunctionDecl>(constant.getDecl()),
+            SGF, cast<AbstractFunctionDecl>(constant.getDecl()),
             isObjCReplacementSelfCall);
 
     setCallee(Callee::forDirect(SGF, constant, subs, e,
@@ -1462,7 +1463,7 @@ public:
     bool isSelfCallToReplacedInDynamicReplacement =
         isSelfParameter(arg) &&
         isCallToReplacedInDynamicReplacement(
-            cast<AbstractFunctionDecl>(constant.getDecl()),
+            SGF, cast<AbstractFunctionDecl>(constant.getDecl()),
             isObjCReplacementSelfCall);
 
     constant =
@@ -5608,6 +5609,13 @@ static Callee getBaseAccessorFunctionRef(SILGenFunction &SGF,
                                          SubstitutionMap subs) {
   auto *decl = cast<AbstractFunctionDecl>(constant.getDecl());
 
+  bool isObjCReplacementSelfCall = false;
+  if (isCallToReplacedInDynamicReplacement(SGF, decl,
+                                           isObjCReplacementSelfCall)) {
+    //assert(selfValue.isExpr());
+    return Callee::forDirect(SGF, constant, subs, loc, true);
+  }
+
   // The accessor might be a local function that does not capture any
   // generic parameters, in which case we don't want to pass in any
   // substitutions.
@@ -5663,7 +5671,8 @@ emitSpecializedAccessorFunctionRef(SILGenFunction &SGF,
                                    SubstitutionMap substitutions,
                                    ArgumentSource &selfValue,
                                    bool isSuper,
-                                   bool isDirectUse)
+                                   bool isDirectUse,
+                                   bool isOnSelfParameter)
 {
   // Get the accessor function. The type will be a polymorphic function if
   // the Self type is generic.
@@ -5955,18 +5964,18 @@ SILDeclRef SILGenModule::getAccessorDeclRef(AccessorDecl *accessor) {
 }
 
 /// Emit a call to a getter.
-RValue SILGenFunction::
-emitGetAccessor(SILLocation loc, SILDeclRef get,
-                SubstitutionMap substitutions,
-                ArgumentSource &&selfValue,
-                bool isSuper, bool isDirectUse,
-                PreparedArguments &&subscriptIndices, SGFContext c) {
+RValue SILGenFunction::emitGetAccessor(SILLocation loc, SILDeclRef get,
+                                       SubstitutionMap substitutions,
+                                       ArgumentSource &&selfValue, bool isSuper,
+                                       bool isDirectUse,
+                                       PreparedArguments &&subscriptIndices,
+                                       SGFContext c, bool isOnSelfParameter) {
   // Scope any further writeback just within this operation.
   FormalEvaluationScope writebackScope(*this);
 
-  Callee getter = emitSpecializedAccessorFunctionRef(*this, loc, get,
-                                                     substitutions, selfValue,
-                                                     isSuper, isDirectUse);
+  Callee getter = emitSpecializedAccessorFunctionRef(
+      *this, loc, get, substitutions, selfValue, isSuper, isDirectUse,
+      isOnSelfParameter);
   bool hasSelf = (bool)selfValue;
   CanAnyFunctionType accessType = getter.getSubstFormalType();
 
@@ -5992,13 +6001,14 @@ void SILGenFunction::emitSetAccessor(SILLocation loc, SILDeclRef set,
                                      ArgumentSource &&selfValue,
                                      bool isSuper, bool isDirectUse,
                                      PreparedArguments &&subscriptIndices,
-                                     ArgumentSource &&setValue) {
+                                     ArgumentSource &&setValue,
+                                     bool isOnSelfParameter) {
   // Scope any further writeback just within this operation.
   FormalEvaluationScope writebackScope(*this);
 
-  Callee setter = emitSpecializedAccessorFunctionRef(*this, loc, set,
-                                                     substitutions, selfValue,
-                                                     isSuper, isDirectUse);
+  Callee setter = emitSpecializedAccessorFunctionRef(
+      *this, loc, set, substitutions, selfValue, isSuper, isDirectUse,
+      isOnSelfParameter);
   bool hasSelf = (bool)selfValue;
   CanAnyFunctionType accessType = setter.getSubstFormalType();
 
@@ -6037,20 +6047,17 @@ void SILGenFunction::emitSetAccessor(SILLocation loc, SILDeclRef set,
 /// The first return value is the address, which will always be an
 /// l-value managed value.  The second return value is the owner
 /// pointer, if applicable.
-std::pair<ManagedValue, ManagedValue> SILGenFunction::
-emitAddressorAccessor(SILLocation loc, SILDeclRef addressor,
-                      SubstitutionMap substitutions,
-                      ArgumentSource &&selfValue,
-                      bool isSuper, bool isDirectUse,
-                      PreparedArguments &&subscriptIndices,
-                      SILType addressType) {
+std::pair<ManagedValue, ManagedValue> SILGenFunction::emitAddressorAccessor(
+    SILLocation loc, SILDeclRef addressor, SubstitutionMap substitutions,
+    ArgumentSource &&selfValue, bool isSuper, bool isDirectUse,
+    PreparedArguments &&subscriptIndices, SILType addressType,
+    bool isOnSelfParameter) {
   // Scope any further writeback just within this operation.
   FormalEvaluationScope writebackScope(*this);
 
-  Callee callee =
-    emitSpecializedAccessorFunctionRef(*this, loc, addressor,
-                                       substitutions, selfValue,
-                                       isSuper, isDirectUse);
+  Callee callee = emitSpecializedAccessorFunctionRef(
+      *this, loc, addressor, substitutions, selfValue, isSuper, isDirectUse,
+      isOnSelfParameter);
   bool hasSelf = (bool)selfValue;
   CanAnyFunctionType accessType = callee.getSubstFormalType();
 
@@ -6129,11 +6136,12 @@ SILGenFunction::emitCoroutineAccessor(SILLocation loc, SILDeclRef accessor,
                                       ArgumentSource &&selfValue,
                                       bool isSuper, bool isDirectUse,
                                       PreparedArguments &&subscriptIndices,
-                                      SmallVectorImpl<ManagedValue> &yields) {
+                                      SmallVectorImpl<ManagedValue> &yields,
+                                      bool isOnSelfParameter) {
   Callee callee =
     emitSpecializedAccessorFunctionRef(*this, loc, accessor,
                                        substitutions, selfValue,
-                                       isSuper, isDirectUse);
+                                       isSuper, isDirectUse, isOnSelfParameter);
 
   // We're already in a full formal-evaluation scope.
   // Make a dead writeback scope; applyCoroutine won't try to pop this.

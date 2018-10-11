@@ -981,9 +981,9 @@ emitRValueWithAccessor(SILGenFunction &SGF, SILLocation loc,
 
   // The easy path here is if we don't need to use an addressor.
   if (strategy.getAccessor() == AccessorKind::Get) {
-    return SGF.emitGetAccessor(loc, accessor, substitutions,
-                               std::move(baseRV), isSuper, isDirectUse,
-                               std::move(subscriptIndices), C);
+    return SGF.emitGetAccessor(
+        loc, accessor, substitutions, std::move(baseRV), isSuper, isDirectUse,
+        std::move(subscriptIndices), C, /* isOnSelfParameter */ false);
   }
 
   assert(strategy.getAccessor() == AccessorKind::Address);
@@ -991,10 +991,9 @@ emitRValueWithAccessor(SILGenFunction &SGF, SILLocation loc,
   auto &storageTL = SGF.getTypeLowering(origFormalType, substFormalType);
   SILType storageType = storageTL.getLoweredType().getAddressType();
 
-  auto addressorResult =
-    SGF.emitAddressorAccessor(loc, accessor, substitutions,
-                              std::move(baseRV), isSuper, isDirectUse,
-                              std::move(subscriptIndices), storageType);
+  auto addressorResult = SGF.emitAddressorAccessor(
+      loc, accessor, substitutions, std::move(baseRV), isSuper, isDirectUse,
+      std::move(subscriptIndices), storageType, /* isOnSelfParameter */ false);
 
   RValue result = getTargetRValue(SGF, loc, addressorResult.first,
                                   origFormalType, substFormalType, C);
