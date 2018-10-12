@@ -1243,6 +1243,7 @@ namespace {
         Accessor(copied.Accessor),
         IsSuper(copied.IsSuper),
         IsDirectAccessorUse(copied.IsDirectAccessorUse),
+        IsOnSelfParameter(copied.IsOnSelfParameter),
         Substitutions(copied.Substitutions) {}
 
     AccessorDecl *getAccessorDecl() const {
@@ -2812,10 +2813,11 @@ LValue SILGenLValue::visitMemberRefExpr(MemberRefExpr *e,
                        getBaseOptions(options, strategy));
   assert(lv.isValid());
 
-  bool isSelf = false;
-  if (auto *declRef = dyn_cast<DeclRefExpr>(e->getBase()))
-    if (auto *var = dyn_cast<VarDecl>(declRef->getDecl()))
-      isSelf = var->isSelfParameter();
+  bool isSelf =
+      SGF.FunctionDC->getAsDecl() &&
+      isa<AbstractFunctionDecl>(SGF.FunctionDC->getAsDecl()) &&
+      e->getBase()->isSelfExprOf(
+          cast<AbstractFunctionDecl>(SGF.FunctionDC->getAsDecl()), false);
 
   CanType substFormalRValueType = getSubstFormalRValueType(e);
   lv.addMemberVarComponent(SGF, e, var,
@@ -2900,7 +2902,7 @@ void LValue::addMemberVarComponent(SILGenFunction &SGF, SILLocation loc,
                                    SGFAccessKind accessKind,
                                    AccessStrategy strategy,
                                    CanType formalRValueType,
-                                   bool isSelf) {
+                                   bool isOnSelfParameter) {
   struct MemberVarAccessEmitter
       : MemberStorageAccessEmitter<MemberVarAccessEmitter, VarDecl> {
     using MemberStorageAccessEmitter::MemberStorageAccessEmitter;
@@ -2951,7 +2953,8 @@ void LValue::addMemberVarComponent(SILGenFunction &SGF, SILLocation loc,
     }
   } emitter(SGF, loc, var, subs, isSuper, accessKind,
             formalRValueType, options, *this,
-            /*indices for diags*/ nullptr, /*indices*/ PreparedArguments());
+            /*indices for diags*/ nullptr, /*indices*/ PreparedArguments(),
+            isOnSelfParameter);
 
   emitter.emitUsingStrategy(strategy);
 }

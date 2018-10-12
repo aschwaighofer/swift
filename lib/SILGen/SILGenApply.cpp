@@ -1019,21 +1019,6 @@ public:
     return true;
   }
 
-  static bool isSelfParameter(Expr *expr) {
-    if (auto *inout = dyn_cast<InOutExpr>(expr))
-      return isSelfParameter(inout->getSubExpr());
-    if (auto *derivedToBase = dyn_cast<DerivedToBaseExpr>(expr))
-      return isSelfParameter(derivedToBase->getSubExpr());
-
-    auto *declRef = dyn_cast<DeclRefExpr>(expr);
-    if (!declRef)
-      return false;
-    auto *varDecl = dyn_cast<VarDecl>(declRef->getDecl());
-    if (!varDecl)
-      return false;
-    return varDecl->isSelfParameter();
-  }
-
   void processClassMethod(DeclRefExpr *e, AbstractFunctionDecl *afd) {
     SILDeclRef::Kind kind;
     bool requiresAllocRefDynamic = false;
@@ -1075,7 +1060,10 @@ public:
     // '@_dynamicReplacement(for:)' methods.
     bool isObjCReplacementCall = false;
     if (isCallToReplacedInDynamicReplacement(SGF, afd, isObjCReplacementCall) &&
-        isSelfParameter(thisCallSite->getArg())) {
+        SGF.FunctionDC->getAsDecl() &&
+        isa<AbstractFunctionDecl>(SGF.FunctionDC->getAsDecl()) &&
+        thisCallSite->getArg()->isSelfExprOf(
+            cast<AbstractFunctionDecl>(SGF.FunctionDC->getAsDecl()), false)) {
       auto constant = SILDeclRef(afd, kind).asForeign(
           !isObjCReplacementCall && requiresForeignEntryPoint(e->getDecl()));
       auto subs = e->getDeclRef().getSubstitutions();
@@ -1141,7 +1129,11 @@ public:
     bool isObjCReplacementSelfCall = false;
     bool isSelfCallToReplacedInDynamicReplacement =
         (afd->getDeclContext()->isModuleScopeContext() ||
-         isSelfParameter(thisCallSite->getArg())) &&
+         (SGF.FunctionDC->getAsDecl() &&
+          isa<AbstractFunctionDecl>(SGF.FunctionDC->getAsDecl()) &&
+          thisCallSite->getArg()->isSelfExprOf(
+              cast<AbstractFunctionDecl>(SGF.FunctionDC->getAsDecl()),
+              false))) &&
         isCallToReplacedInDynamicReplacement(
             SGF, cast<AbstractFunctionDecl>(constant.getDecl()),
             isObjCReplacementSelfCall);
@@ -1461,7 +1453,10 @@ public:
 
     bool isObjCReplacementSelfCall = false;
     bool isSelfCallToReplacedInDynamicReplacement =
-        isSelfParameter(arg) &&
+        SGF.FunctionDC->getAsDecl() &&
+        isa<AbstractFunctionDecl>(SGF.FunctionDC->getAsDecl()) &&
+        arg->isSelfExprOf(
+            cast<AbstractFunctionDecl>(SGF.FunctionDC->getAsDecl()), false) &&
         isCallToReplacedInDynamicReplacement(
             SGF, cast<AbstractFunctionDecl>(constant.getDecl()),
             isObjCReplacementSelfCall);
@@ -5606,13 +5601,13 @@ static Callee getBaseAccessorFunctionRef(SILGenFunction &SGF,
                                          ArgumentSource &selfValue,
                                          bool isSuper,
                                          bool isDirectUse,
-                                         SubstitutionMap subs) {
+                                         SubstitutionMap subs,
+                                         bool isOnSelfParameter) {
   auto *decl = cast<AbstractFunctionDecl>(constant.getDecl());
 
   bool isObjCReplacementSelfCall = false;
-  if (isCallToReplacedInDynamicReplacement(SGF, decl,
-                                           isObjCReplacementSelfCall)) {
-    //assert(selfValue.isExpr());
+  if (isOnSelfParameter && isCallToReplacedInDynamicReplacement(
+                               SGF, decl, isObjCReplacementSelfCall)) {
     return Callee::forDirect(SGF, constant, subs, loc, true);
   }
 
@@ -5678,7 +5673,7 @@ emitSpecializedAccessorFunctionRef(SILGenFunction &SGF,
   // the Self type is generic.
   Callee callee = getBaseAccessorFunctionRef(SGF, loc, constant, selfValue,
                                              isSuper, isDirectUse,
-                                             substitutions);
+                                             substitutions, isOnSelfParameter);
   
   // Collect captures if the accessor has them.
   auto accessorFn = cast<AbstractFunctionDecl>(constant.getDecl());
