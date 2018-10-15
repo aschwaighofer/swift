@@ -2813,17 +2813,16 @@ LValue SILGenLValue::visitMemberRefExpr(MemberRefExpr *e,
                        getBaseOptions(options, strategy));
   assert(lv.isValid());
 
-  bool isSelf =
+  bool isOnSelfParameter =
       SGF.FunctionDC->getAsDecl() &&
       isa<AbstractFunctionDecl>(SGF.FunctionDC->getAsDecl()) &&
       e->getBase()->isSelfExprOf(
           cast<AbstractFunctionDecl>(SGF.FunctionDC->getAsDecl()), false);
 
   CanType substFormalRValueType = getSubstFormalRValueType(e);
-  lv.addMemberVarComponent(SGF, e, var,
-                           e->getMember().getSubstitutions(),
-                           options, e->isSuper(), accessKind,
-                           strategy, substFormalRValueType, isSelf);
+  lv.addMemberVarComponent(SGF, e, var, e->getMember().getSubstitutions(),
+                           options, e->isSuper(), accessKind, strategy,
+                           substFormalRValueType, isOnSelfParameter);
   return lv;
 }
 
@@ -2969,7 +2968,7 @@ LValue SILGenLValue::visitSubscriptExpr(SubscriptExpr *e,
   auto strategy =
     decl->getAccessStrategy(accessSemantics,
                             getFormalAccessKind(accessKind), SGF.FunctionDC);
-  
+
   LValue lv = visitRec(e->getBase(),
                        getBaseAccessKind(SGF.SGM, decl, accessKind, strategy,
                                          getBaseFormalType(e->getBase())),
@@ -2979,11 +2978,18 @@ LValue SILGenLValue::visitSubscriptExpr(SubscriptExpr *e,
   Expr *indexExpr = e->getIndex();
   auto indices = SGF.prepareSubscriptIndices(decl, subs, strategy, indexExpr);
 
+  bool isOnSelfParameter =
+      SGF.FunctionDC->getAsDecl() &&
+      isa<AbstractFunctionDecl>(SGF.FunctionDC->getAsDecl()) &&
+      e->getBase()->isSelfExprOf(
+          cast<AbstractFunctionDecl>(SGF.FunctionDC->getAsDecl()), false);
+
+
   CanType formalRValueType = getSubstFormalRValueType(e);
   lv.addMemberSubscriptComponent(SGF, e, decl, subs,
                                  options, e->isSuper(), accessKind, strategy,
                                  formalRValueType, std::move(indices),
-                                 indexExpr);
+                                 indexExpr, isOnSelfParameter);
   return lv;
 }
 
@@ -3040,7 +3046,8 @@ void LValue::addMemberSubscriptComponent(SILGenFunction &SGF, SILLocation loc,
                                          AccessStrategy strategy,
                                          CanType formalRValueType,
                                          PreparedArguments &&indices,
-                                         Expr *indexExprForDiagnostics) {
+                                         Expr *indexExprForDiagnostics,
+                                         bool isOnSelfParameter) {
   struct MemberSubscriptAccessEmitter
       : MemberStorageAccessEmitter<MemberSubscriptAccessEmitter,
                                    SubscriptDecl> {
@@ -3053,9 +3060,9 @@ void LValue::addMemberSubscriptComponent(SILGenFunction &SGF, SILLocation loc,
     void emitUsingBehaviorStorage() {
       llvm_unreachable("subscripts never have behaviors");
     }
-  } emitter(SGF, loc, decl, subs, isSuper,
-            accessKind, formalRValueType, options, *this,
-            indexExprForDiagnostics, std::move(indices));
+  } emitter(SGF, loc, decl, subs, isSuper, accessKind, formalRValueType,
+            options, *this, indexExprForDiagnostics, std::move(indices),
+            isOnSelfParameter);
 
   emitter.emitUsingStrategy(strategy);
 }
