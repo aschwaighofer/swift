@@ -7,20 +7,38 @@ dynamic func dynamic_replaceable() {
 
 // CHECK-LABEL: sil hidden [dynamically_replacable] @$s23dynamically_replaceable6StruktV1xACSi_tcfC : $@convention(method) (Int, @thin Strukt.Type) -> Strukt
 // CHECK-LABEL: sil hidden [dynamically_replacable] @$s23dynamically_replaceable6StruktV08dynamic_B0yyF : $@convention(method) (Strukt) -> () {
+// CHECK-LABEL: sil hidden [dynamically_replacable] @$s23dynamically_replaceable6StruktV08dynamic_B4_varSivg
+// CHECK-LABEL: sil hidden [dynamically_replacable] @$s23dynamically_replaceable6StruktV08dynamic_B4_varSivs
 struct Strukt {
   dynamic init(x: Int) {
   }
   dynamic func dynamic_replaceable() {
   }
+  dynamic var dynamic_replaceable_var : Int {
+    get {
+      return 10
+    }
+    set {
+    }
+  }
 }
 // CHECK: sil hidden [dynamically_replacable] @$s23dynamically_replaceable5KlassC1xACSi_tcfC : $@convention(method) (Int, @thick Klass.Type) -> @owned Klass
 // CHECK: sil hidden [dynamically_replacable] @$s23dynamically_replaceable5KlassC08dynamic_B0yyF : $@convention(method) (@guaranteed Klass) -> () {
+// CHECK: sil hidden [dynamically_replacable] @$s23dynamically_replaceable5KlassC08dynamic_B4_varSivg
+// CHECK: sil hidden [dynamically_replacable] @$s23dynamically_replaceable5KlassC08dynamic_B4_varSivs
 class Klass {
   dynamic init(x: Int) {
   }
   dynamic func dynamic_replaceable() {
   }
   dynamic func dynamic_replaceable2() {
+  }
+  dynamic var dynamic_replaceable_var : Int {
+    get {
+      return 10
+    }
+    set {
+    }
   }
 }
 
@@ -57,6 +75,26 @@ extension Klass {
   convenience init(y: Int) {
     self.init(x: y + 1)
   }
+
+// CHECK-LABEL: sil hidden [dynamic_replacement_for "$s23dynamically_replaceable5KlassC08dynamic_B4_varSivg"] @$s23dynamically_replaceable5KlassC1rSivg : $@convention(method) (@guaranteed Klass) -> Int {
+// CHECK: bb0([[ARG:%.*]] : @guaranteed $Klass):
+// CHECK:   [[ORIG:%.*]] = function_ref [dynamically_replaceable_impl] @$s23dynamically_replaceable5KlassC08dynamic_B4_varSivg
+// CHECK:   apply [[ORIG]]([[ARG]]) : $@convention(method) (@guaranteed Klass) -> Int
+
+// CHECK-LABEL: sil hidden [dynamic_replacement_for "$s23dynamically_replaceable5KlassC08dynamic_B4_varSivs"] @$s23dynamically_replaceable5KlassC1rSivs : $@convention(method) (Int, @guaranteed Klass) -> () {
+// CHECK: bb0({{.*}} : @trivial $Int, [[SELF:%.*]] : @guaranteed $Klass):
+// CHECK:   [[ORIG:%.*]] = function_ref [dynamically_replaceable_impl] @$s23dynamically_replaceable5KlassC08dynamic_B4_varSivs
+// CHECK:   apply [[ORIG]]({{.*}}, [[SELF]]) : $@convention(method)
+  @_dynamicReplacement(for: dynamic_replaceable_var)
+  var r : Int {
+    get {
+      return dynamic_replaceable_var + 1
+    }
+    set {
+      dynamic_replaceable_var = newValue + 1
+    }
+  }
+
 }
 
 extension Strukt {
@@ -74,5 +112,26 @@ extension Strukt {
   @_dynamicReplacement(for: init(x:))
   init(y: Int) {
     self.init(x: y + 1)
+  }
+
+// CHECK-LABEL: sil hidden [dynamic_replacement_for "$s23dynamically_replaceable6StruktV08dynamic_B4_varSivg"] @$s23dynamically_replaceable6StruktV1rSivg
+// CHECK: bb0([[ARG:%.*]] : @trivial $Strukt):
+// CHECK:   [[ORIG:%.*]] = function_ref [dynamically_replaceable_impl] @$s23dynamically_replaceable6StruktV08dynamic_B4_varSivg
+// CHECK:   apply [[ORIG]]([[ARG]]) : $@convention(method) (Strukt) -> Int
+
+// CHECK-LABEL: sil hidden [dynamic_replacement_for "$s23dynamically_replaceable6StruktV08dynamic_B4_varSivs"] @$s23dynamically_replaceable6StruktV1rSivs
+// CHECK: bb0({{.*}} : @trivial $Int, [[ARG:%.*]] : @trivial $*Strukt):
+// CHECK:   [[BA:%.*]] = begin_access [modify] [unknown] [[ARG]] : $*Strukt
+// CHECK:   [[ORIG:%.*]] = function_ref [dynamically_replaceable_impl] @$s23dynamically_replaceable6StruktV08dynamic_B4_varSivs
+// CHECK:   apply [[ORIG]]({{.*}}, [[BA]]) : $@convention(method) (Int, @inout Strukt) -> ()
+// CHECK:   end_access [[BA]] : $*Strukt
+  @_dynamicReplacement(for: dynamic_replaceable_var)
+  var r : Int {
+    get {
+      return dynamic_replaceable_var + 1
+    }
+    set {
+      dynamic_replaceable_var = newValue + 1
+    }
   }
 }
