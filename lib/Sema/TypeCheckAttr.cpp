@@ -1980,14 +1980,13 @@ static FuncDecl *findReplacedAccessor(DeclName replacedVarName,
 
     if (!replacement->getInterfaceType()->getCanonicalType()->matches(
             origAccessor->getInterfaceType()->getCanonicalType(),
-            TypeMatchOptions())) {
+            TypeMatchFlags::AllowABICompatible)) {
       TC.diagnose(attr->getLocation(),
                   diag::dynamic_replacement_accessor_type_mismatch,
                   replacedVarName);
       attr->setInvalid();
       return nullptr;
     }
-
     if (origAccessor->isImplicit() &&
         !(origStorage->getReadImpl() == ReadImplKind::Stored &&
           origStorage->getWriteImpl() == WriteImplKind::Stored)) {
@@ -2014,7 +2013,7 @@ findReplacedFunction(DeclName replacedFunctionName,
     TC.validateDecl(result);
     if (result->getInterfaceType()->getCanonicalType()->matches(
             replacement->getInterfaceType()->getCanonicalType(),
-            TypeMatchFlags())) {
+            TypeMatchFlags::AllowABICompatible)) {
       if (!result->isDynamic()) {
         TC.diagnose(attr->getLocation(),
                     diag::dynamic_replacement_function_not_dynamic,
