@@ -196,3 +196,73 @@ extension Strukt {
     }
   }
 }
+
+
+struct GenericS<T> {
+  dynamic init(x: Int) {
+  }
+  dynamic func dynamic_replaceable() {
+  }
+
+  dynamic var dynamic_replaceable_var : Int {
+    get {
+      return 10
+    }
+    set {
+    }
+  }
+
+  dynamic subscript(x : Int) -> Int {
+    get {
+      return 10
+    }
+    set {
+    }
+  }
+}
+
+extension GenericS {
+
+// CHECK-LABEL: sil hidden [dynamic_replacement_for "$s23dynamically_replaceable8GenericSV08dynamic_B0yyF"] @$s23dynamically_replaceable8GenericSV11replacementyyF
+// CHECK: function_ref [dynamically_replaceable_impl] @$s23dynamically_replaceable8GenericSV08dynamic_B0yyF
+  @_dynamicReplacement(for: dynamic_replaceable())
+  func replacement() {
+    dynamic_replaceable()
+  }
+// CHECK-LABEL: sil hidden [dynamic_replacement_for "$s23dynamically_replaceable8GenericSV1xACyxGSi_tcfC"] @$s23dynamically_replaceable8GenericSV1yACyxGSi_tcfC
+// CHECK: function_ref [dynamically_replaceable_impl] @$s23dynamically_replaceable8GenericSV1xACyxGSi_tcfC
+  @_dynamicReplacement(for: init(x:))
+  init(y: Int) {
+    self.init(x: y + 1)
+  }
+
+// CHECK-LABEL: sil hidden [dynamic_replacement_for "$s23dynamically_replaceable8GenericSV08dynamic_B4_varSivg"] @$s23dynamically_replaceable8GenericSV1rSivg
+// CHECK: function_ref [dynamically_replaceable_impl] @$s23dynamically_replaceable8GenericSV08dynamic_B4_varSivg
+
+// CHECK-LABEL: sil hidden [dynamic_replacement_for "$s23dynamically_replaceable8GenericSV08dynamic_B4_varSivs"] @$s23dynamically_replaceable8GenericSV1rSivs
+// CHECK: function_ref [dynamically_replaceable_impl] @$s23dynamically_replaceable8GenericSV08dynamic_B4_varSivs
+  @_dynamicReplacement(for: dynamic_replaceable_var)
+  var r : Int {
+    get {
+      return dynamic_replaceable_var + 1
+    }
+    set {
+      dynamic_replaceable_var = newValue + 1
+    }
+  }
+
+// CHECK-LABEL: sil hidden [dynamic_replacement_for "$s23dynamically_replaceable8GenericSVyS2icig"] @$s23dynamically_replaceable8GenericSV1xS2i_tcig
+// CHECK: function_ref [dynamically_replaceable_impl] @$s23dynamically_replaceable8GenericSVyS2icig
+
+// CHECK-LABEL: sil hidden [dynamic_replacement_for "$s23dynamically_replaceable8GenericSVyS2icis"] @$s23dynamically_replaceable8GenericSV1xS2i_tcis
+// CHECK: function_ref [dynamically_replaceable_impl] @$s23dynamically_replaceable8GenericSVyS2icis
+ @_dynamicReplacement(for: subscript(_:))
+ subscript(x y: Int) -> Int {
+    get {
+      return self[y]
+    }
+    set {
+      self[y] = newValue
+    }
+  }
+}
