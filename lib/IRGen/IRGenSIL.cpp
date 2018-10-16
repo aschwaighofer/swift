@@ -1838,13 +1838,8 @@ void IRGenSILFunction::visitSILBasicBlock(SILBasicBlock *BB) {
 void IRGenSILFunction::visitFunctionRefInst(FunctionRefInst *i) {
   auto fn = i->getReferencedFunction();
 
-  // Inside of a dynamic_replacement_for:"f" function calls to f should call the
-  // original implementation of f.
-  bool shouldCallDynamicallyReplaceableImplFunc =
-      CurSILFn->getDynamicallyReplacedFunction() == fn;
-
   llvm::Constant *fnPtr = IGM.getAddrOfSILFunction(
-      fn, NotForDefinition, false, shouldCallDynamicallyReplaceableImplFunc);
+      fn, NotForDefinition, false, i->shouldCallDynamicallyReplaceableImplementation());
 
   auto sig = IGM.getSignature(fn->getLoweredFunctionType());
 
