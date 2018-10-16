@@ -33,7 +33,7 @@ bb0:
 
 sil [dynamic_replacement_for "test_dynamically_replaceable"] @test_replacement : $@convention(thin) () -> () {
 bb0:
-  %0 = function_ref @test_dynamically_replaceable : $@convention(thin) () -> ()
+  %0 = function_ref [dynamically_replaceable_impl] @test_dynamically_replaceable : $@convention(thin) () -> ()
   %1 = apply %0() : $@convention(thin) () -> ()
   %2 = tuple ()
   return %2 : $()
