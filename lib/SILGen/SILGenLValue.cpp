@@ -2797,27 +2797,55 @@ static CanType getBaseFormalType(Expr *baseExpr) {
   return baseExpr->getType()->getWithoutSpecifierType()->getCanonicalType();
 }
 
+bool isCallToReplacedInDynamicReplacement(SILGenFunction &SGF,
+                                          AbstractFunctionDecl *afd,
+                                          bool &isObjCReplacementSelfCall);
+
+
 LValue SILGenLValue::visitMemberRefExpr(MemberRefExpr *e,
                                         SGFAccessKind accessKind,
                                         LValueOptions options) {
   // MemberRefExpr can refer to type and function members, but the only case
   // that can be an lvalue is a VarDecl.
   VarDecl *var = cast<VarDecl>(e->getMember().getDecl());
+
+  auto accessSemantics = e->getAccessSemantics();
   AccessStrategy strategy =
-    var->getAccessStrategy(e->getAccessSemantics(),
+    var->getAccessStrategy(accessSemantics,
                            getFormalAccessKind(accessKind), SGF.FunctionDC);
+  bool isOnSelfParameter =
+      SGF.FunctionDC->getAsDecl() &&
+      isa<AbstractFunctionDecl>(SGF.FunctionDC->getAsDecl()) &&
+      e->getBase()->isSelfExprOf(
+          cast<AbstractFunctionDecl>(SGF.FunctionDC->getAsDecl()), false);
+
+  // TODO: Hack. Refactor this.
+  bool isReplacingRead = false;
+  auto *contextAccessorDecl =
+      dyn_cast_or_null<AccessorDecl>(SGF.FunctionDC->getAsDecl());
+  if (contextAccessorDecl &&
+      contextAccessorDecl->getAccessorKind() == AccessorKind::Read) {
+    isReplacingRead = true;
+  }
+
+  if (isReplacingRead && strategy.getAccessor() == AccessorKind::Get &&
+      isOnSelfParameter) {
+    bool isObjC = false;
+    auto readAccessor =
+        SGF.SGM.getAccessorDeclRef(var->getAccessor(AccessorKind::Read));
+    if (isCallToReplacedInDynamicReplacement(SGF, readAccessor.getAbstractFunctionDecl(), isObjC)) {
+      accessSemantics = AccessSemantics::DirectToImplementation;
+      strategy = var->getAccessStrategy(
+          accessSemantics, getFormalAccessKind(accessKind), SGF.FunctionDC);
+    }
+  }
+
 
   LValue lv = visitRec(e->getBase(),
                        getBaseAccessKind(SGF.SGM, var, accessKind, strategy,
                                          getBaseFormalType(e->getBase())),
                        getBaseOptions(options, strategy));
   assert(lv.isValid());
-
-  bool isOnSelfParameter =
-      SGF.FunctionDC->getAsDecl() &&
-      isa<AbstractFunctionDecl>(SGF.FunctionDC->getAsDecl()) &&
-      e->getBase()->isSelfExprOf(
-          cast<AbstractFunctionDecl>(SGF.FunctionDC->getAsDecl()), false);
 
   CanType substFormalRValueType = getSubstFormalRValueType(e);
   lv.addMemberVarComponent(SGF, e, var, e->getMember().getSubstitutions(),
@@ -2964,10 +2992,37 @@ LValue SILGenLValue::visitSubscriptExpr(SubscriptExpr *e,
   auto decl = cast<SubscriptDecl>(e->getDecl().getDecl());
   auto subs = e->getDecl().getSubstitutions();
 
+  bool isOnSelfParameter =
+      SGF.FunctionDC->getAsDecl() &&
+      isa<AbstractFunctionDecl>(SGF.FunctionDC->getAsDecl()) &&
+      e->getBase()->isSelfExprOf(
+          cast<AbstractFunctionDecl>(SGF.FunctionDC->getAsDecl()), false);
+
   auto accessSemantics = e->getAccessSemantics();
   auto strategy =
     decl->getAccessStrategy(accessSemantics,
                             getFormalAccessKind(accessKind), SGF.FunctionDC);
+
+  // TODO: Hack. Refactor this.
+  bool isReplacingRead = false;
+  auto *contextAccessorDecl =
+      dyn_cast_or_null<AccessorDecl>(SGF.FunctionDC->getAsDecl());
+  if (contextAccessorDecl &&
+      contextAccessorDecl->getAccessorKind() == AccessorKind::Read) {
+    isReplacingRead = true;
+  }
+
+  if (isReplacingRead && strategy.getAccessor() == AccessorKind::Get &&
+      isOnSelfParameter) {
+    bool isObjC = false;
+    auto readAccessor =
+        SGF.SGM.getAccessorDeclRef(decl->getAccessor(AccessorKind::Read));
+    if (isCallToReplacedInDynamicReplacement(SGF, readAccessor.getAbstractFunctionDecl(), isObjC)) {
+      accessSemantics = AccessSemantics::DirectToImplementation;
+      strategy = decl->getAccessStrategy(
+          accessSemantics, getFormalAccessKind(accessKind), SGF.FunctionDC);
+    }
+  }
 
   LValue lv = visitRec(e->getBase(),
                        getBaseAccessKind(SGF.SGM, decl, accessKind, strategy,
@@ -2977,13 +3032,6 @@ LValue SILGenLValue::visitSubscriptExpr(SubscriptExpr *e,
 
   Expr *indexExpr = e->getIndex();
   auto indices = SGF.prepareSubscriptIndices(decl, subs, strategy, indexExpr);
-
-  bool isOnSelfParameter =
-      SGF.FunctionDC->getAsDecl() &&
-      isa<AbstractFunctionDecl>(SGF.FunctionDC->getAsDecl()) &&
-      e->getBase()->isSelfExprOf(
-          cast<AbstractFunctionDecl>(SGF.FunctionDC->getAsDecl()), false);
-
 
   CanType formalRValueType = getSubstFormalRValueType(e);
   lv.addMemberSubscriptComponent(SGF, e, decl, subs,

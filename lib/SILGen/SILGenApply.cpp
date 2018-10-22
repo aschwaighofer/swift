@@ -755,20 +755,20 @@ public:
 
 } // end anonymous namespace
 
-  /// Is this a call to the dynamically replaced function inside of a
-  /// '@_dynamicReplacement(for:)' function.
-  bool isCallToReplacedInDynamicReplacement(SILGenFunction &SGF, AbstractFunctionDecl *afd,
-                                            bool &isObjCReplacementSelfCall) {
-    if (auto *func = dyn_cast_or_null<ValueDecl>(SGF.FunctionDC->getAsDecl())) {
-      auto *repl = func->getAttrs().getAttribute<DynamicReplacementAttr>();
-      if (repl && repl->getReplacedFunction() == afd) {
-        isObjCReplacementSelfCall = afd->isObjC();
-        return true;
-      }
+/// Is this a call to the dynamically replaced function inside of a
+/// '@_dynamicReplacement(for:)' function.
+bool isCallToReplacedInDynamicReplacement(SILGenFunction &SGF,
+                                          AbstractFunctionDecl *afd,
+                                          bool &isObjCReplacementSelfCall) {
+  if (auto *func = dyn_cast_or_null<ValueDecl>(SGF.FunctionDC->getAsDecl())) {
+    auto *repl = func->getAttrs().getAttribute<DynamicReplacementAttr>();
+    if (repl && repl->getReplacedFunction() == afd) {
+      isObjCReplacementSelfCall = afd->isObjC();
+      return true;
     }
-    return false;
   }
-
+  return false;
+}
 
 //===----------------------------------------------------------------------===//
 //                           SILGenApply ASTVisitor
