@@ -982,6 +982,8 @@ static void performParallelIRGeneration(
 
   irgen.emitSwiftProtocols();
 
+  irgen.emitDynamicReplacements();
+
   irgen.emitProtocolConformances();
 
   irgen.emitTypeMetadataRecords();

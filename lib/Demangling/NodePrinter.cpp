@@ -486,6 +486,7 @@ private:
     case Node::Kind::AssociatedTypeGenericParamRef:
     case Node::Kind::ExtensionDescriptor:
     case Node::Kind::AnonymousContext:
+    case Node::Kind::DynamicallyReplaceableFunctionKey:
     case Node::Kind::DynamicallyReplaceableFunctionImpl:
     case Node::Kind::DynamicallyReplaceableFunctionVar:
       return false;
@@ -1515,6 +1516,11 @@ NodePointer NodePrinter::print(NodePointer Node, bool asPrefixContext) {
   case Node::Kind::TypeSymbolicReference:
     Printer << "type symbolic reference 0x";
     Printer.writeHex(Node->getIndex());
+    return nullptr;
+  case Node::Kind::DynamicallyReplaceableFunctionKey:
+    if (!Options.ShortenThunk) {
+      Printer << "dynamically replaceable key for ";
+    }
     return nullptr;
   case Node::Kind::DynamicallyReplaceableFunctionImpl:
     if (!Options.ShortenThunk) {

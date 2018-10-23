@@ -168,6 +168,10 @@ void TBDGenVisitor::visitAbstractFunctionDecl(AbstractFunctionDecl *AFD) {
   if (AFD->isDynamic() && ! AFD->isObjC()) {
     addSymbol(LinkEntity::forDynamicallyReplaceableFunctionVariable(AFD));
     addSymbol(LinkEntity::forDynamicallyReplaceableFunctionImpl(AFD));
+    addSymbol(LinkEntity::forDynamicallyReplaceableFunctionKey(AFD));
+  }
+  if (AFD->getAttrs().hasAttribute<DynamicReplacementAttr>()) {
+    addSymbol(LinkEntity::forDynamicallyReplaceableFunctionVariable(AFD));
   }
 
   if (AFD->getAttrs().hasAttribute<CDeclAttr>()) {

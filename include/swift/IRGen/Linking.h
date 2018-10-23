@@ -228,13 +228,19 @@ class LinkEntity {
     /// is stored in the data.
     DefaultAssociatedConformanceAccessor,
 
+    /// A global function pointer for dynamically replaceable functions.
+    /// The pointer is a AbstractStorageDecl*.
+    DynamicallyReplaceableFunctionVariableAST,
+
+    /// The pointer is a AbstractStorageDecl*.
+    DynamicallyReplaceableFunctionKeyAST,
+
     /// The original implementation of a dynamically replaceable function.
     /// The pointer is a AbstractStorageDecl*.
     DynamicallyReplaceableFunctionImpl,
 
-    /// A global function pointer for dynamically replaceable functions.
-    /// The pointer is a AbstractStorageDecl*.
-    DynamicallyReplaceableFunctionVariableAST,
+    /// The pointer is a SILFunction*.
+    DynamicallyReplaceableFunctionKey,
 
     /// A SIL function. The pointer is a SILFunction*.
     SILFunction,
@@ -336,7 +342,7 @@ class LinkEntity {
   }
 
   static bool isDeclKind(Kind k) {
-    return k <= Kind::DynamicallyReplaceableFunctionVariableAST;
+    return k <= Kind::DynamicallyReplaceableFunctionImpl;
   }
   static bool isTypeKind(Kind k) {
     return k >= Kind::ProtocolWitnessTableLazyAccessFunction;
@@ -869,6 +875,22 @@ public:
     return entity;
   }
 
+  static LinkEntity forDynamicallyReplaceableFunctionKey(SILFunction *F) {
+    LinkEntity entity;
+    entity.Pointer = F;
+    entity.SecondaryPointer = nullptr;
+    entity.Data = LINKENTITY_SET_FIELD(
+        Kind, unsigned(Kind::DynamicallyReplaceableFunctionKey));
+    return entity;
+  }
+
+  static LinkEntity
+  forDynamicallyReplaceableFunctionKey(AbstractFunctionDecl *decl) {
+    LinkEntity entity;
+    entity.setForDecl(Kind::DynamicallyReplaceableFunctionKeyAST, decl);
+    return entity;
+  }
+
   static LinkEntity
   forDynamicallyReplaceableFunctionImpl(AbstractFunctionDecl *decl) {
     LinkEntity entity;
@@ -903,7 +925,8 @@ public:
 
   SILFunction *getSILFunction() const {
     assert(getKind() == Kind::SILFunction ||
-           getKind() == Kind::DynamicallyReplaceableFunctionVariable);
+           getKind() == Kind::DynamicallyReplaceableFunctionVariable ||
+           getKind() == Kind::DynamicallyReplaceableFunctionKey);
     return reinterpret_cast<SILFunction*>(Pointer);
   }
 

@@ -290,6 +290,13 @@ std::string LinkEntity::mangleAsString() const {
     return Result;
   }
 
+  case Kind::DynamicallyReplaceableFunctionKey: {
+    std::string Result(getSILFunction()->getName());
+    Result.append("Tx");
+    return Result;
+  }
+
+
   case Kind::DynamicallyReplaceableFunctionVariableAST: {
     assert(isa<AbstractFunctionDecl>(getDecl()));
     std::string Result;
@@ -300,6 +307,19 @@ std::string LinkEntity::mangleAsString() const {
       Result = mangler.mangleEntity(getDecl(), /*isCurried=*/false);
     }
     Result.append("TX");
+    return Result;
+  }
+
+  case Kind::DynamicallyReplaceableFunctionKeyAST: {
+    assert(isa<AbstractFunctionDecl>(getDecl()));
+    std::string Result;
+    if (auto *Constructor = dyn_cast<ConstructorDecl>(getDecl())) {
+      Result = mangler.mangleConstructorEntity(Constructor, true,
+                                               /*isCurried=*/false);
+    } else  {
+      Result = mangler.mangleEntity(getDecl(), /*isCurried=*/false);
+    }
+    Result.append("Tx");
     return Result;
   }
 
@@ -528,11 +548,14 @@ SILLinkage LinkEntity::getLinkage(ForDefinition_t forDefinition) const {
   case Kind::GenericProtocolWitnessTableInstantiationFunction:
     return SILLinkage::Private;
 
+  case Kind::DynamicallyReplaceableFunctionKey:
   case Kind::SILFunction:
     return getSILFunction()->getEffectiveSymbolLinkage();
 
   case Kind::DynamicallyReplaceableFunctionImpl:
+  case Kind::DynamicallyReplaceableFunctionKeyAST:
     return getSILLinkage(getDeclLinkage(getDecl()), forDefinition);
+
 
   case Kind::DynamicallyReplaceableFunctionVariable:
     return getSILFunction()->getEffectiveSymbolLinkage();
@@ -663,6 +686,8 @@ bool LinkEntity::isAvailableExternally(IRGenModule &IGM) const {
   case Kind::TypeMetadataPattern:
   case Kind::DefaultAssociatedConformanceAccessor:
     return false;
+  case Kind::DynamicallyReplaceableFunctionKey:
+    return true;
 
   case Kind::ObjCMetadataUpdateFunction:
   case Kind::ValueWitness:
@@ -682,6 +707,7 @@ bool LinkEntity::isAvailableExternally(IRGenModule &IGM) const {
   case Kind::DynamicallyReplaceableFunctionVariable:
   case Kind::DynamicallyReplaceableFunctionVariableAST:
   case Kind::DynamicallyReplaceableFunctionImpl:
+  case Kind::DynamicallyReplaceableFunctionKeyAST:
     llvm_unreachable("Relative reference to unsupported link entity");
   }
   llvm_unreachable("bad link entity kind");

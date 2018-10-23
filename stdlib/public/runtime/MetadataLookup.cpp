@@ -1587,5 +1587,40 @@ void swift::addImageDynamicReplacementBlockCallback(
   installDynamicReplacements(recordsBegin, recordsEnd);
 }
 
+struct LinkEntry {
+  void *implementationFunction;
+  LinkEntry *next;
+};
+
+struct KeyEntry {
+  RelativeDirectPointer<LinkEntry, false> link;
+  uint32_t flags;
+};
+
+struct ReplacementScopeEntry {
+  RelativeIndirectablePointer<KeyEntry, false> replacedFunctionKey;
+  RelativeDirectPointer<void, false> replacementFunction;
+  RelativeDirectPointer<LinkEntry>, false> replacementLink;
+  uint32_t flags;
+};
+
+struct ReplacementScope
+    : private TrailingObjects<ReplacementScope, ReplacementScopeEntry> {
+  uint32_t flags;
+  uint32_t numReplacements;
+};
+
+struct AutomaticeReplacementEntry {
+  RelativeDirectPointer<ReplacementScope, false> replacements;
+  uint32_t flags;
+};
+
+struct AutomaticReplacements
+    : private TrailingObjects<AutomaticeReplacements,
+                              AutomaticeReplacementEntry> {
+  uint32_t flags;
+  uint32_t numScopes;
+};
+
 #define OVERRIDE_METADATALOOKUP COMPATIBILITY_OVERRIDE
 #include "CompatibilityOverride.def"

@@ -1276,7 +1276,7 @@ static std::string getDynamicReplacementSection(IRGenModule &IGM) {
   std::string sectionName;
   switch (IGM.TargetInfo.OutputObjectFormat) {
   case llvm::Triple::MachO:
-    sectionName = "__DATA, __swift5_replace, regular, no_dead_strip";
+    sectionName = "__TEXT, __swift5_replace, regular, no_dead_strip";
     break;
   case llvm::Triple::ELF:
     sectionName = "swift5_replace";
@@ -1291,22 +1291,41 @@ static std::string getDynamicReplacementSection(IRGenModule &IGM) {
   return sectionName;
 }
 
-static llvm::GlobalVariable *
-getGlobalForDynamicallyReplaceableThunk(IRGenModule &IGM, LinkEntity &entity,
-                                        ForDefinition_t forDefinition) {
-  auto global = IGM.Module.getGlobalVariable(entity.mangleAsString(),
-                                             /*allowInternal*/ true);
-  if (global) {
-    if (forDefinition)
-      updateLinkageForDefinition(IGM, global, entity);
-    return cast<llvm::GlobalVariable>(global);
-  }
+llvm::GlobalVariable *IRGenModule::getGlobalForDynamicallyReplaceableThunk(
+    LinkEntity &entity, llvm::Type *type, ForDefinition_t forDefinition) {
+  return cast<llvm::GlobalVariable>(getAddrOfLLVMVariable(
+      entity, getPointerAlignment(), forDefinition, type, DebugTypeInfo()));
+}
 
-  LinkInfo link = LinkInfo::get(IGM, entity, forDefinition);
-  auto var =
-      createVariable(IGM, link, IGM.Int8PtrTy, IGM.getPointerAlignment());
+/// Creates a dynamic replacement link entry for \p SILFn that contains either
+/// the implementation function pointer \p or a nullptr, the next pointer of the
+/// link entry is set to nullptr.
+///   struct LinkEntry {
+///      void *funPtr;
+///      struct LinkEntry *next;
+///   }
+static llvm::GlobalVariable *getLinkEntryForDynamicReplacement(
+    IRGenModule &IGM, SILFunction *SILFn,
+    llvm::Function *implFunction = nullptr,
+    ForDefinition_t forDefinition = ForDefinition) {
 
-  return var;
+  LinkEntity entity =
+      LinkEntity::forDynamicallyReplaceableFunctionVariable(SILFn);
+  auto linkEntry = IGM.getGlobalForDynamicallyReplaceableThunk(
+      entity, IGM.DynamicReplacementLinkEntryTy, forDefinition);
+  if (!forDefinition)
+    return linkEntry;
+
+  auto *funPtr =
+      implFunction ? llvm::ConstantExpr::getBitCast(implFunction, IGM.Int8PtrTy)
+                   : llvm::ConstantExpr::getNullValue(IGM.Int8PtrTy);
+  auto *nextEntry =
+      llvm::ConstantExpr::getNullValue(IGM.DynamicReplacementLinkEntryPtrTy);
+  llvm::Constant *fields[] = {funPtr, nextEntry};
+  auto *entry =
+      llvm::ConstantStruct::get(IGM.DynamicReplacementLinkEntryTy, fields);
+  linkEntry->setInitializer(entry);
+  return linkEntry;
 }
 
 void IRGenerator::emitDynamicReplacements() {
@@ -1315,34 +1334,71 @@ void IRGenerator::emitDynamicReplacements() {
 
   auto &IGM = *getPrimaryIGM();
 
-
+  // struct ReplacementScope {
+  //   uint32t flags; // unused
+  //   uint32t numReplacements;
+  //   struct Entry {
+  //     RelativeIndirectablePointer<KeyEntry, false> replacedFunctionKey;
+  //     RelativeDirectPointer<void> newFunction;
+  //     RelativeDirectPointer<LinkEntry> replacement;
+  //     uint32_t flags; // unused.
+  //   }[0]
+  // };
   ConstantInitBuilder builder(IGM);
-  auto replacementsArray = builder.beginArray(IGM.DynamicReplacementsTy);
+  auto replacementScope = builder.beginStruct();
+  replacementScope.addInt32(0); // unused flags.
+  replacementScope.addInt32(DynamicReplacements.size());
 
+  auto replacementsArray =
+      replacementScope.beginArray();
   for (auto *newFunc : DynamicReplacements) {
+    auto replacementLinkEntry = getLinkEntryForDynamicReplacement(IGM, newFunc);
+    // TODO: replacementLinkEntry->setZeroSection()
     auto *origFunc = newFunc->getDynamicallyReplacedFunction();
     assert(origFunc);
-    auto enity =
-        LinkEntity::forDynamicallyReplaceableFunctionVariable(origFunc);
-    auto *origFuncPtr =
-        getGlobalForDynamicallyReplaceableThunk(IGM, enity, NotForDefinition);
+    auto keyRef = IGM.getAddrOfLLVMVariableOrGOTEquivalent(
+        LinkEntity::forDynamicallyReplaceableFunctionKey(origFunc),
+        IGM.getPointerAlignment(), IGM.DynamicReplacementKeyTy);
 
     llvm::Constant *newFnPtr = llvm::ConstantExpr::getBitCast(
         IGM.getAddrOfSILFunction(newFunc, NotForDefinition), IGM.Int8PtrTy);
 
-    auto replacement = replacementsArray.beginStruct(IGM.DynamicReplacementsTy);
-    replacement.add(origFuncPtr);
-    replacement.add(newFnPtr);
+    auto replacement = replacementsArray.beginStruct();
+    replacement.addRelativeAddress(keyRef); // tagged relative reference.
+    replacement.addRelativeAddress(newFnPtr); // direct relative reference.
+    replacement.addRelativeAddress(
+        replacementLinkEntry); // direct relative reference.
+    replacement.addInt32(0); // unused flags.
     replacement.finishAndAddTo(replacementsArray);
   }
+  replacementsArray.finishAndAddTo(replacementScope);
 
-  auto var = replacementsArray.finishAndCreateGlobal(
-      "\x01l_dynamic_replacements", IGM.getPointerAlignment(),
+  auto var = replacementScope.finishAndCreateGlobal(
+      "\x01l_unnamed_dynamic_replacements", IGM.getPointerAlignment(),
       /*isConstant*/ true, llvm::GlobalValue::PrivateLinkage);
-
-  var->setSection(getDynamicReplacementSection(IGM));
-
+  IGM.setTrueConstGlobal(var);
   IGM.addUsedGlobal(var);
+
+  // Emit the data for automatic replacement to happen on load.
+  // struct AutomaticReplacements {
+  //   uint32t flags; // unused
+  //   uint32t numReplacements;
+  //   struct Entry {
+  //     RelativeDirectPointer<ReplacementScope> replacements;
+  //     uint32_t flags; // unused.
+  //   }[0]
+  // };
+  auto autoReplacements = builder.beginStruct();
+  autoReplacements.addInt32(0); // unused flags.
+  autoReplacements.addInt32(1); // number of replacement entries.
+  auto autoReplacementsArray = autoReplacements.beginArray();
+  autoReplacementsArray.addRelativeAddress(var);
+  autoReplacementsArray.finishAndAddTo(autoReplacements);
+  auto autoReplVar = autoReplacements.finishAndCreateGlobal(
+      "\x01l_auto_dynamic_replacements", IGM.getPointerAlignment(),
+      /*isConstant*/ true, llvm::GlobalValue::PrivateLinkage);
+  autoReplVar->setSection(getDynamicReplacementSection(IGM));
+  IGM.addUsedGlobal(autoReplVar);
 }
 
 void IRGenerator::emitEagerClassInitialization() {
@@ -2004,6 +2060,29 @@ static void addLLVMFunctionAttributes(SILFunction *f, Signature &signature) {
   }
 }
 
+/// Create a key entry for a dynamic function replacement. A key entry refers to
+/// the link entry for the dynamic replaceable function.
+/// struct KeyEntry {
+///   RelativeDirectPointer<LinkEntry> linkEntry;
+///   int32_t flags;
+/// }
+static llvm::GlobalVariable *createGlobalForDynamicReplacementFunctionKey(
+    IRGenModule &IGM, SILFunction *SILFn, llvm::GlobalVariable *linkEntry) {
+  LinkEntity keyEntity =
+      LinkEntity::forDynamicallyReplaceableFunctionKey(SILFn);
+  auto key = IGM.getGlobalForDynamicallyReplaceableThunk(
+      keyEntity, IGM.DynamicReplacementKeyTy, ForDefinition);
+
+  ConstantInitBuilder builder(IGM);
+  auto B = builder.beginStruct(IGM.DynamicReplacementKeyTy);
+  B.addRelativeAddress(linkEntry);
+  B.addInt32(0);
+  B.finishAndSetAsInitializer(key);
+  key->setConstant(true);
+  IGM.setTrueConstGlobal(key);
+  return key;
+}
+
 /// Emit the thunk that dispatches to the dynamically replaceable function.
 static void emitDynamicallyReplaceableThunk(IRGenModule &IGM,
                                             SILFunction *SILFn,
@@ -2011,12 +2090,13 @@ static void emitDynamicallyReplaceableThunk(IRGenModule &IGM,
                                             llvm::Function *implFn,
                                             Signature &signature) {
 
-  // Create and initialize the global function pointer with 'implFn'.
-  LinkEntity entity =
-      LinkEntity::forDynamicallyReplaceableFunctionVariable(SILFn);
-  auto globalVar =
-      getGlobalForDynamicallyReplaceableThunk(IGM, entity, ForDefinition);
-  globalVar->setInitializer(llvm::ConstantExpr::getBitCast(implFn, IGM.Int8PtrTy));
+  // Create and initialize the first link entry for the chain of replacements.
+  // The first implementation is initialized with 'implFn'.
+  auto linkEntry = getLinkEntryForDynamicReplacement(IGM, SILFn, implFn);
+
+  // Create the key data structure. This is used from other modules to refer to
+  // the chain of replacements.
+  createGlobalForDynamicReplacementFunctionKey(IGM, SILFn, linkEntry);
 
   // We should never inline the implementation function.
   implFn->addFnAttr(llvm::Attribute::NoInline);
@@ -2026,7 +2106,11 @@ static void emitDynamicallyReplaceableThunk(IRGenModule &IGM,
       llvm::BasicBlock::Create(IGM.getLLVMContext(), "entry", dispatchFn);
   IRBuilder B(IGM.getLLVMContext(), false);
   B.SetInsertPoint(entryBB);
-  auto *fnPtr = B.CreateLoad(globalVar, IGM.getPointerAlignment());
+  llvm::Constant *indices[] = {llvm::ConstantInt::get(IGM.Int32Ty, 0),
+                               llvm::ConstantInt::get(IGM.Int32Ty, 0)};
+  auto *fnPtr = B.CreateLoad(
+      llvm::ConstantExpr::getInBoundsGetElementPtr(nullptr, linkEntry, indices),
+      IGM.getPointerAlignment());
   auto *typeFnPtr = B.CreateBitOrPointerCast(fnPtr, implFn->getType());
   SmallVector<llvm::Value *, 16> forwardedArgs;
   for (auto &arg : dispatchFn->args())
@@ -2037,7 +2121,6 @@ static void emitDynamicallyReplaceableThunk(IRGenModule &IGM,
     B.CreateRetVoid();
   else
     B.CreateRet(Res);
-
 }
 
 /// Find the entry point for a SIL function.

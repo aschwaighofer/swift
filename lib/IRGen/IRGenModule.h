@@ -650,6 +650,11 @@ public:
   llvm::StructType *DynamicReplacementsTy; // { i8**, i8* }
   llvm::PointerType *DynamicReplacementsPtrTy;
 
+  llvm::StructType *DynamicReplacementLinkEntryTy; // %link_entry = { i8*, %link_entry*}
+  llvm::PointerType
+      *DynamicReplacementLinkEntryPtrTy; // %link_entry*
+  llvm::StructType *DynamicReplacementKeyTy; // { i32, i32}
+
   llvm::GlobalVariable *TheTrivialPropertyDescriptor = nullptr;
 
   /// Used to create unique names for class layout types with tail allocated
@@ -1399,6 +1404,10 @@ public:
   void emitSharedContextDescriptor(DeclContext *dc);
 
   void ensureRelativeSymbolCollocation(SILWitnessTable &wt);
+
+  llvm::GlobalVariable *
+  getGlobalForDynamicallyReplaceableThunk(LinkEntity &entity, llvm::Type *type,
+                                          ForDefinition_t forDefinition);
 
 private:
   llvm::Constant *
