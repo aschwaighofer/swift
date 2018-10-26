@@ -2124,16 +2124,60 @@ static void emitDynamicallyReplaceableThunk(IRGenModule &IGM,
     B.CreateRet(Res);
 }
 
+/// Calls the previous implementation before this dynamic replacement became
+/// active.
+void IRGenModule::emitDynamicReplacementOriginalFunctionThunk(SILFunction *f) {
+  assert(f->getDynamicallyReplacedFunction());
+
+  auto entity = LinkEntity::forSILFunction(f, true);
+
+  Signature signature = getSignature(f->getLoweredFunctionType());
+  addLLVMFunctionAttributes(f, signature);
+
+  LinkInfo implLink = LinkInfo::get(*this, entity, ForDefinition);
+  auto implFn =
+      createFunction(*this, implLink, signature, nullptr /*insertBefore*/,
+                     f->getOptimizationMode());
+  implFn->addFnAttr(llvm::Attribute::NoInline);
+
+  auto linkEntry =
+      getChainEntryForDynamicReplacement(*this, f, nullptr, NotForDefinition);
+
+  // Load the function and dispatch to it forwarding our arguments.
+  llvm::BasicBlock *entryBB =
+      llvm::BasicBlock::Create(getLLVMContext(), "entry", implFn);
+  IRBuilder B(getLLVMContext(), false);
+  B.SetInsertPoint(entryBB);
+  llvm::Constant *indices[] = {llvm::ConstantInt::get(Int32Ty, 0),
+                               llvm::ConstantInt::get(Int32Ty, 0)};
+
+  auto *fnPtr = B.CreateLoad(
+      llvm::ConstantExpr::getInBoundsGetElementPtr(nullptr, linkEntry, indices),
+      getPointerAlignment());
+  auto *typeFnPtr = B.CreateBitOrPointerCast(fnPtr, implFn->getType());
+
+  SmallVector<llvm::Value *, 16> forwardedArgs;
+  for (auto &arg : implFn->args())
+    forwardedArgs.push_back(&arg);
+  auto *Res =
+      B.CreateCall(FunctionPointer(typeFnPtr, signature), forwardedArgs);
+
+  if (implFn->getReturnType()->isVoidTy())
+    B.CreateRetVoid();
+  else
+    B.CreateRet(Res);
+}
+
 /// Find the entry point for a SIL function.
 llvm::Function *IRGenModule::getAddrOfSILFunction(
     SILFunction *f, ForDefinition_t forDefinition,
     bool isDynamicallyReplaceableImplementation,
-    bool shouldCallDynamicallyReplaceableImplFunc) {
+    bool shouldCallPreviousImplementation) {
   assert(forDefinition || !isDynamicallyReplaceableImplementation);
-  assert(!forDefinition || !shouldCallDynamicallyReplaceableImplFunc);
+  assert(!forDefinition || !shouldCallPreviousImplementation);
 
   LinkEntity entity =
-      LinkEntity::forSILFunction(f, shouldCallDynamicallyReplaceableImplFunc);
+      LinkEntity::forSILFunction(f, shouldCallPreviousImplementation);
 
   // Check whether we've created the function already.
   // FIXME: We should integrate this into the LinkEntity cache more cleanly.
@@ -2141,9 +2185,9 @@ llvm::Function *IRGenModule::getAddrOfSILFunction(
   if (fn) {
     if (forDefinition) {
       updateLinkageForDefinition(*this, fn, entity);
-      // Create the dynamically repl
-      LinkEntity implEntity = LinkEntity::forSILFunction(f, true);
       if (isDynamicallyReplaceableImplementation) {
+        // Create the dynamically replacement thunk.
+        LinkEntity implEntity = LinkEntity::forSILFunction(f, true);
         auto existingImpl = Module.getFunction(implEntity.mangleAsString());
         assert(!existingImpl);
         (void) existingImpl;
@@ -2169,7 +2213,8 @@ llvm::Function *IRGenModule::getAddrOfSILFunction(
   }
 
   bool isDefinition = f->isDefinition();
-  bool hasOrderNumber = isDefinition;
+  bool hasOrderNumber =
+      isDefinition && !shouldCallPreviousImplementation;
   unsigned orderNumber = ~0U;
   llvm::Function *insertBefore = nullptr;
 

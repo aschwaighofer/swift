@@ -381,10 +381,10 @@ public:
   static Callee forDirect(SILGenFunction &SGF, SILDeclRef c,
                           SubstitutionMap subs,
                           SILLocation l,
-                          bool callDynamicallyReplaceableImpl = false) {
+                          bool callPreviousDynamicReplaceableImpl = false) {
     auto &ci = SGF.getConstantInfo(c);
     return Callee(SGF, c, ci.FormalPattern, ci.FormalType, subs, l,
-                  callDynamicallyReplaceableImpl);
+                  callPreviousDynamicReplaceableImpl);
   }
 
   static Callee forEnumElement(SILGenFunction &SGF, SILDeclRef c,
@@ -596,7 +596,8 @@ public:
     }
     case Kind::StandaloneFunctionDynamicallyReplaceableImpl: {
       auto constantInfo = SGF.getConstantInfo(*constant);
-      SILValue ref = SGF.emitGlobalFunctionRef(Loc, *constant, constantInfo, true);
+      SILValue ref =
+          SGF.emitGlobalFunctionRef(Loc, *constant, constantInfo, true);
       return ManagedValue::forUnmanaged(ref);
     }
     case Kind::EnumElement:
@@ -1067,8 +1068,14 @@ public:
       auto constant = SILDeclRef(afd, kind).asForeign(
           !isObjCReplacementCall && requiresForeignEntryPoint(e->getDecl()));
       auto subs = e->getDeclRef().getSubstitutions();
-      setCallee(
-          Callee::forDirect(SGF, constant, subs, e, !isObjCReplacementCall));
+      if (isObjCReplacementCall)
+        setCallee(Callee::forDirect(SGF, constant, subs, e));
+      else
+        setCallee(Callee::forDirect(
+            SGF,
+            SILDeclRef(cast<AbstractFunctionDecl>(SGF.FunctionDC->getAsDecl()),
+                       kind),
+            subs, e, true));
       return;
     }
 
@@ -1138,9 +1145,14 @@ public:
             SGF, cast<AbstractFunctionDecl>(constant.getDecl()),
             isObjCReplacementSelfCall);
 
-    setCallee(Callee::forDirect(SGF, constant, subs, e,
-                                isSelfCallToReplacedInDynamicReplacement &&
-                                    !isObjCReplacementSelfCall));
+    if (isSelfCallToReplacedInDynamicReplacement && !isObjCReplacementSelfCall)
+      setCallee(Callee::forDirect(
+          SGF,
+          SILDeclRef(cast<AbstractFunctionDecl>(SGF.FunctionDC->getAsDecl()),
+                     constant.kind),
+          subs, e, true));
+    else
+      setCallee(Callee::forDirect(SGF, constant, subs, e));
 
     // If the decl ref requires captures, emit the capture params.
     if (!captureInfo.getCaptures().empty()) {
@@ -1481,9 +1493,15 @@ public:
           SGF, constant, subs, fn));
     } else {
       // Directly call the peer constructor.
-      setCallee(Callee::forDirect(SGF, constant, subs, fn,
-                                  isSelfCallToReplacedInDynamicReplacement &&
-                                      !isObjCReplacementSelfCall));
+      if (isObjCReplacementSelfCall ||
+          !isSelfCallToReplacedInDynamicReplacement)
+        setCallee(Callee::forDirect(SGF, constant, subs, fn));
+      else
+        setCallee(Callee::forDirect(
+            SGF,
+            SILDeclRef(cast<AbstractFunctionDecl>(SGF.FunctionDC->getAsDecl()),
+                       constant.kind),
+            subs, fn, true));
     }
 
     setSelfParam(std::move(selfArgSource), expr);
@@ -5608,7 +5626,11 @@ static Callee getBaseAccessorFunctionRef(SILGenFunction &SGF,
   bool isObjCReplacementSelfCall = false;
   if (isOnSelfParameter && isCallToReplacedInDynamicReplacement(
                                SGF, decl, isObjCReplacementSelfCall)) {
-    return Callee::forDirect(SGF, constant, subs, loc, true);
+    return Callee::forDirect(
+        SGF,
+        SILDeclRef(cast<AbstractFunctionDecl>(SGF.FunctionDC->getAsDecl()),
+                   constant.kind),
+        subs, loc, true);
   }
 
   // The accessor might be a local function that does not capture any

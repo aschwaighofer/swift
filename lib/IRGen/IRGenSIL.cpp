@@ -1238,6 +1238,11 @@ IRGenSILFunction::IRGenSILFunction(IRGenModule &IGM, SILFunction *f)
   if (f->getLoweredFunctionType()->isCoroutine()) {
     CurFn->addFnAttr(llvm::Attribute::NoInline);
   }
+  // Emit the thunk that calls the previous implementation if this is a dynamic
+  // replacement.
+  if (f->getDynamicallyReplacedFunction()) {
+    IGM.emitDynamicReplacementOriginalFunctionThunk(f);
+  }
 }
 
 IRGenSILFunction::~IRGenSILFunction() {

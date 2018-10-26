@@ -2058,6 +2058,12 @@ void TypeChecker::checkDynamicReplacementAttribute(ValueDecl *D) {
     return;
   }
 
+  if (D->isDynamic() && !D->isObjC()) {
+    assert(false && "dynamic replacement must not be dynamic itself");
+    attr->setInvalid();
+    return;
+  }
+
   // Don't process a declaration twice. This will happen to accessor decls after
   // we have processed their var decls.
   if (attr->getReplacedFunction())

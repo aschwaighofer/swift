@@ -1340,8 +1340,10 @@ public:
 
   llvm::Function *
   getAddrOfSILFunction(SILFunction *f, ForDefinition_t forDefinition,
-                       bool IsDynamicallyReplaceableImplementation = false,
-                       bool ShouldCallDynamicallyReplaceableImpl = false);
+                       bool isDynamicallyReplaceableImplementation = false,
+                       bool shouldCallPreviousImplementation = false);
+
+  void emitDynamicReplacementOriginalFunctionThunk(SILFunction *f);
 
   llvm::Function *getAddrOfContinuationPrototype(CanSILFunctionType fnType);
   Address getAddrOfSILGlobalVariable(SILGlobalVariable *var,

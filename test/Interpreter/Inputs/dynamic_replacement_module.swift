@@ -88,11 +88,11 @@ extension PublicClass {
   }
 
   @_dynamicReplacement(for: function())
-  public dynamic func replacement_function() -> String {
+  public func replacement_function() -> String {
     return "replacement of " + function()
   }
   @_dynamicReplacement(for: genericFunction(_:))
-  public dynamic func replacement_genericFunction<T>(_ t: T.Type) -> String {
+  public func replacement_genericFunction<T>(_ t: T.Type) -> String {
     return "replacement of " + genericFunction(t)
   }
 }
@@ -105,15 +105,15 @@ extension PublicStruct {
   }
 
   @_dynamicReplacement(for: function())
-  public dynamic func replacement_function() -> String {
+  public func replacement_function() -> String {
     return "replacement of " + function()
   }
   @_dynamicReplacement(for: genericFunction(_:))
-  public dynamic func replacement_genericFunction<T>(_ t: T.Type) -> String {
+  public func replacement_genericFunction<T>(_ t: T.Type) -> String {
     return "replacement of " + genericFunction(t)
   }
   @_dynamicReplacement(for: public_stored_property)
-  dynamic var replacement_public_stored_property : String {
+  var replacement_public_stored_property : String {
     return "replacement of " + public_stored_property
   }
   @_dynamicReplacement(for: subscript(_:))
@@ -127,7 +127,7 @@ extension PublicStruct {
   }
 
   @_dynamicReplacement(for: subscript(y:))
-  public dynamic subscript(z x: Int) -> String {
+  public subscript(z x: Int) -> String {
     _read {
       yield "replacement of " + self[y: x]
     }
@@ -140,11 +140,11 @@ extension PublicStruct {
 
 extension PublicEnumeration {
   @_dynamicReplacement(for: function())
-  public dynamic func replacement_function() -> String {
+  public func replacement_function() -> String {
     return "replacement of " + function()
   }
   @_dynamicReplacement(for: genericFunction(_:))
-  public dynamic func replacement_genericFunction<T>(_ t: T.Type) -> String {
+  public func replacement_genericFunction<T>(_ t: T.Type) -> String {
     return "replacement of " + genericFunction(t)
   }
 }
