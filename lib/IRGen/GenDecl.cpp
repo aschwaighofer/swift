@@ -1297,14 +1297,14 @@ llvm::GlobalVariable *IRGenModule::getGlobalForDynamicallyReplaceableThunk(
       entity, getPointerAlignment(), forDefinition, type, DebugTypeInfo()));
 }
 
-/// Creates a dynamic replacement link entry for \p SILFn that contains either
+/// Creates a dynamic replacement chain entry for \p SILFn that contains either
 /// the implementation function pointer \p or a nullptr, the next pointer of the
-/// link entry is set to nullptr.
-///   struct LinkEntry {
+/// chain entry is set to nullptr.
+///   struct ChainEntry {
 ///      void *funPtr;
-///      struct LinkEntry *next;
+///      struct ChainEntry *next;
 ///   }
-static llvm::GlobalVariable *getLinkEntryForDynamicReplacement(
+static llvm::GlobalVariable *getChainEntryForDynamicReplacement(
     IRGenModule &IGM, SILFunction *SILFn,
     llvm::Function *implFunction = nullptr,
     ForDefinition_t forDefinition = ForDefinition) {
@@ -1352,7 +1352,8 @@ void IRGenerator::emitDynamicReplacements() {
   auto replacementsArray =
       replacementScope.beginArray();
   for (auto *newFunc : DynamicReplacements) {
-    auto replacementLinkEntry = getLinkEntryForDynamicReplacement(IGM, newFunc);
+    auto replacementLinkEntry =
+        getChainEntryForDynamicReplacement(IGM, newFunc);
     // TODO: replacementLinkEntry->setZeroSection()
     auto *origFunc = newFunc->getDynamicallyReplacedFunction();
     assert(origFunc);
@@ -2092,7 +2093,7 @@ static void emitDynamicallyReplaceableThunk(IRGenModule &IGM,
 
   // Create and initialize the first link entry for the chain of replacements.
   // The first implementation is initialized with 'implFn'.
-  auto linkEntry = getLinkEntryForDynamicReplacement(IGM, SILFn, implFn);
+  auto linkEntry = getChainEntryForDynamicReplacement(IGM, SILFn, implFn);
 
   // Create the key data structure. This is used from other modules to refer to
   // the chain of replacements.

@@ -22,8 +22,10 @@
 #include "swift/ABI/TypeIdentity.h"
 #include "swift/Runtime/Casting.h"
 #include "swift/Runtime/Concurrent.h"
+#include "swift/Runtime/Debug.h"
 #include "swift/Runtime/HeapObject.h"
 #include "swift/Runtime/Metadata.h"
+#include "swift/Runtime/Mutex.h"
 #include "swift/Strings.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/Optional.h"
@@ -1556,71 +1558,102 @@ SWIFT_ALLOWED_RUNTIME_GLOBAL_CTOR_BEGIN
 static InitializeDynamicReplacementLookup initDynamicReplacements;
 SWIFT_ALLOWED_RUNTIME_GLOBAL_CTOR_END
 
-struct DynamicReplacementRecord {
-  int8_t **const FunctionVar;
-  int8_t *const NewFunction;
+void DynamicReplacementDescriptor::enableReplacement() const {
+  auto *chainRoot = const_cast<DynamicReplacementChainEntry *>(
+      replacedFunctionKey->root.get());
+
+  // Make sure this entry is not already enabled.
+  for (auto *curr = chainRoot; curr != nullptr; curr = curr->next) {
+    if (curr == chainEntry.get()) {
+      swift::swift_abortDynamicReplacementEnabling();
+    }
+  }
+
+  // First populate the current replacement's chain entry.
+  auto *currentEntry =
+      const_cast<DynamicReplacementChainEntry *>(chainEntry.get());
+  currentEntry->implementationFunction = chainRoot->implementationFunction;
+  currentEntry->next = chainRoot->next;
+
+  // Link the replacement entry.
+  chainRoot->next = chainEntry.get();
+  chainRoot->implementationFunction = replacementFunction.get();
+}
+
+void DynamicReplacementDescriptor::disableReplacement() const {
+    const auto *chainRoot = replacedFunctionKey->root.get();
+    auto *thisEntry =
+        const_cast<DynamicReplacementChainEntry *>(chainEntry.get());
+
+    // Find the entry previous to this one.
+    auto *prev = chainRoot;
+    while (prev && prev->next != thisEntry)
+      prev = prev->next;
+    if (!prev) {
+      swift::swift_abortDynamicReplacementDisabling();
+      return;
+    }
+
+    // Unlink this entry.
+    auto *previous = const_cast<DynamicReplacementChainEntry *>(prev);
+    previous->next = thisEntry->next;
+    previous->implementationFunction = thisEntry->implementationFunction;
+  }
+/// An automatic dymamic replacement entry.
+class AutomaticDynamicReplacementEntry {
+  RelativeDirectPointer<DynamicReplacementScope, false> replacementScope;
+  uint32_t flags;
+
+public:
+  void enable() const { replacementScope->enable(); }
+
+  uint32_t getFlags() { return flags; }
 };
 
-static void installDynamicReplacements(const DynamicReplacementRecord *begin,
-                                       const DynamicReplacementRecord *end) {
-  const DynamicReplacementRecord *curr = begin;
-  while (curr != end) {
-    *curr->FunctionVar = curr->NewFunction;
-    ++curr;
-   }
+/// A list of automatic dynamic replacement scopes.
+class AutomaticDynamicReplacements
+    : private swift::ABI::TrailingObjects<AutomaticDynamicReplacements,
+                                          AutomaticDynamicReplacementEntry> {
+  uint32_t flags;
+  uint32_t numScopes;
+
+  using TrailingObjects =
+      swift::ABI::TrailingObjects<AutomaticDynamicReplacements,
+                                  AutomaticDynamicReplacementEntry>;
+  friend TrailingObjects;
+
+
+  ArrayRef<AutomaticDynamicReplacementEntry> getReplacementEntries() const {
+    return {
+        this->template getTrailingObjects<AutomaticDynamicReplacementEntry>(),
+        numScopes};
+  }
+
+public:
+  void enableReplacements() const {
+    for (auto &replacementEntry : getReplacementEntries())
+      replacementEntry.enable();
+  }
+};
+
+namespace {
+  static Lazy<Mutex> DynamicReplacementLock;
 }
 
 void swift::addImageDynamicReplacementBlockCallback(
     const void *replacements, uintptr_t replacementsSize) {
-
-  assert(replacementsSize % sizeof(DynamicReplacementRecord) == 0 &&
-         "dynamic replacement section section not a multiple of "
-         "DynamicReplacementRecord");
-
-  // If we have a section, enqueue the protocols for lookup.
-  auto replacementsBytes = reinterpret_cast<const char *>(replacements);
-  auto recordsBegin
-    = reinterpret_cast<const DynamicReplacementRecord *>(replacements);
-  auto recordsEnd = reinterpret_cast<const DynamicReplacementRecord *>(
-      replacementsBytes + replacementsSize);
-
-  installDynamicReplacements(recordsBegin, recordsEnd);
+  auto *automaticReplacements =
+      reinterpret_cast<const AutomaticDynamicReplacements *>(replacements);
+  DynamicReplacementLock.get().withLock(
+      [&] { automaticReplacements->enableReplacements(); });
 }
 
-struct LinkEntry {
-  void *implementationFunction;
-  LinkEntry *next;
-};
+void swift::swift_enableDynamicReplacementScope(const DynamicReplacementScope *scope) {
+  scope->enable();
+}
 
-struct KeyEntry {
-  RelativeDirectPointer<LinkEntry, false> link;
-  uint32_t flags;
-};
-
-struct ReplacementScopeEntry {
-  RelativeIndirectablePointer<KeyEntry, false> replacedFunctionKey;
-  RelativeDirectPointer<void, false> replacementFunction;
-  RelativeDirectPointer<LinkEntry>, false> replacementLink;
-  uint32_t flags;
-};
-
-struct ReplacementScope
-    : private TrailingObjects<ReplacementScope, ReplacementScopeEntry> {
-  uint32_t flags;
-  uint32_t numReplacements;
-};
-
-struct AutomaticeReplacementEntry {
-  RelativeDirectPointer<ReplacementScope, false> replacements;
-  uint32_t flags;
-};
-
-struct AutomaticReplacements
-    : private TrailingObjects<AutomaticeReplacements,
-                              AutomaticeReplacementEntry> {
-  uint32_t flags;
-  uint32_t numScopes;
-};
-
+void swift::swift_disableDynamicReplacementScope(const DynamicReplacementScope *scope) {
+  scope->disable();
+}
 #define OVERRIDE_METADATALOOKUP COMPATIBILITY_OVERRIDE
 #include "CompatibilityOverride.def"

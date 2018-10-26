@@ -43,7 +43,6 @@ constexpr const char TypeMetadataRecordSection[] = "__swift5_types";
 constexpr const char DynamicReplacementSection[] = "__swift5_replace";
 
 constexpr const char TextSegment[] = SEG_TEXT;
-constexpr const char DataSegment[] = SEG_DATA;
 
 #if __POINTER_WIDTH__ == 64
 using mach_header_platform = mach_header_64;
@@ -112,7 +111,7 @@ void swift::initializeTypeMetadataRecordLookup() {
 
 void swift::initializeDynamicReplacementLookup() {
   _dyld_register_func_for_add_image(
-      addImageCallback<DataSegment, DynamicReplacementSection,
+      addImageCallback<TextSegment, DynamicReplacementSection,
                        addImageDynamicReplacementBlockCallback>);
 }
 
