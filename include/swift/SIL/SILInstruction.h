@@ -2251,6 +2251,70 @@ public:
   MutableArrayRef<Operand> getAllOperands() { return {}; }
 };
 
+class DynamicFunctionRefInst
+: public InstructionBase<SILInstructionKind::DynamicFunctionRefInst,
+                             LiteralInst> {
+  friend SILBuilder;
+
+  SILFunction *f;
+
+  /// Construct a DynamicFunctionRefInst.
+  ///
+  /// \param DebugLoc  The location of the reference.
+  /// \param F         The function being referenced.
+  DynamicFunctionRefInst(SILDebugLocation DebugLoc, SILFunction *F);
+
+public:
+  ~DynamicFunctionRefInst();
+
+  /// Return the referenced function.
+  SILFunction *getReferencedFunction() const { return f; }
+
+  void dropReferencedFunction();
+
+  CanSILFunctionType getFunctionType() const {
+    return getType().castTo<SILFunctionType>();
+  }
+  SILFunctionConventions getConventions() const {
+    return SILFunctionConventions(getFunctionType(), getModule());
+  }
+
+  ArrayRef<Operand> getAllOperands() const { return {}; }
+  MutableArrayRef<Operand> getAllOperands() { return {}; }
+};
+
+class PreviousDynamicFunctionRefInst
+    : public InstructionBase<SILInstructionKind::PreviousDynamicFunctionRefInst,
+                             LiteralInst> {
+  friend SILBuilder;
+
+  SILFunction *f;
+
+  /// Construct a PreviousDynamicFunctionRefInst.
+  ///
+  /// \param DebugLoc  The location of the reference.
+  /// \param F         The function being referenced.
+  PreviousDynamicFunctionRefInst(SILDebugLocation DebugLoc, SILFunction *F);
+
+public:
+  ~PreviousDynamicFunctionRefInst();
+
+  /// Return the referenced function.
+  SILFunction *getReferencedFunction() const { return f; }
+
+  void dropReferencedFunction();
+
+  CanSILFunctionType getFunctionType() const {
+    return getType().castTo<SILFunctionType>();
+  }
+  SILFunctionConventions getConventions() const {
+    return SILFunctionConventions(getFunctionType(), getModule());
+  }
+
+  ArrayRef<Operand> getAllOperands() const { return {}; }
+  MutableArrayRef<Operand> getAllOperands() { return {}; }
+};
+
 /// Component of a KeyPathInst.
 class KeyPathPatternComponent {
 public:
@@ -7536,6 +7600,10 @@ SILFunction *ApplyInstBase<Impl, Base, false>::getCalleeFunction() const {
 
   while (true) {
     if (auto *FRI = dyn_cast<FunctionRefInst>(Callee))
+      return FRI->getReferencedFunction();
+    if (auto *FRI = dyn_cast<DynamicFunctionRefInst>(Callee))
+      return FRI->getReferencedFunction();
+    if (auto *FRI = dyn_cast<PreviousDynamicFunctionRefInst>(Callee))
       return FRI->getReferencedFunction();
 
     if (auto *PAI = dyn_cast<PartialApplyInst>(Callee)) {

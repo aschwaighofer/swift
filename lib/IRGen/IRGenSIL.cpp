@@ -916,6 +916,8 @@ public:
   void visitBuiltinInst(BuiltinInst *i);
 
   void visitFunctionRefInst(FunctionRefInst *i);
+  void visitDynamicFunctionRefInst(DynamicFunctionRefInst *i);
+  void visitPreviousDynamicFunctionRefInst(PreviousDynamicFunctionRefInst *i);
   void visitAllocGlobalInst(AllocGlobalInst *i);
   void visitGlobalAddrInst(GlobalAddrInst *i);
   void visitGlobalValueInst(GlobalValueInst *i);
@@ -1845,6 +1847,42 @@ void IRGenSILFunction::visitFunctionRefInst(FunctionRefInst *i) {
 
   llvm::Constant *fnPtr = IGM.getAddrOfSILFunction(
       fn, NotForDefinition, false, i->shouldCallDynamicallyReplaceableImplementation());
+
+  auto sig = IGM.getSignature(fn->getLoweredFunctionType());
+
+  // Note that the pointer value returned by getAddrOfSILFunction doesn't
+  // necessarily have element type sig.getType(), e.g. if it's imported.
+
+  FunctionPointer fp = FunctionPointer::forDirect(fnPtr, sig);
+  
+  // Store the function as a FunctionPointer so we can avoid bitcasting
+  // or thunking if we don't need to.
+  setLoweredFunctionPointer(i, fp);
+}
+
+void IRGenSILFunction::visitDynamicFunctionRefInst(DynamicFunctionRefInst *i) {
+  auto fn = i->getReferencedFunction();
+
+  llvm::Constant *fnPtr = IGM.getAddrOfSILFunction(
+      fn, NotForDefinition, false, false);
+
+  auto sig = IGM.getSignature(fn->getLoweredFunctionType());
+
+  // Note that the pointer value returned by getAddrOfSILFunction doesn't
+  // necessarily have element type sig.getType(), e.g. if it's imported.
+
+  FunctionPointer fp = FunctionPointer::forDirect(fnPtr, sig);
+  
+  // Store the function as a FunctionPointer so we can avoid bitcasting
+  // or thunking if we don't need to.
+  setLoweredFunctionPointer(i, fp);
+}
+
+void IRGenSILFunction::visitPreviousDynamicFunctionRefInst(PreviousDynamicFunctionRefInst *i) {
+  auto fn = i->getReferencedFunction();
+
+  llvm::Constant *fnPtr = IGM.getAddrOfSILFunction(
+      fn, NotForDefinition, false, true);
 
   auto sig = IGM.getSignature(fn->getLoweredFunctionType());
 

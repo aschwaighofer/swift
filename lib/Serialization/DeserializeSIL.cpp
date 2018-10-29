@@ -1511,6 +1511,23 @@ bool SILDeserializer::readSILInstruction(SILFunction *Fn, SILBasicBlock *BB,
         origImpl);
     break;
   }
+  case SILInstructionKind::DynamicFunctionRefInst: {
+    auto Ty = MF->getType(TyID);
+    StringRef FuncName = MF->getIdentifierText(ValID);
+    ResultVal = Builder.createDynamicFunctionRef(
+        Loc, getFuncForReference(FuncName,
+                                 getSILType(Ty, (SILValueCategory)TyCategory)));
+    break;
+  }
+  case SILInstructionKind::PreviousDynamicFunctionRefInst: {
+    auto Ty = MF->getType(TyID);
+    StringRef FuncName = MF->getIdentifierText(ValID);
+    bool origImpl = Attr;
+    ResultVal = Builder.createPreviousDynamicFunctionRef(
+        Loc, getFuncForReference(FuncName,
+                                 getSILType(Ty, (SILValueCategory)TyCategory)));
+    break;
+  }
   case SILInstructionKind::MarkDependenceInst: {
     auto Ty = MF->getType(TyID);
     auto Ty2 = MF->getType(TyID2);

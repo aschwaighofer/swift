@@ -2610,6 +2610,22 @@ bool SILParser::parseSILInstruction(SILBuilder &B) {
         InstLoc, Fn, callDynamicReplaceableImplementation);
     break;
   }
+  case SILInstructionKind::DynamicFunctionRefInst: {
+    if (parseSILFunctionRef(InstLoc, Fn) ||
+        parseSILDebugLocation(InstLoc, B))
+      return true;
+    ResultVal = B.createDynamicFunctionRef(
+        InstLoc, Fn, callDynamicReplaceableImplementation);
+    break;
+  }
+  case SILInstructionKind::PreviousDynamicFunctionRefInst: {
+    if (parseSILFunctionRef(InstLoc, Fn) ||
+        parseSILDebugLocation(InstLoc, B))
+      return true;
+    ResultVal = B.createPreviousDynamicFunctionRef(
+        InstLoc, Fn, callDynamicReplaceableImplementation);
+    break;
+  }
   case SILInstructionKind::BuiltinInst: {
     if (P.Tok.getKind() != tok::string_literal) {
       P.diagnose(P.Tok, diag::expected_tok_in_sil_instr,"builtin name");

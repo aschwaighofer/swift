@@ -161,6 +161,18 @@ void SILInstruction::dropAllReferences() {
     FRI->dropReferencedFunction();
     return;
   }
+  if (auto *FRI = dyn_cast<DynamicFunctionRefInst>(this)) {
+    if (!FRI->getReferencedFunction())
+      return;
+    FRI->dropReferencedFunction();
+    return;
+  }
+  if (auto *FRI = dyn_cast<PreviousDynamicFunctionRefInst>(this)) {
+    if (!FRI->getReferencedFunction())
+      return;
+    FRI->dropReferencedFunction();
+    return;
+  }
 
   // If we have a KeyPathInst, drop its pattern reference so that we can
   // decrement refcounts on referenced functions.
@@ -449,6 +461,15 @@ namespace {
 
     bool visitFunctionRefInst(const FunctionRefInst *RHS) {
       auto *X = cast<FunctionRefInst>(LHS);
+      return X->getReferencedFunction() == RHS->getReferencedFunction();
+    }
+    bool visitDynamicFunctionRefInst(const DynamicFunctionRefInst *RHS) {
+      auto *X = cast<DynamicFunctionRefInst>(LHS);
+      return X->getReferencedFunction() == RHS->getReferencedFunction();
+    }
+    bool visitPreviousDynamicFunctionRefInst(
+        const PreviousDynamicFunctionRefInst *RHS) {
+      auto *X = cast<PreviousDynamicFunctionRefInst>(LHS);
       return X->getReferencedFunction() == RHS->getReferencedFunction();
     }
 

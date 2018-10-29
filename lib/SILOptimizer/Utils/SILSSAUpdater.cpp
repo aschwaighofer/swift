@@ -102,11 +102,26 @@ static bool areIdentical(llvm::DenseMap<SILBasicBlock *, SILValue> &Avails) {
 void SILSSAUpdater::RewriteUse(Operand &Op) {
   // Replicate function_refs to their uses. SILGen can't build phi nodes for
   // them and it would not make much sense anyways.
+  //
   if (auto *FR = dyn_cast<FunctionRefInst>(Op.get())) {
     assert(areIdentical(*AV) &&
            "The function_refs need to have the same value");
     SILInstruction *User = Op.getUser();
     auto *NewFR = cast<FunctionRefInst>(FR->clone(User));
+    Op.set(NewFR);
+    return;
+  } else if (auto *FR = dyn_cast<PreviousDynamicFunctionRefInst>(Op.get())) {
+    assert(areIdentical(*AV) &&
+           "The function_refs need to have the same value");
+    SILInstruction *User = Op.getUser();
+    auto *NewFR = cast<PreviousDynamicFunctionRefInst>(FR->clone(User));
+    Op.set(NewFR);
+    return;
+  } else if (auto *FR = dyn_cast<DynamicFunctionRefInst>(Op.get())) {
+    assert(areIdentical(*AV) &&
+           "The function_refs need to have the same value");
+    SILInstruction *User = Op.getUser();
+    auto *NewFR = cast<DynamicFunctionRefInst>(FR->clone(User));
     Op.set(NewFR);
     return;
   } else if (auto *IL = dyn_cast<IntegerLiteralInst>(Op.get()))

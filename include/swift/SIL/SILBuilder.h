@@ -563,6 +563,19 @@ public:
         getSILDebugLocation(Loc), f,
         callOriginalDynamicReplaceableImplementation));
   }
+
+  DynamicFunctionRefInst *
+  createDynamicFunctionRef(SILLocation Loc, SILFunction *f) {
+    return insert(new (getModule()) DynamicFunctionRefInst(
+        getSILDebugLocation(Loc), f));
+  }
+
+  PreviousDynamicFunctionRefInst *
+  createPreviousDynamicFunctionRef(SILLocation Loc, SILFunction *f) {
+    return insert(new (getModule()) PreviousDynamicFunctionRefInst(
+        getSILDebugLocation(Loc), f));
+  }
+
   AllocGlobalInst *createAllocGlobal(SILLocation Loc, SILGlobalVariable *g) {
     return insert(new (getModule())
                       AllocGlobalInst(getSILDebugLocation(Loc), g));

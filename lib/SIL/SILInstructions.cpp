@@ -503,6 +503,12 @@ bool swift::doesApplyCalleeHaveSemantics(SILValue callee, StringRef semantics) {
   if (auto *FRI = dyn_cast<FunctionRefInst>(callee))
     if (auto *F = FRI->getReferencedFunction())
       return F->hasSemanticsAttr(semantics);
+  if (auto *FRI = dyn_cast<DynamicFunctionRefInst>(callee))
+    if (auto *F = FRI->getReferencedFunction())
+      return F->hasSemanticsAttr(semantics);
+  if (auto *FRI = dyn_cast<PreviousDynamicFunctionRefInst>(callee))
+    if (auto *F = FRI->getReferencedFunction())
+      return F->hasSemanticsAttr(semantics);
   return false;
 }
 
@@ -594,6 +600,42 @@ void FunctionRefInst::dropReferencedFunction() {
   if (auto *Function = getReferencedFunction())
     Function->decrementRefCount();
   Value.setPointer(nullptr);
+}
+
+DynamicFunctionRefInst::DynamicFunctionRefInst(
+    SILDebugLocation Loc, SILFunction *F)
+    : InstructionBase(Loc, F->getLoweredType()),
+      f(F) {
+  F->incrementRefCount();
+}
+
+DynamicFunctionRefInst::~DynamicFunctionRefInst() {
+  if (getReferencedFunction())
+    getReferencedFunction()->decrementRefCount();
+}
+
+void DynamicFunctionRefInst::dropReferencedFunction() {
+  if (auto *Function = getReferencedFunction())
+    Function->decrementRefCount();
+  f = nullptr;
+}
+
+PreviousDynamicFunctionRefInst::PreviousDynamicFunctionRefInst(
+    SILDebugLocation Loc, SILFunction *F)
+    : InstructionBase(Loc, F->getLoweredType()),
+      f(F) {
+  F->incrementRefCount();
+}
+
+PreviousDynamicFunctionRefInst::~PreviousDynamicFunctionRefInst() {
+  if (getReferencedFunction())
+    getReferencedFunction()->decrementRefCount();
+}
+
+void PreviousDynamicFunctionRefInst::dropReferencedFunction() {
+  if (auto *Function = getReferencedFunction())
+    Function->decrementRefCount();
+  f = nullptr;
 }
 
 AllocGlobalInst::AllocGlobalInst(SILDebugLocation Loc,
