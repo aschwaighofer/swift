@@ -761,7 +761,8 @@ public:
 bool isCallToReplacedInDynamicReplacement(SILGenFunction &SGF,
                                           AbstractFunctionDecl *afd,
                                           bool &isObjCReplacementSelfCall) {
-  if (auto *func = dyn_cast_or_null<ValueDecl>(SGF.FunctionDC->getAsDecl())) {
+  if (auto *func =
+          dyn_cast_or_null<AbstractFunctionDecl>(SGF.FunctionDC->getAsDecl())) {
     auto *repl = func->getAttrs().getAttribute<DynamicReplacementAttr>();
     if (repl && repl->getReplacedFunction() == afd) {
       isObjCReplacementSelfCall = afd->isObjC();
@@ -1061,8 +1062,6 @@ public:
     // '@_dynamicReplacement(for:)' methods.
     bool isObjCReplacementCall = false;
     if (isCallToReplacedInDynamicReplacement(SGF, afd, isObjCReplacementCall) &&
-        SGF.FunctionDC->getAsDecl() &&
-        isa<AbstractFunctionDecl>(SGF.FunctionDC->getAsDecl()) &&
         thisCallSite->getArg()->isSelfExprOf(
             cast<AbstractFunctionDecl>(SGF.FunctionDC->getAsDecl()), false)) {
       auto constant = SILDeclRef(afd, kind).asForeign(
@@ -1135,15 +1134,12 @@ public:
     ApplyExpr *thisCallSite = callSites.back();
     bool isObjCReplacementSelfCall = false;
     bool isSelfCallToReplacedInDynamicReplacement =
-        (afd->getDeclContext()->isModuleScopeContext() ||
-         (SGF.FunctionDC->getAsDecl() &&
-          isa<AbstractFunctionDecl>(SGF.FunctionDC->getAsDecl()) &&
-          thisCallSite->getArg()->isSelfExprOf(
-              cast<AbstractFunctionDecl>(SGF.FunctionDC->getAsDecl()),
-              false))) &&
         isCallToReplacedInDynamicReplacement(
             SGF, cast<AbstractFunctionDecl>(constant.getDecl()),
-            isObjCReplacementSelfCall);
+            isObjCReplacementSelfCall) &&
+        (afd->getDeclContext()->isModuleScopeContext() ||
+         thisCallSite->getArg()->isSelfExprOf(
+             cast<AbstractFunctionDecl>(SGF.FunctionDC->getAsDecl()), false));
 
     if (isSelfCallToReplacedInDynamicReplacement && !isObjCReplacementSelfCall)
       setCallee(Callee::forDirect(
@@ -1465,13 +1461,11 @@ public:
 
     bool isObjCReplacementSelfCall = false;
     bool isSelfCallToReplacedInDynamicReplacement =
-        SGF.FunctionDC->getAsDecl() &&
-        isa<AbstractFunctionDecl>(SGF.FunctionDC->getAsDecl()) &&
-        arg->isSelfExprOf(
-            cast<AbstractFunctionDecl>(SGF.FunctionDC->getAsDecl()), false) &&
         isCallToReplacedInDynamicReplacement(
             SGF, cast<AbstractFunctionDecl>(constant.getDecl()),
-            isObjCReplacementSelfCall);
+            isObjCReplacementSelfCall) &&
+        arg->isSelfExprOf(
+            cast<AbstractFunctionDecl>(SGF.FunctionDC->getAsDecl()), false);
 
     constant =
         constant.asForeign(!isObjCReplacementSelfCall &&
