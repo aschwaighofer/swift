@@ -687,6 +687,7 @@ bool LinkEntity::isAvailableExternally(IRGenModule &IGM) const {
   case Kind::DefaultAssociatedConformanceAccessor:
     return false;
   case Kind::DynamicallyReplaceableFunctionKey:
+  case Kind::DynamicallyReplaceableFunctionVariable:
     return true;
 
   case Kind::ObjCMetadataUpdateFunction:
@@ -704,7 +705,6 @@ bool LinkEntity::isAvailableExternally(IRGenModule &IGM) const {
   case Kind::ReflectionFieldDescriptor:
   case Kind::ReflectionAssociatedTypeDescriptor:
   case Kind::CoroutineContinuationPrototype:
-  case Kind::DynamicallyReplaceableFunctionVariable:
   case Kind::DynamicallyReplaceableFunctionVariableAST:
   case Kind::DynamicallyReplaceableFunctionImpl:
   case Kind::DynamicallyReplaceableFunctionKeyAST:
@@ -788,7 +788,10 @@ llvm::Type *LinkEntity::getDefaultDeclarationType(IRGenModule &IGM) const {
   case Kind::MethodDescriptorInitializer:
   case Kind::MethodDescriptorAllocator:
     return IGM.MethodDescriptorStructTy;
-    
+  case Kind::DynamicallyReplaceableFunctionKey:
+    return IGM.DynamicReplacementKeyTy;
+  case Kind::DynamicallyReplaceableFunctionVariable:
+    return IGM.DynamicReplacementLinkEntryTy;
   default:
     llvm_unreachable("declaration LLVM type not specified");
   }
@@ -829,6 +832,8 @@ Alignment LinkEntity::getAlignment(IRGenModule &IGM) const {
   case Kind::ProtocolWitnessTablePattern:
   case Kind::ObjCMetaclass:
   case Kind::SwiftMetaclassStub:
+  case Kind::DynamicallyReplaceableFunctionVariable:
+  case Kind::DynamicallyReplaceableFunctionKey:
     return IGM.getPointerAlignment();
   case Kind::SILFunction:
     return Alignment(1);
@@ -966,12 +971,17 @@ const SourceFile *LinkEntity::getSourceFileForEmission() const {
   case Kind::AssociatedTypeDescriptor:
   case Kind::AssociatedConformanceDescriptor:
   case Kind::DefaultAssociatedConformanceAccessor:
+  case Kind::DynamicallyReplaceableFunctionVariableAST:
+  case Kind::DynamicallyReplaceableFunctionKeyAST:
+  case Kind::DynamicallyReplaceableFunctionImpl:
     sf = getSourceFileForDeclContext(getDecl()->getDeclContext());
     if (!sf)
       return nullptr;
     break;
   
   case Kind::SILFunction:
+  case Kind::DynamicallyReplaceableFunctionVariable:
+  case Kind::DynamicallyReplaceableFunctionKey:
     sf = getSourceFileForDeclContext(getSILFunction()->getDeclContext());
     if (!sf)
       return nullptr;

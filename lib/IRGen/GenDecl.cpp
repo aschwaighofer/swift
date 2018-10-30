@@ -1293,8 +1293,8 @@ static std::string getDynamicReplacementSection(IRGenModule &IGM) {
 
 llvm::GlobalVariable *IRGenModule::getGlobalForDynamicallyReplaceableThunk(
     LinkEntity &entity, llvm::Type *type, ForDefinition_t forDefinition) {
-  return cast<llvm::GlobalVariable>(getAddrOfLLVMVariable(
-      entity, getPointerAlignment(), forDefinition, type, DebugTypeInfo()));
+  return cast<llvm::GlobalVariable>(
+      getAddrOfLLVMVariable(entity, forDefinition, DebugTypeInfo()));
 }
 
 /// Creates a dynamic replacement chain entry for \p SILFn that contains either
@@ -1358,8 +1358,7 @@ void IRGenerator::emitDynamicReplacements() {
     auto *origFunc = newFunc->getDynamicallyReplacedFunction();
     assert(origFunc);
     auto keyRef = IGM.getAddrOfLLVMVariableOrGOTEquivalent(
-        LinkEntity::forDynamicallyReplaceableFunctionKey(origFunc),
-        IGM.getPointerAlignment(), IGM.DynamicReplacementKeyTy);
+        LinkEntity::forDynamicallyReplaceableFunctionKey(origFunc));
 
     llvm::Constant *newFnPtr = llvm::ConstantExpr::getBitCast(
         IGM.getAddrOfSILFunction(newFunc, NotForDefinition), IGM.Int8PtrTy);
