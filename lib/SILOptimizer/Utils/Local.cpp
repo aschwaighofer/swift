@@ -220,12 +220,14 @@ void swift::recursivelyDeleteTriviallyDeadInstructions(
       auto *FRI = dyn_cast<FunctionRefInst>(I);
       if (FRI && FRI->getReferencedFunction())
         FRI->dropReferencedFunction();
-      auto *FRI = dyn_cast<DynamicFunctionRefInst>(I);
-      if (FRI && FRI->getReferencedFunction())
-        FRI->dropReferencedFunction();
-      auto *FRI = dyn_cast<PreviousDynamicFunctionRefInst>(I);
-      if (FRI && FRI->getReferencedFunction())
-        FRI->dropReferencedFunction();
+
+      auto *DFRI = dyn_cast<DynamicFunctionRefInst>(I);
+      if (DFRI && DFRI->getReferencedFunction())
+        DFRI->dropReferencedFunction();
+
+      auto *PFRI = dyn_cast<PreviousDynamicFunctionRefInst>(I);
+      if (PFRI && PFRI->getReferencedFunction())
+        PFRI->dropReferencedFunction();
     }
 
     for (auto I : DeadInsts) {

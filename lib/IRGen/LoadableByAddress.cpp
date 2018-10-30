@@ -2695,26 +2695,26 @@ void LoadableByAddress::run() {
   if (modFuncs.empty() && modApplies.empty()) {
     return;
   }
-  auto getFunctionRefInst = [](SILInstruction *I) -> SILInstruction* {
-    if (auto *FRI = dyn_cast<FunctionRefInst>(&I))
+  auto getFunctionRefInst = [](SILInstruction *I) -> SingleValueInstruction* {
+    if (auto *FRI = dyn_cast<FunctionRefInst>(I))
       return FRI;
-    if (auto *FRI = dyn_cast<DynamicFunctionRefInst>(&I))
+    if (auto *FRI = dyn_cast<DynamicFunctionRefInst>(I))
       return FRI;
-    if (auto *FRI = dyn_cast<PreviousDynamicFunctionRefInst>(&I))
+    if (auto *FRI = dyn_cast<PreviousDynamicFunctionRefInst>(I))
       return FRI;
     return nullptr;
   };
   auto getReferencedFunction = [](SILInstruction *I) -> SILFunction* {
-    if (auto *FRI = dyn_cast<FunctionRefInst>(&I))
+    if (auto *FRI = dyn_cast<FunctionRefInst>(I))
       return FRI->getReferencedFunction();
-    if (auto *FRI = dyn_cast<DynamicFunctionRefInst>(&I))
+    if (auto *FRI = dyn_cast<DynamicFunctionRefInst>(I))
       return FRI->getReferencedFunction();
-    if (auto *FRI = dyn_cast<PreviousDynamicFunctionRefInst>(&I))
+    if (auto *FRI = dyn_cast<PreviousDynamicFunctionRefInst>(I))
       return FRI->getReferencedFunction();
     llvm_unreachable("unexpected instruction");
   };
   // Scan the module for all references of the modified functions:
-  llvm::SetVector<SILInstruction *> funcRefs;
+  llvm::SetVector<SingleValueInstruction *> funcRefs;
   for (SILFunction &CurrF : *getModule()) {
     for (SILBasicBlock &BB : CurrF) {
       for (SILInstruction &I : BB) {
@@ -2823,10 +2823,10 @@ void LoadableByAddress::run() {
   // Note: We don't need to update the witness tables and vtables
   // They just contain a pointer to the function
   // The pointer does not change
-  for (SILInstruction *instr : funcRefs) {
+  for (auto *instr : funcRefs) {
     SILFunction *F = getReferencedFunction(instr);;
     SILBuilderWithScope refBuilder(instr);
-    SILInstruction *newInstr;
+    SingleValueInstruction *newInstr = nullptr;
     if (auto *FRI = dyn_cast<FunctionRefInst>(instr))
       newInstr = refBuilder.createFunctionRef(
           FRI->getLoc(), F,

@@ -2611,19 +2611,19 @@ bool SILParser::parseSILInstruction(SILBuilder &B) {
     break;
   }
   case SILInstructionKind::DynamicFunctionRefInst: {
+    SILFunction *Fn;
     if (parseSILFunctionRef(InstLoc, Fn) ||
         parseSILDebugLocation(InstLoc, B))
       return true;
-    ResultVal = B.createDynamicFunctionRef(
-        InstLoc, Fn, callDynamicReplaceableImplementation);
+    ResultVal = B.createDynamicFunctionRef(InstLoc, Fn);
     break;
   }
   case SILInstructionKind::PreviousDynamicFunctionRefInst: {
+    SILFunction *Fn;
     if (parseSILFunctionRef(InstLoc, Fn) ||
         parseSILDebugLocation(InstLoc, B))
       return true;
-    ResultVal = B.createPreviousDynamicFunctionRef(
-        InstLoc, Fn, callDynamicReplaceableImplementation);
+    ResultVal = B.createPreviousDynamicFunctionRef(InstLoc, Fn);
     break;
   }
   case SILInstructionKind::BuiltinInst: {
