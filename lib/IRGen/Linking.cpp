@@ -848,7 +848,8 @@ bool LinkEntity::isWeakImported(ModuleDecl *module) const {
     if (getSILGlobalVariable()->getDecl())
       return getSILGlobalVariable()->getDecl()->isWeakImported(module);
     return false;
-
+  case Kind::DynamicallyReplaceableFunctionKey:
+  case Kind::DynamicallyReplaceableFunctionVariable:
   case Kind::SILFunction: {
     // For imported functions check the Clang declaration.
     if (auto clangOwner = getSILFunction()->getClangNodeOwner())
@@ -899,6 +900,9 @@ bool LinkEntity::isWeakImported(ModuleDecl *module) const {
   case Kind::ProtocolDescriptor:
   case Kind::ProtocolRequirementsBaseDescriptor:
   case Kind::AssociatedTypeDescriptor:
+  case Kind::DynamicallyReplaceableFunctionKeyAST:
+  case Kind::DynamicallyReplaceableFunctionVariableAST:
+  case Kind::DynamicallyReplaceableFunctionImpl:
     return getDecl()->isWeakImported(module);
 
   // TODO: Revisit some of the below, for weak conformances.
