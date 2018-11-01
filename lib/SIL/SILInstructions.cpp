@@ -608,15 +608,14 @@ FunctionRefInst::FunctionRefInst(SILDebugLocation Loc, SILFunction *F)
 
 DynamicFunctionRefInst::DynamicFunctionRefInst(SILDebugLocation Loc,
                                                SILFunction *F)
-    : FunctionRefBaseInst(SILInstructionKind::DynamicFunctionRefInst, Loc,
-                          F->getLoweredType()) {
+    : FunctionRefBaseInst(SILInstructionKind::DynamicFunctionRefInst, Loc, F) {
   assert(F->isDynamicallyReplaceable());
 }
 
 PreviousDynamicFunctionRefInst::PreviousDynamicFunctionRefInst(
     SILDebugLocation Loc, SILFunction *F)
     : FunctionRefBaseInst(SILInstructionKind::PreviousDynamicFunctionRefInst,
-                          Loc, F->getLoweredType()) {
+                          Loc, F) {
   assert(!F->isDynamicallyReplaceable());
 }
 

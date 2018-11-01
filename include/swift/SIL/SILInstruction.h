@@ -2217,6 +2217,7 @@ public:
 class FunctionRefBaseInst : public LiteralInst {
   SILFunction *f;
 
+protected:
   FunctionRefBaseInst(SILInstructionKind Kind, SILDebugLocation DebugLoc,
                       SILFunction *F);
 

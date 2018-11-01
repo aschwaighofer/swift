@@ -2810,7 +2810,7 @@ void LoadableByAddress::run() {
     SILFunction *F = instr->getReferencedFunction();
     SILBuilderWithScope refBuilder(instr);
     SingleValueInstruction *newInstr =
-        refBuilder.createFunctionRef(FRI->getLoc(), F, FRI->getKind());
+        refBuilder.createFunctionRef(instr->getLoc(), F, instr->getKind());
     instr->replaceAllUsesWith(newInstr);
     instr->getParent()->erase(instr);
   }

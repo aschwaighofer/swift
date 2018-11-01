@@ -1292,10 +1292,9 @@ void SILSerializer::writeSILInstruction(const SILInstruction &SI) {
     // name (IdentifierID).
     const FunctionRefInst *FRI = cast<FunctionRefInst>(&SI);
     SILFunction *ReferencedFunction = FRI->getReferencedFunction();
-    bool origImpl = FRI->shouldCallDynamicallyReplaceableImplementation();
     unsigned abbrCode = SILAbbrCodes[SILOneOperandLayout::Code];
     SILOneOperandLayout::emitRecord(Out, ScratchRecord, abbrCode,
-        (unsigned)SI.getKind(), origImpl,
+        (unsigned)SI.getKind(), 0,
         S.addTypeRef(FRI->getType().getASTType()),
         (unsigned)FRI->getType().getCategory(),
         addSILFunctionRef(ReferencedFunction));

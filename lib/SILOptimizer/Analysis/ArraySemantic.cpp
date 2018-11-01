@@ -736,7 +736,7 @@ bool swift::ArraySemanticsCall::replaceByAppendingValues(
   if (Vals.size() > 1) {
     // Create a call to reserveCapacityForAppend() to reserve space for multiple
     // elements.
-    FunctionRefInst *ReserveFnRef =
+    FunctionRefBaseInst *ReserveFnRef =
         Builder.createFunctionRefFor(Loc, ReserveFn);
     SILFunctionType *ReserveFnTy =
       ReserveFnRef->getType().castTo<SILFunctionType>();
