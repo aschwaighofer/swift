@@ -1845,8 +1845,7 @@ void IRGenSILFunction::visitSILBasicBlock(SILBasicBlock *BB) {
 void IRGenSILFunction::visitFunctionRefInst(FunctionRefInst *i) {
   auto fn = i->getReferencedFunction();
 
-  llvm::Constant *fnPtr = IGM.getAddrOfSILFunction(
-      fn, NotForDefinition, false, i->shouldCallDynamicallyReplaceableImplementation());
+  llvm::Constant *fnPtr = IGM.getAddrOfSILFunction(fn, NotForDefinition, false);
 
   auto sig = IGM.getSignature(fn->getLoweredFunctionType());
 
@@ -1863,8 +1862,7 @@ void IRGenSILFunction::visitFunctionRefInst(FunctionRefInst *i) {
 void IRGenSILFunction::visitDynamicFunctionRefInst(DynamicFunctionRefInst *i) {
   auto fn = i->getReferencedFunction();
 
-  llvm::Constant *fnPtr = IGM.getAddrOfSILFunction(
-      fn, NotForDefinition, false, false);
+  llvm::Constant *fnPtr = IGM.getAddrOfSILFunction(fn, NotForDefinition);
 
   auto sig = IGM.getSignature(fn->getLoweredFunctionType());
 
@@ -1878,7 +1876,8 @@ void IRGenSILFunction::visitDynamicFunctionRefInst(DynamicFunctionRefInst *i) {
   setLoweredFunctionPointer(i, fp);
 }
 
-void IRGenSILFunction::visitPreviousDynamicFunctionRefInst(PreviousDynamicFunctionRefInst *i) {
+void IRGenSILFunction::visitPreviousDynamicFunctionRefInst(
+    PreviousDynamicFunctionRefInst *i) {
   auto fn = i->getReferencedFunction();
 
   llvm::Constant *fnPtr = IGM.getAddrOfSILFunction(

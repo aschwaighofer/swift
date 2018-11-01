@@ -70,7 +70,7 @@ class Stmt;
 class StringLiteralExpr;
 class ValueDecl;
 class VarDecl;
-class FunctionRefInst;
+class FunctionRefBaseInst;
 
 template <typename ImplClass> class SILClonerWithScopes;
 
@@ -1786,7 +1786,7 @@ public:
 
   /// Gets the referenced function if the callee is a function_ref instruction.
   SILFunction *getReferencedFunction() const {
-    if (auto *FRI = dyn_cast<FunctionRefInst>(getCallee()))
+    if (auto *FRI = dyn_cast<FunctionRefBaseInst>(getCallee()))
       return FRI->getReferencedFunction();
     return nullptr;
   }
@@ -2214,29 +2214,17 @@ public:
   DEFINE_ABSTRACT_SINGLE_VALUE_INST_BOILERPLATE(LiteralInst)
 };
 
-/// FunctionRefInst - Represents a reference to a SIL function.
-class FunctionRefInst
-    : public InstructionBase<SILInstructionKind::FunctionRefInst,
-                             LiteralInst> {
-  friend SILBuilder;
+class FunctionRefBaseInst : public LiteralInst {
+  SILFunction *f;
 
-  llvm::PointerIntPair<SILFunction *, 1, bool> Value;
-  /// Construct a FunctionRefInst.
-  ///
-  /// \param DebugLoc  The location of the reference.
-  /// \param F         The function being referenced.
-  FunctionRefInst(SILDebugLocation DebugLoc, SILFunction *F,
-                  bool callOriginalDynamicReplaceableImplementation);
+  FunctionRefBaseInst(SILInstructionKind Kind, SILDebugLocation DebugLoc,
+                      SILFunction *F);
 
 public:
-  ~FunctionRefInst();
+  ~FunctionRefBaseInst();
 
   /// Return the referenced function.
-  SILFunction *getReferencedFunction() const { return Value.getPointer(); }
-
-  bool shouldCallDynamicallyReplaceableImplementation() const {
-    return Value.getInt();
-  }
+  SILFunction *getReferencedFunction() const { return f; }
 
   void dropReferencedFunction();
 
@@ -2249,70 +2237,48 @@ public:
 
   ArrayRef<Operand> getAllOperands() const { return {}; }
   MutableArrayRef<Operand> getAllOperands() { return {}; }
+
+  static bool classof(const SILNode *node) {
+    return (node->getKind() == SILNodeKind::FunctionRefInst ||
+        node->getKind() == SILNodeKind::DynamicFunctionRefInst ||
+        node->getKind() == SILNodeKind::PreviousDynamicFunctionRefInst);
+  }
+  static bool classof(const SingleValueInstruction *node) {
+    return (node->getKind() == SILInstructionKind::FunctionRefInst ||
+        node->getKind() == SILInstructionKind::DynamicFunctionRefInst ||
+        node->getKind() == SILInstructionKind::PreviousDynamicFunctionRefInst);
+  }
 };
 
-class DynamicFunctionRefInst
-: public InstructionBase<SILInstructionKind::DynamicFunctionRefInst,
-                             LiteralInst> {
+/// FunctionRefInst - Represents a reference to a SIL function.
+class FunctionRefInst : public FunctionRefBaseInst {
   friend SILBuilder;
 
-  SILFunction *f;
+  /// Construct a FunctionRefInst.
+  ///
+  /// \param DebugLoc  The location of the reference.
+  /// \param F         The function being referenced.
+  FunctionRefInst(SILDebugLocation DebugLoc, SILFunction *F);
+};
+
+class DynamicFunctionRefInst : public FunctionRefBaseInst {
+  friend SILBuilder;
 
   /// Construct a DynamicFunctionRefInst.
   ///
   /// \param DebugLoc  The location of the reference.
   /// \param F         The function being referenced.
   DynamicFunctionRefInst(SILDebugLocation DebugLoc, SILFunction *F);
-
-public:
-  ~DynamicFunctionRefInst();
-
-  /// Return the referenced function.
-  SILFunction *getReferencedFunction() const { return f; }
-
-  void dropReferencedFunction();
-
-  CanSILFunctionType getFunctionType() const {
-    return getType().castTo<SILFunctionType>();
-  }
-  SILFunctionConventions getConventions() const {
-    return SILFunctionConventions(getFunctionType(), getModule());
-  }
-
-  ArrayRef<Operand> getAllOperands() const { return {}; }
-  MutableArrayRef<Operand> getAllOperands() { return {}; }
 };
 
-class PreviousDynamicFunctionRefInst
-    : public InstructionBase<SILInstructionKind::PreviousDynamicFunctionRefInst,
-                             LiteralInst> {
+class PreviousDynamicFunctionRefInst : public FunctionRefBaseInst {
   friend SILBuilder;
-
-  SILFunction *f;
 
   /// Construct a PreviousDynamicFunctionRefInst.
   ///
   /// \param DebugLoc  The location of the reference.
   /// \param F         The function being referenced.
   PreviousDynamicFunctionRefInst(SILDebugLocation DebugLoc, SILFunction *F);
-
-public:
-  ~PreviousDynamicFunctionRefInst();
-
-  /// Return the referenced function.
-  SILFunction *getReferencedFunction() const { return f; }
-
-  void dropReferencedFunction();
-
-  CanSILFunctionType getFunctionType() const {
-    return getType().castTo<SILFunctionType>();
-  }
-  SILFunctionConventions getConventions() const {
-    return SILFunctionConventions(getFunctionType(), getModule());
-  }
-
-  ArrayRef<Operand> getAllOperands() const { return {}; }
-  MutableArrayRef<Operand> getAllOperands() { return {}; }
 };
 
 /// Component of a KeyPathInst.
@@ -7599,11 +7565,7 @@ SILFunction *ApplyInstBase<Impl, Base, false>::getCalleeFunction() const {
   SILValue Callee = getCalleeOrigin();
 
   while (true) {
-    if (auto *FRI = dyn_cast<FunctionRefInst>(Callee))
-      return FRI->getReferencedFunction();
-    if (auto *FRI = dyn_cast<DynamicFunctionRefInst>(Callee))
-      return FRI->getReferencedFunction();
-    if (auto *FRI = dyn_cast<PreviousDynamicFunctionRefInst>(Callee))
+    if (auto *FRI = dyn_cast<FunctionRefBaseInst>(Callee))
       return FRI->getReferencedFunction();
 
     if (auto *PAI = dyn_cast<PartialApplyInst>(Callee)) {

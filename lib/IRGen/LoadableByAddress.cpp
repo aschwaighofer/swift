@@ -2695,31 +2695,14 @@ void LoadableByAddress::run() {
   if (modFuncs.empty() && modApplies.empty()) {
     return;
   }
-  auto getFunctionRefInst = [](SILInstruction *I) -> SingleValueInstruction* {
-    if (auto *FRI = dyn_cast<FunctionRefInst>(I))
-      return FRI;
-    if (auto *FRI = dyn_cast<DynamicFunctionRefInst>(I))
-      return FRI;
-    if (auto *FRI = dyn_cast<PreviousDynamicFunctionRefInst>(I))
-      return FRI;
-    return nullptr;
-  };
-  auto getReferencedFunction = [](SILInstruction *I) -> SILFunction* {
-    if (auto *FRI = dyn_cast<FunctionRefInst>(I))
-      return FRI->getReferencedFunction();
-    if (auto *FRI = dyn_cast<DynamicFunctionRefInst>(I))
-      return FRI->getReferencedFunction();
-    if (auto *FRI = dyn_cast<PreviousDynamicFunctionRefInst>(I))
-      return FRI->getReferencedFunction();
-    llvm_unreachable("unexpected instruction");
-  };
+
   // Scan the module for all references of the modified functions:
-  llvm::SetVector<SingleValueInstruction *> funcRefs;
+  llvm::SetVector<FunctionRefBaseInst *> funcRefs;
   for (SILFunction &CurrF : *getModule()) {
     for (SILBasicBlock &BB : CurrF) {
       for (SILInstruction &I : BB) {
-        if (auto *FRI = getFunctionRefInst(&I)) {
-          SILFunction *RefF = getReferencedFunction(&I);
+        if (auto *FRI = dyn_cast<FunctionRefBaseInst>(&I)) {
+          SILFunction *RefF = FRI->getReferencedFunction();
           if (modFuncs.count(RefF) != 0) {
             // Go over the uses and add them to lists to modify
             //
@@ -2824,19 +2807,10 @@ void LoadableByAddress::run() {
   // They just contain a pointer to the function
   // The pointer does not change
   for (auto *instr : funcRefs) {
-    SILFunction *F = getReferencedFunction(instr);;
+    SILFunction *F = instr->getReferencedFunction();
     SILBuilderWithScope refBuilder(instr);
-    SingleValueInstruction *newInstr = nullptr;
-    if (auto *FRI = dyn_cast<FunctionRefInst>(instr))
-      newInstr = refBuilder.createFunctionRef(
-          FRI->getLoc(), F,
-          FRI->shouldCallDynamicallyReplaceableImplementation());
-    else if (auto *FRI = dyn_cast<DynamicFunctionRefInst>(instr))
-      newInstr = refBuilder.createDynamicFunctionRef(FRI->getLoc(), F);
-    else if (auto *FRI = dyn_cast<PreviousDynamicFunctionRefInst>(instr))
-      newInstr = refBuilder.createPreviousDynamicFunctionRef(FRI->getLoc(), F);
-    else llvm_unreachable("unexpected instruction");
-
+    SingleValueInstruction *newInstr =
+        refBuilder.createFunctionRef(FRI->getLoc(), F, FRI->getKind());
     instr->replaceAllUsesWith(newInstr);
     instr->getParent()->erase(instr);
   }

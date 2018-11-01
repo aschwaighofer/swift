@@ -583,59 +583,41 @@ TryApplyInst *TryApplyInst::create(
                                      normalBB, errorBB, specializationInfo);
 }
 
-FunctionRefInst::FunctionRefInst(
-    SILDebugLocation Loc, SILFunction *F,
-    bool callOriginalDynamicReplaceableImplementation)
-    : InstructionBase(Loc, F->getLoweredType()),
-      Value(F, callOriginalDynamicReplaceableImplementation) {
+FunctionRefBaseInst::FunctionRefBaseInst(SILInstructionKind Kind,
+                                         SILDebugLocation DebugLoc,
+                                         SILFunction *F)
+    : LiteralInst(Kind, DebugLoc, F->getLoweredType()), f(F) {
   F->incrementRefCount();
 }
 
-FunctionRefInst::~FunctionRefInst() {
-  if (getReferencedFunction())
-    getReferencedFunction()->decrementRefCount();
-}
-
-void FunctionRefInst::dropReferencedFunction() {
-  if (auto *Function = getReferencedFunction())
-    Function->decrementRefCount();
-  Value.setPointer(nullptr);
-}
-
-DynamicFunctionRefInst::DynamicFunctionRefInst(
-    SILDebugLocation Loc, SILFunction *F)
-    : InstructionBase(Loc, F->getLoweredType()),
-      f(F) {
-  F->incrementRefCount();
-}
-
-DynamicFunctionRefInst::~DynamicFunctionRefInst() {
-  if (getReferencedFunction())
-    getReferencedFunction()->decrementRefCount();
-}
-
-void DynamicFunctionRefInst::dropReferencedFunction() {
+void FunctionRefBaseInst::dropReferencedFunction() {
   if (auto *Function = getReferencedFunction())
     Function->decrementRefCount();
   f = nullptr;
+}
+
+FunctionRefBaseInst::~FunctionRefBaseInst() {
+  if (getReferencedFunction())
+    getReferencedFunction()->decrementRefCount();
+}
+
+FunctionRefInst::FunctionRefInst(SILDebugLocation Loc, SILFunction *F)
+    : FunctionRefBaseInst(SILInstructionKind::FunctionRefInst, Loc, F) {
+  assert(!F->isDynamicallyReplaceable());
+}
+
+DynamicFunctionRefInst::DynamicFunctionRefInst(SILDebugLocation Loc,
+                                               SILFunction *F)
+    : FunctionRefBaseInst(SILInstructionKind::DynamicFunctionRefInst, Loc,
+                          F->getLoweredType()) {
+  assert(F->isDynamicallyReplaceable());
 }
 
 PreviousDynamicFunctionRefInst::PreviousDynamicFunctionRefInst(
     SILDebugLocation Loc, SILFunction *F)
-    : InstructionBase(Loc, F->getLoweredType()),
-      f(F) {
-  F->incrementRefCount();
-}
-
-PreviousDynamicFunctionRefInst::~PreviousDynamicFunctionRefInst() {
-  if (getReferencedFunction())
-    getReferencedFunction()->decrementRefCount();
-}
-
-void PreviousDynamicFunctionRefInst::dropReferencedFunction() {
-  if (auto *Function = getReferencedFunction())
-    Function->decrementRefCount();
-  f = nullptr;
+    : FunctionRefBaseInst(SILInstructionKind::PreviousDynamicFunctionRefInst,
+                          Loc, F->getLoweredType()) {
+  assert(!F->isDynamicallyReplaceable());
 }
 
 AllocGlobalInst::AllocGlobalInst(SILDebugLocation Loc,

@@ -264,8 +264,8 @@ public:
     /// A direct standalone function call, referenceable by a FunctionRefInst.
     StandaloneFunction,
 
-    /// A direct standalone function call, referenceable by a FunctionRefInst
-    /// with the [dynamically_replaceable_impl] attribute set.
+    /// A direct standalone function call, referenceable by a
+    /// PreviousDynamicFunctionRefInst.
     StandaloneFunctionDynamicallyReplaceableImpl,
 
     /// Enum case constructor call.

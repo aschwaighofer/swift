@@ -1152,10 +1152,11 @@ public:
   SILValue emitGlobalFunctionRef(SILLocation loc, SILDeclRef constant) {
     return emitGlobalFunctionRef(loc, constant, getConstantInfo(constant));
   }
-  SILValue emitGlobalFunctionRef(SILLocation loc, SILDeclRef constant,
-                                 SILConstantInfo constantInfo,
-                                 bool callDynamicallyReplaceableImpl = false);
-  
+  SILValue
+  emitGlobalFunctionRef(SILLocation loc, SILDeclRef constant,
+                        SILConstantInfo constantInfo,
+                        bool callPreviousDynamicReplaceableImpl = false);
+
   /// Returns a reference to a function value that dynamically dispatches
   /// the function in a runtime-modifiable way.
   ManagedValue emitDynamicMethodRef(SILLocation loc, SILDeclRef constant,

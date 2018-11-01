@@ -1505,7 +1505,8 @@ bool SILDeserializer::readSILInstruction(SILFunction *Fn, SILBasicBlock *BB,
     auto Ty = MF->getType(TyID);
     StringRef FuncName = MF->getIdentifierText(ValID);
     bool origImpl = Attr;
-    ResultVal = Builder.createFunctionRef(Loc,
+    ResultVal = Builder.createFunctionRef(
+        Loc,
         getFuncForReference(FuncName,
                             getSILType(Ty, (SILValueCategory)TyCategory)),
         origImpl);

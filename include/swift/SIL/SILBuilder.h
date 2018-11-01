@@ -556,12 +556,29 @@ public:
     return createBuiltinBinaryFunction(Loc, Name, OpdTy, SILResultTy, Args);
   }
 
-  FunctionRefInst *
-  createFunctionRef(SILLocation Loc, SILFunction *f,
-                    bool callOriginalDynamicReplaceableImplementation = false) {
-    return insert(new (getModule()) FunctionRefInst(
-        getSILDebugLocation(Loc), f,
-        callOriginalDynamicReplaceableImplementation));
+  // Creates a dynamic_function_ref or function_ref depending on whether f is
+  // dynamically_replaceable.
+  FunctionRefBaseInst *createFunctionRefFor(SILLocation Loc, SILFunction *f) {
+    if (f->isDynamicallyReplaceable())
+      return createDynamicFunctionRef(Loc, f);
+    else return createFunctionRef(Loc, f);
+  }
+
+  FunctionRefBaseInst *createFunctionRef(SILLocation Loc, SILFunction *f,
+                                         SILInstructionKind kind) {
+    if (kind == SILInstructionKind::FunctionRefInst)
+      return createFunctionRef(Loc, f);
+    else if (kind == SILInstructionKind::DynamicFunctionRefInst)
+      return createDynamicFunctionRef(Loc, f);
+    else if (kind == SILInstructionKind::PreviousDynamicFunctionRefInst)
+      return createPreviousDynamicFunctionRef(Loc, f);
+    assert(false && "Should not get here");
+    return nullptr;
+  }
+
+  FunctionRefInst *createFunctionRef(SILLocation Loc, SILFunction *f) {
+    return insert(new (getModule())
+                      FunctionRefInst(getSILDebugLocation(Loc), f));
   }
 
   DynamicFunctionRefInst *
