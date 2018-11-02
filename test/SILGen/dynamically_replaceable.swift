@@ -77,7 +77,7 @@ extension Klass {
   // statically dispatched.
 
   // CHECK-LABEL: sil hidden [dynamic_replacement_for "$s23dynamically_replaceable5KlassC08dynamic_B0yyF"] @$s23dynamically_replaceable5KlassC11replacementyyF : $@convention(method) (@guaranteed Klass) -> () {
-  // CHECK: [[FN:%.*]] = function_ref [dynamically_replaceable_impl] @$s23dynamically_replaceable5KlassC08dynamic_B0yyF
+  // CHECK: [[FN:%.*]] = prev_dynamic_function_ref @$s23dynamically_replaceable5KlassC11replacementyyF
   // CHECK: apply [[FN]](%0) : $@convention(method) (@guaranteed Klass) -> ()
   // CHECK: [[METHOD:%.*]] = class_method %0 : $Klass, #Klass.dynamic_replaceable2!1
   // CHECK: = apply [[METHOD]](%0) : $@convention(method) (@guaranteed Klass) -> ()
@@ -89,7 +89,7 @@ extension Klass {
   }
 
   // CHECK-LABEL: sil hidden [dynamic_replacement_for "$s23dynamically_replaceable5KlassC1xACSi_tcfC"] @$s23dynamically_replaceable5KlassC1yACSi_tcfC : $@convention(method) (Int, @thick Klass.Type) -> @owned Klass {
-  // CHECK:  [[FUN:%.*]] = function_ref [dynamically_replaceable_impl] @$s23dynamically_replaceable5KlassC1xACSi_tcfC
+  // CHECK:  [[FUN:%.*]] = prev_dynamic_function_ref @$s23dynamically_replaceable5KlassC1yACSi_tcfC
   // CHECK:  apply [[FUN]]({{.*}}, %1)
   @_dynamicReplacement(for: init(x:))
   convenience init(y: Int) {
@@ -98,12 +98,12 @@ extension Klass {
 
 // CHECK-LABEL: sil hidden [dynamic_replacement_for "$s23dynamically_replaceable5KlassC08dynamic_B4_varSivg"] @$s23dynamically_replaceable5KlassC1rSivg : $@convention(method) (@guaranteed Klass) -> Int {
 // CHECK: bb0([[ARG:%.*]] : @guaranteed $Klass):
-// CHECK:   [[ORIG:%.*]] = function_ref [dynamically_replaceable_impl] @$s23dynamically_replaceable5KlassC08dynamic_B4_varSivg
+// CHECK:   [[ORIG:%.*]] = prev_dynamic_function_ref  @$s23dynamically_replaceable5KlassC1rSivg
 // CHECK:   apply [[ORIG]]([[ARG]]) : $@convention(method) (@guaranteed Klass) -> Int
 
 // CHECK-LABEL: sil hidden [dynamic_replacement_for "$s23dynamically_replaceable5KlassC08dynamic_B4_varSivs"] @$s23dynamically_replaceable5KlassC1rSivs : $@convention(method) (Int, @guaranteed Klass) -> () {
 // CHECK: bb0({{.*}} : @trivial $Int, [[SELF:%.*]] : @guaranteed $Klass):
-// CHECK:   [[ORIG:%.*]] = function_ref [dynamically_replaceable_impl] @$s23dynamically_replaceable5KlassC08dynamic_B4_varSivs
+// CHECK:   [[ORIG:%.*]] = prev_dynamic_function_ref @$s23dynamically_replaceable5KlassC1rSivs
 // CHECK:   apply [[ORIG]]({{.*}}, [[SELF]]) : $@convention(method)
   @_dynamicReplacement(for: dynamic_replaceable_var)
   var r : Int {
@@ -117,12 +117,12 @@ extension Klass {
 
 // CHECK-LABEL: sil hidden [dynamic_replacement_for "$s23dynamically_replaceable5KlassCyS2icig"] @$s23dynamically_replaceable5KlassC1xS2i_tcig
 // CHECK: bb0({{.*}} : @trivial $Int, [[SELF:%.*]] : @guaranteed $Klass):
-// CHECK:   [[ORIG:%.*]] = function_ref [dynamically_replaceable_impl] @$s23dynamically_replaceable5KlassCyS2icig
+// CHECK:   [[ORIG:%.*]] = prev_dynamic_function_ref @$s23dynamically_replaceable5KlassC1xS2i_tcig
 // CHECK:   apply [[ORIG]]({{.*}}, [[SELF]]) : $@convention(method) (Int, @guaranteed Klass) -> Int
 
 // CHECK-LABEL: sil hidden [dynamic_replacement_for "$s23dynamically_replaceable5KlassCyS2icis"] @$s23dynamically_replaceable5KlassC1xS2i_tcis
 // CHECK: bb0({{.*}} : @trivial $Int, {{.*}} : @trivial $Int, [[SELF:%.*]] : @guaranteed $Klass):
-// CHECK:   [[ORIG:%.*]] = function_ref [dynamically_replaceable_impl] @$s23dynamically_replaceable5KlassCyS2icis
+// CHECK:   [[ORIG:%.*]] = prev_dynamic_function_ref @$s23dynamically_replaceable5KlassC1xS2i_tcis
 // CHECK:   apply [[ORIG]]({{.*}}, {{.*}}, [[SELF]]) : $@convention(method) (Int, Int, @guaranteed Klass) -> ()
 
   @_dynamicReplacement(for: subscript(_:))
@@ -139,14 +139,14 @@ extension Klass {
 extension Strukt {
 
   // CHECK-LABEL: sil hidden [dynamic_replacement_for "$s23dynamically_replaceable6StruktV08dynamic_B0yyF"] @$s23dynamically_replaceable6StruktV11replacementyyF : $@convention(method) (Strukt) -> () {
-  // CHECK:   [[FUN:%.*]] = function_ref [dynamically_replaceable_impl] @$s23dynamically_replaceable6StruktV08dynamic_B0yyF
+  // CHECK:   [[FUN:%.*]] = prev_dynamic_function_ref @$s23dynamically_replaceable6StruktV11replacementyyF
   // CHECK:   apply [[FUN]](%0) : $@convention(method) (Strukt) -> ()
   @_dynamicReplacement(for: dynamic_replaceable())
   func replacement() {
     dynamic_replaceable()
   }
   // CHECK-LABEL: sil hidden [dynamic_replacement_for "$s23dynamically_replaceable6StruktV1xACSi_tcfC"] @$s23dynamically_replaceable6StruktV1yACSi_tcfC : $@convention(method) (Int, @thin Strukt.Type) -> Strukt {
-  // CHECK: [[FUN:%.*]] = function_ref [dynamically_replaceable_impl] @$s23dynamically_replaceable6StruktV1xACSi_tcfC
+  // CHECK: [[FUN:%.*]] = prev_dynamic_function_ref @$s23dynamically_replaceable6StruktV1yACSi_tcfC
   // CHECK: apply [[FUN]]({{.*}}, %1)
   @_dynamicReplacement(for: init(x:))
   init(y: Int) {
@@ -155,13 +155,13 @@ extension Strukt {
 
 // CHECK-LABEL: sil hidden [dynamic_replacement_for "$s23dynamically_replaceable6StruktV08dynamic_B4_varSivg"] @$s23dynamically_replaceable6StruktV1rSivg
 // CHECK: bb0([[ARG:%.*]] : @trivial $Strukt):
-// CHECK:   [[ORIG:%.*]] = function_ref [dynamically_replaceable_impl] @$s23dynamically_replaceable6StruktV08dynamic_B4_varSivg
+// CHECK:   [[ORIG:%.*]] = prev_dynamic_function_ref @$s23dynamically_replaceable6StruktV1rSivg
 // CHECK:   apply [[ORIG]]([[ARG]]) : $@convention(method) (Strukt) -> Int
 
 // CHECK-LABEL: sil hidden [dynamic_replacement_for "$s23dynamically_replaceable6StruktV08dynamic_B4_varSivs"] @$s23dynamically_replaceable6StruktV1rSivs
 // CHECK: bb0({{.*}} : @trivial $Int, [[ARG:%.*]] : @trivial $*Strukt):
 // CHECK:   [[BA:%.*]] = begin_access [modify] [unknown] [[ARG]] : $*Strukt
-// CHECK:   [[ORIG:%.*]] = function_ref [dynamically_replaceable_impl] @$s23dynamically_replaceable6StruktV08dynamic_B4_varSivs
+// CHECK:   [[ORIG:%.*]] = prev_dynamic_function_ref @$s23dynamically_replaceable6StruktV1rSivs
 // CHECK:   apply [[ORIG]]({{.*}}, [[BA]]) : $@convention(method) (Int, @inout Strukt) -> ()
 // CHECK:   end_access [[BA]] : $*Strukt
   @_dynamicReplacement(for: dynamic_replaceable_var)
@@ -176,13 +176,13 @@ extension Strukt {
 
 // CHECK-LABEL: sil hidden [dynamic_replacement_for "$s23dynamically_replaceable6StruktVyS2icig"] @$s23dynamically_replaceable6StruktV1xS2i_tcig
 // CHECK: bb0({{.*}} : @trivial $Int, [[SELF:%.*]] : @trivial $Strukt):
-// CHECK:   [[ORIG:%.*]] = function_ref [dynamically_replaceable_impl] @$s23dynamically_replaceable6StruktVyS2icig
+// CHECK:   [[ORIG:%.*]] = prev_dynamic_function_ref @$s23dynamically_replaceable6StruktV1xS2i_tcig
 // CHECK:   apply [[ORIG]]({{.*}}, [[SELF]]) : $@convention(method) (Int, Strukt) -> Int
 
 // CHECK-LABEL: sil hidden [dynamic_replacement_for "$s23dynamically_replaceable6StruktVyS2icis"] @$s23dynamically_replaceable6StruktV1xS2i_tcis
 // CHECK: bb0({{.*}} : @trivial $Int, {{.*}} : @trivial $Int, [[SELF:%.*]] : @trivial $*Strukt):
 // CHECK:   [[BA:%.*]] = begin_access [modify] [unknown] [[SELF]] : $*Strukt
-// CHECK:   [[ORIG:%.*]] = function_ref [dynamically_replaceable_impl] @$s23dynamically_replaceable6StruktVyS2icis
+// CHECK:   [[ORIG:%.*]] = prev_dynamic_function_ref @$s23dynamically_replaceable6StruktV1xS2i_tcis
 // CHECK:   apply [[ORIG]]({{.*}}, {{.*}}, [[BA]]) : $@convention(method) (Int, Int, @inout Strukt) -> ()
 // CHECK:   end_access [[BA]] : $*Strukt
 
@@ -224,23 +224,23 @@ struct GenericS<T> {
 extension GenericS {
 
 // CHECK-LABEL: sil hidden [dynamic_replacement_for "$s23dynamically_replaceable8GenericSV08dynamic_B0yyF"] @$s23dynamically_replaceable8GenericSV11replacementyyF
-// CHECK: function_ref [dynamically_replaceable_impl] @$s23dynamically_replaceable8GenericSV08dynamic_B0yyF
+// CHECK: prev_dynamic_function_ref @$s23dynamically_replaceable8GenericSV11replacementyyF
   @_dynamicReplacement(for: dynamic_replaceable())
   func replacement() {
     dynamic_replaceable()
   }
 // CHECK-LABEL: sil hidden [dynamic_replacement_for "$s23dynamically_replaceable8GenericSV1xACyxGSi_tcfC"] @$s23dynamically_replaceable8GenericSV1yACyxGSi_tcfC
-// CHECK: function_ref [dynamically_replaceable_impl] @$s23dynamically_replaceable8GenericSV1xACyxGSi_tcfC
+// CHECK: prev_dynamic_function_ref @$s23dynamically_replaceable8GenericSV1yACyxGSi_tcfC
   @_dynamicReplacement(for: init(x:))
   init(y: Int) {
     self.init(x: y + 1)
   }
 
 // CHECK-LABEL: sil hidden [dynamic_replacement_for "$s23dynamically_replaceable8GenericSV08dynamic_B4_varSivg"] @$s23dynamically_replaceable8GenericSV1rSivg
-// CHECK: function_ref [dynamically_replaceable_impl] @$s23dynamically_replaceable8GenericSV08dynamic_B4_varSivg
+// CHECK: prev_dynamic_function_ref @$s23dynamically_replaceable8GenericSV1rSivg
 
 // CHECK-LABEL: sil hidden [dynamic_replacement_for "$s23dynamically_replaceable8GenericSV08dynamic_B4_varSivs"] @$s23dynamically_replaceable8GenericSV1rSivs
-// CHECK: function_ref [dynamically_replaceable_impl] @$s23dynamically_replaceable8GenericSV08dynamic_B4_varSivs
+// CHECK: prev_dynamic_function_ref @$s23dynamically_replaceable8GenericSV1rSivs
   @_dynamicReplacement(for: dynamic_replaceable_var)
   var r : Int {
     get {
@@ -252,10 +252,10 @@ extension GenericS {
   }
 
 // CHECK-LABEL: sil hidden [dynamic_replacement_for "$s23dynamically_replaceable8GenericSVyS2icig"] @$s23dynamically_replaceable8GenericSV1xS2i_tcig
-// CHECK: function_ref [dynamically_replaceable_impl] @$s23dynamically_replaceable8GenericSVyS2icig
+// CHECK: prev_dynamic_function_ref @$s23dynamically_replaceable8GenericSV1xS2i_tcig
 
 // CHECK-LABEL: sil hidden [dynamic_replacement_for "$s23dynamically_replaceable8GenericSVyS2icis"] @$s23dynamically_replaceable8GenericSV1xS2i_tcis
-// CHECK: function_ref [dynamically_replaceable_impl] @$s23dynamically_replaceable8GenericSVyS2icis
+// CHECK: prev_dynamic_function_ref @$s23dynamically_replaceable8GenericSV1xS2i_tcis
  @_dynamicReplacement(for: subscript(_:))
  subscript(x y: Int) -> Int {
     get {
