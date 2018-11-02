@@ -1608,7 +1608,7 @@ StaticInitCloner::clone(SingleValueInstruction *InitVal) {
 }
 
 Optional<FindLocalApplySitesResult>
-swift::findLocalApplySites(FunctionRefInst *FRI) {
+swift::findLocalApplySites(FunctionRefBaseInst *FRI) {
   SmallVector<Operand *, 32> worklist(FRI->use_begin(), FRI->use_end());
 
   Optional<FindLocalApplySitesResult> f;
