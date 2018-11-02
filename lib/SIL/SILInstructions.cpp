@@ -500,13 +500,7 @@ BeginApplyInst::create(SILDebugLocation loc, SILValue callee,
 }
 
 bool swift::doesApplyCalleeHaveSemantics(SILValue callee, StringRef semantics) {
-  if (auto *FRI = dyn_cast<FunctionRefInst>(callee))
-    if (auto *F = FRI->getReferencedFunction())
-      return F->hasSemanticsAttr(semantics);
-  if (auto *FRI = dyn_cast<DynamicFunctionRefInst>(callee))
-    if (auto *F = FRI->getReferencedFunction())
-      return F->hasSemanticsAttr(semantics);
-  if (auto *FRI = dyn_cast<PreviousDynamicFunctionRefInst>(callee))
+  if (auto *FRI = dyn_cast<FunctionRefBaseInst>(callee))
     if (auto *F = FRI->getReferencedFunction())
       return F->hasSemanticsAttr(semantics);
   return false;

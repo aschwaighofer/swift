@@ -155,19 +155,7 @@ void SILInstruction::dropAllReferences() {
 
   // If we have a function ref inst, we need to especially drop its function
   // argument so that it gets a proper ref decrement.
-  if (auto *FRI = dyn_cast<FunctionRefInst>(this)) {
-    if (!FRI->getReferencedFunction())
-      return;
-    FRI->dropReferencedFunction();
-    return;
-  }
-  if (auto *FRI = dyn_cast<DynamicFunctionRefInst>(this)) {
-    if (!FRI->getReferencedFunction())
-      return;
-    FRI->dropReferencedFunction();
-    return;
-  }
-  if (auto *FRI = dyn_cast<PreviousDynamicFunctionRefInst>(this)) {
+  if (auto *FRI = dyn_cast<FunctionRefBaseInst>(this)) {
     if (!FRI->getReferencedFunction())
       return;
     FRI->dropReferencedFunction();

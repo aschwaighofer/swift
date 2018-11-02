@@ -832,11 +832,11 @@ public:
       *this << "  // function_ref "
             << demangleSymbol(FRI->getReferencedFunction()->getName())
             << "\n";
-    if (auto *FRI = dyn_cast<DynamicFunctionRefInst>(I))
+    else if (auto *FRI = dyn_cast<DynamicFunctionRefInst>(I))
       *this << "  // dynamic_function_ref "
             << demangleSymbol(FRI->getReferencedFunction()->getName())
             << "\n";
-    if (auto *FRI = dyn_cast<PreviousDynamicFunctionRefInst>(I))
+    else if (auto *FRI = dyn_cast<PreviousDynamicFunctionRefInst>(I))
       *this << "  // previous_dynamic_function_ref "
             << demangleSymbol(FRI->getReferencedFunction()->getName())
             << "\n";
