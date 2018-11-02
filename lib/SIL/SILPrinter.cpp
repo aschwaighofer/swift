@@ -837,7 +837,7 @@ public:
             << demangleSymbol(FRI->getReferencedFunction()->getName())
             << "\n";
     else if (auto *FRI = dyn_cast<PreviousDynamicFunctionRefInst>(I))
-      *this << "  // previous_dynamic_function_ref "
+      *this << "  // prev_dynamic_function_ref "
             << demangleSymbol(FRI->getReferencedFunction()->getName())
             << "\n";
 

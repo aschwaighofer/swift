@@ -62,13 +62,11 @@ static bool canInlineBeginApply(BeginApplyInst *BA) {
 }
 
 bool SILInliner::canInlineApplySite(FullApplySite apply) {
+  if (!apply.canOptimize())
+    return false;
+
   if (auto BA = dyn_cast<BeginApplyInst>(apply))
     return canInlineBeginApply(BA);
-
-  if (auto *FunRef = apply.getReferencedFunction()) {
-    if (FunRef->isDynamicallyReplaceable())
-      return false;
-  }
 
   return true;
 }
