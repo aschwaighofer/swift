@@ -2260,6 +2260,14 @@ class FunctionRefInst : public FunctionRefBaseInst {
   /// \param DebugLoc  The location of the reference.
   /// \param F         The function being referenced.
   FunctionRefInst(SILDebugLocation DebugLoc, SILFunction *F);
+
+public:
+  static bool classof(const SILNode *node) {
+    return node->getKind() == SILNodeKind::FunctionRefInst;
+  }
+  static bool classof(const SingleValueInstruction *node) {
+    return node->getKind() == SILInstructionKind::FunctionRefInst;
+  }
 };
 
 class DynamicFunctionRefInst : public FunctionRefBaseInst {
@@ -2270,6 +2278,14 @@ class DynamicFunctionRefInst : public FunctionRefBaseInst {
   /// \param DebugLoc  The location of the reference.
   /// \param F         The function being referenced.
   DynamicFunctionRefInst(SILDebugLocation DebugLoc, SILFunction *F);
+
+public:
+  static bool classof(const SILNode *node) {
+    return node->getKind() == SILNodeKind::DynamicFunctionRefInst;
+  }
+  static bool classof(const SingleValueInstruction *node) {
+    return node->getKind() == SILInstructionKind::DynamicFunctionRefInst;
+  }
 };
 
 class PreviousDynamicFunctionRefInst : public FunctionRefBaseInst {
@@ -2280,6 +2296,15 @@ class PreviousDynamicFunctionRefInst : public FunctionRefBaseInst {
   /// \param DebugLoc  The location of the reference.
   /// \param F         The function being referenced.
   PreviousDynamicFunctionRefInst(SILDebugLocation DebugLoc, SILFunction *F);
+
+public:
+  static bool classof(const SILNode *node) {
+    return node->getKind() == SILNodeKind::PreviousDynamicFunctionRefInst;
+  }
+  static bool classof(const SingleValueInstruction *node) {
+    return node->getKind() ==
+           SILInstructionKind::PreviousDynamicFunctionRefInst;
+  }
 };
 
 /// Component of a KeyPathInst.

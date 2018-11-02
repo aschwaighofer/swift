@@ -2801,6 +2801,19 @@ bool isCallToReplacedInDynamicReplacement(SILGenFunction &SGF,
                                           AbstractFunctionDecl *afd,
                                           bool &isObjCReplacementSelfCall);
 
+static bool isCallToSelfOfCurrentFunction(SILGenFunction &SGF, LookupExpr *e) {
+  return SGF.FunctionDC->getAsDecl() &&
+         isa<AbstractFunctionDecl>(SGF.FunctionDC->getAsDecl()) &&
+         e->getBase()->isSelfExprOf(
+             cast<AbstractFunctionDecl>(SGF.FunctionDC->getAsDecl()), false);
+}
+
+static bool isCurrentFunctionReadAccess(SILGenFunction &SGF) {
+  auto *contextAccessorDecl =
+      dyn_cast_or_null<AccessorDecl>(SGF.FunctionDC->getAsDecl());
+  return contextAccessorDecl &&
+         contextAccessorDecl->getAccessorKind() == AccessorKind::Read;
+}
 
 LValue SILGenLValue::visitMemberRefExpr(MemberRefExpr *e,
                                         SGFAccessKind accessKind,
@@ -2813,33 +2826,27 @@ LValue SILGenLValue::visitMemberRefExpr(MemberRefExpr *e,
   AccessStrategy strategy =
     var->getAccessStrategy(accessSemantics,
                            getFormalAccessKind(accessKind), SGF.FunctionDC);
-  bool isOnSelfParameter =
-      SGF.FunctionDC->getAsDecl() &&
-      isa<AbstractFunctionDecl>(SGF.FunctionDC->getAsDecl()) &&
-      e->getBase()->isSelfExprOf(
-          cast<AbstractFunctionDecl>(SGF.FunctionDC->getAsDecl()), false);
 
-  // TODO: Hack. Refactor this.
-  bool isReplacingRead = false;
-  auto *contextAccessorDecl =
-      dyn_cast_or_null<AccessorDecl>(SGF.FunctionDC->getAsDecl());
-  if (contextAccessorDecl &&
-      contextAccessorDecl->getAccessorKind() == AccessorKind::Read) {
-    isReplacingRead = true;
-  }
+  bool isOnSelfParameter = isCallToSelfOfCurrentFunction(SGF, e);
 
-  if (isReplacingRead && strategy.getAccessor() == AccessorKind::Get &&
-      isOnSelfParameter) {
+  bool isContextRead = isCurrentFunctionReadAccess(SGF);
+
+  // If we are inside _read, calling self.get, and the _read we are inside of is
+  // the same as the as self's variable and the current function is a
+  // dynamic replacement directly call the implementation.
+  if (isContextRead && isOnSelfParameter && strategy.hasAccessor() &&
+      strategy.getAccessor() == AccessorKind::Get &&
+      var->getAccessor(AccessorKind::Read)) {
     bool isObjC = false;
     auto readAccessor =
         SGF.SGM.getAccessorDeclRef(var->getAccessor(AccessorKind::Read));
-    if (isCallToReplacedInDynamicReplacement(SGF, readAccessor.getAbstractFunctionDecl(), isObjC)) {
+    if (isCallToReplacedInDynamicReplacement(
+            SGF, readAccessor.getAbstractFunctionDecl(), isObjC)) {
       accessSemantics = AccessSemantics::DirectToImplementation;
       strategy = var->getAccessStrategy(
           accessSemantics, getFormalAccessKind(accessKind), SGF.FunctionDC);
     }
   }
-
 
   LValue lv = visitRec(e->getBase(),
                        getBaseAccessKind(SGF.SGM, var, accessKind, strategy,
@@ -2992,32 +2999,26 @@ LValue SILGenLValue::visitSubscriptExpr(SubscriptExpr *e,
   auto decl = cast<SubscriptDecl>(e->getDecl().getDecl());
   auto subs = e->getDecl().getSubstitutions();
 
-  bool isOnSelfParameter =
-      SGF.FunctionDC->getAsDecl() &&
-      isa<AbstractFunctionDecl>(SGF.FunctionDC->getAsDecl()) &&
-      e->getBase()->isSelfExprOf(
-          cast<AbstractFunctionDecl>(SGF.FunctionDC->getAsDecl()), false);
 
   auto accessSemantics = e->getAccessSemantics();
   auto strategy =
     decl->getAccessStrategy(accessSemantics,
                             getFormalAccessKind(accessKind), SGF.FunctionDC);
 
-  // TODO: Hack. Refactor this.
-  bool isReplacingRead = false;
-  auto *contextAccessorDecl =
-      dyn_cast_or_null<AccessorDecl>(SGF.FunctionDC->getAsDecl());
-  if (contextAccessorDecl &&
-      contextAccessorDecl->getAccessorKind() == AccessorKind::Read) {
-    isReplacingRead = true;
-  }
+  bool isOnSelfParameter = isCallToSelfOfCurrentFunction(SGF, e);
+  bool isContextRead = isCurrentFunctionReadAccess(SGF);
 
-  if (isReplacingRead && strategy.getAccessor() == AccessorKind::Get &&
-      isOnSelfParameter) {
+  // If we are inside _read, calling self.get, and the _read we are inside of is
+  // the same as the as self's variable and the current function is a
+  // dynamic replacement directly call the implementation.
+  if (isContextRead && isOnSelfParameter && strategy.hasAccessor() &&
+      strategy.getAccessor() == AccessorKind::Get &&
+      decl->getAccessor(AccessorKind::Read)) {
     bool isObjC = false;
     auto readAccessor =
         SGF.SGM.getAccessorDeclRef(decl->getAccessor(AccessorKind::Read));
-    if (isCallToReplacedInDynamicReplacement(SGF, readAccessor.getAbstractFunctionDecl(), isObjC)) {
+    if (isCallToReplacedInDynamicReplacement(
+            SGF, readAccessor.getAbstractFunctionDecl(), isObjC)) {
       accessSemantics = AccessSemantics::DirectToImplementation;
       strategy = decl->getAccessStrategy(
           accessSemantics, getFormalAccessKind(accessKind), SGF.FunctionDC);

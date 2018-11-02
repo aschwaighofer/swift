@@ -62,9 +62,6 @@ void SILFunctionBuilder::addFunctionAttributes(SILFunction *F,
   if (Attrs.hasAttribute<SILGenNameAttr>() || Attrs.hasAttribute<CDeclAttr>())
     F->setHasCReferences(true);
 
-  if (Attrs.hasAttribute<WeakLinkedAttr>())
-    F->setWeakLinked();
-
   // Propagate @_dynamicReplacement(for:).
   if (constant.isNull())
     return;
