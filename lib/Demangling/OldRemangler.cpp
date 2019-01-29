@@ -2285,6 +2285,19 @@ void Remangler::mangleSugaredParen(Node *node) {
   unreachable("unsupported");
 }
 
+void Remangler::mangleOpaqueReturnType(Node *node) {
+  unreachable("unsupported");
+}
+void Remangler::mangleOpaqueReturnTypeOf(Node *node) {
+  unreachable("unsupported");
+}
+void Remangler::mangleOpaqueType(Node *node) {
+  unreachable("unsupported");
+}
+void Remangler::mangleOpaqueTypeDescriptor(Node *node) {
+  unreachable("unsupported");
+}
+
 /// The top-level interface to the remangler.
 std::string Demangle::mangleNodeOld(NodePointer node, NodeFactory *BorrowFrom) {
   if (!node) return "";

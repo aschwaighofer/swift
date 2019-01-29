@@ -1609,6 +1609,11 @@ void Remangler::mangleNominalTypeDescriptor(Node *node) {
   Buffer << "Mn";
 }
 
+void Remangler::mangleOpaqueTypeDescriptor(Node *node) {
+  mangleSingleChildNode(node);
+  Buffer << "MQ";
+}
+
 void Remangler::manglePropertyDescriptor(Node *node) {
   mangleSingleChildNode(node);
   Buffer << "MV";
@@ -2333,6 +2338,19 @@ void Remangler::mangleSugaredDictionary(Node *node) {
 void Remangler::mangleSugaredParen(Node *node) {
   mangleType(node->getChild(0));
   Buffer << "XSp";
+}
+
+void Remangler::mangleOpaqueReturnType(Node *node) {
+  Buffer << "Qr";
+}
+void Remangler::mangleOpaqueReturnTypeOf(Node *node) {
+  mangle(node->getChild(0));
+  Buffer << "QO";
+}
+void Remangler::mangleOpaqueType(Node *node) {
+  mangle(node->getChild(0));
+  mangle(node->getChild(1));
+  Buffer << "Qo";
 }
 
 } // anonymous namespace

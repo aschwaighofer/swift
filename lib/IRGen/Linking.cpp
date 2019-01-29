@@ -189,6 +189,9 @@ std::string LinkEntity::mangleAsString() const {
     return mangler.mangleNominalTypeDescriptor(
                                         cast<NominalTypeDecl>(getDecl()));
 
+  case Kind::OpaqueTypeDescriptor:
+    return mangler.mangleOpaqueTypeDescriptor(cast<OpaqueTypeDecl>(getDecl()));
+      
   case Kind::PropertyDescriptor:
     return mangler.manglePropertyDescriptor(
                                         cast<AbstractStorageDecl>(getDecl()));
@@ -547,6 +550,7 @@ SILLinkage LinkEntity::getLinkage(ForDefinition_t forDefinition) const {
   case Kind::ProtocolDescriptor:
   case Kind::ProtocolRequirementsBaseDescriptor:
   case Kind::MethodLookupFunction:
+  case Kind::OpaqueTypeDescriptor:
     return getSILLinkage(getDeclLinkage(getDecl()), forDefinition);
 
   case Kind::AssociatedTypeDescriptor:
@@ -698,6 +702,7 @@ bool LinkEntity::isAvailableExternally(IRGenModule &IGM) const {
   case Kind::ProtocolDescriptor:
   case Kind::ProtocolRequirementsBaseDescriptor:
   case Kind::MethodLookupFunction:
+  case Kind::OpaqueTypeDescriptor:
     return ::isAvailableExternally(IGM, getDecl());
 
   case Kind::AssociatedTypeDescriptor:
@@ -768,6 +773,8 @@ llvm::Type *LinkEntity::getDefaultDeclarationType(IRGenModule &IGM) const {
   case Kind::NominalTypeDescriptor:
   case Kind::PropertyDescriptor:
     return IGM.TypeContextDescriptorTy;
+  case Kind::OpaqueTypeDescriptor:
+    return IGM.OpaqueTypeDescriptorTy;
   case Kind::ProtocolDescriptor:
     return IGM.ProtocolDescriptorStructTy;
   case Kind::AssociatedTypeDescriptor:
@@ -865,6 +872,7 @@ Alignment LinkEntity::getAlignment(IRGenModule &IGM) const {
   case Kind::MethodDescriptor:
   case Kind::MethodDescriptorInitializer:
   case Kind::MethodDescriptorAllocator:
+  case Kind::OpaqueTypeDescriptor:
     return Alignment(4);
   case Kind::ObjCClassRef:
   case Kind::ObjCClass:
@@ -958,6 +966,7 @@ bool LinkEntity::isWeakImported(ModuleDecl *module,
   case Kind::DynamicallyReplaceableFunctionKeyAST:
   case Kind::DynamicallyReplaceableFunctionVariableAST:
   case Kind::DynamicallyReplaceableFunctionImpl:
+  case Kind::OpaqueTypeDescriptor:
     return getDecl()->isWeakImported(module, context);
 
   case Kind::ProtocolWitnessTable:
@@ -1037,6 +1046,7 @@ const SourceFile *LinkEntity::getSourceFileForEmission() const {
   case Kind::DynamicallyReplaceableFunctionVariableAST:
   case Kind::DynamicallyReplaceableFunctionKeyAST:
   case Kind::DynamicallyReplaceableFunctionImpl:
+  case Kind::OpaqueTypeDescriptor:
     sf = getSourceFileForDeclContext(getDecl()->getDeclContext());
     if (!sf)
       return nullptr;
