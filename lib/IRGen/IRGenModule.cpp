@@ -446,6 +446,10 @@ IRGenModule::IRGenModule(IRGenerator &irgen,
   OpenedErrorTriplePtrTy = OpenedErrorTripleTy->getPointerTo(DefaultAS);
 
   WitnessTablePtrPtrTy = WitnessTablePtrTy->getPointerTo(DefaultAS);
+  
+  // todo
+  OpaqueTypeDescriptorTy = TypeContextDescriptorTy;
+  OpaqueTypeDescriptorPtrTy = OpaqueTypeDescriptorTy->getPointerTo();
 
   InvariantMetadataID = LLVMContext.getMDKindID("invariant.load");
   InvariantNode = llvm::MDNode::get(LLVMContext, {});
