@@ -192,6 +192,7 @@ namespace {
     bool simplifyArgument(SILBasicBlock *BB, unsigned i);
     bool simplifyArgs(SILBasicBlock *BB);
     void findLoopHeaders();
+    bool simplfySwitchEnumOnObjcClassOptional(SwitchEnumInst *SEI);
   };
 
 } // end anonymous namespace
@@ -1731,6 +1732,149 @@ bool SimplifyCFG::simplifySwitchEnumUnreachableBlocks(SwitchEnumInst *SEI) {
   return true;
 }
 
+static bool containsOnlyObjMethodCallOnSelf(SILValue optionalValue,
+                                            SILBasicBlock *someBB,
+                                            SILValue &outBranchArg,
+                                            SILValue &outOptionalPayload) {
+  SILValue optionalPayload;
+  if (someBB->getNumArguments() == 1)
+    optionalPayload = someBB->getArgument(0);
+  else if (someBB->getNumArguments() != 0)
+    return false;
+
+  SmallVector<SILValue, 4> objCApplies;
+  for (auto &i : *someBB) {
+    SILInstruction *inst = &i;
+    if (onlyAffectsRefCount(inst))
+      continue;
+    if (isa<ObjCMethodInst>(inst))
+      continue;
+    if (auto *uncheckedEnumData = dyn_cast<UncheckedEnumDataInst>(inst)) {
+      if (uncheckedEnumData->getOperand() != optionalValue)
+        continue;
+      optionalPayload = uncheckedEnumData;
+      continue;
+    }
+    if (auto *objcMethod = dyn_cast<ApplyInst>(inst)) {
+      if (!isa<ObjCMethodInst>(objcMethod->getCallee()))
+        return false;
+      if (!optionalPayload || objcMethod->getSelfArgument() != optionalPayload)
+        return false;
+      objCApplies.push_back(objcMethod);
+      continue;
+    }
+    if (auto *br = dyn_cast<BranchInst>(inst)) {
+      if (br->getNumArgs() == 0)
+        continue;
+      if (br->getNumArgs() > 1)
+        return false;
+      auto branchArg = br->getArg(0);
+      if (!std::find(objCApplies.begin(), objCApplies.end(), branchArg))
+        return false;
+      outBranchArg = branchArg;
+      continue;
+    }
+    // Unexpected instruction.
+    return false;
+  }
+  outOptionalPayload = optionalPayload;
+  return true;
+}
+
+static bool onlyForwardsNone(SILBasicBlock *noneBB, SILBasicBlock *someBB, SwitchEnumInst *SEI) {
+  // It all the basic blocks leading up to the ultimate block we only expect
+  // reference count instructions.
+  while (noneBB->getSingleSuccessorBlock() != someBB->getSingleSuccessorBlock()) {
+    for (auto &i : *noneBB) {
+      auto *inst = &i;
+      if (auto *branch = dyn_cast<BranchInst>(inst))
+        continue;
+      if (onlyAffectsRefCount(inst))
+        continue;
+      return false;
+    }
+    noneBB = noneBB->getSingleSuccessorBlock();
+  }
+  // The ultimate block forwards the Optional<...>.none value.
+  SILValue optionalNone;
+  for (auto &i : *noneBB) {
+    auto *inst = &i;
+    if (auto *none = dyn_cast<EnumInst>(inst)) {
+      if (none->getElement() !=
+          SEI->getModule().getASTContext().getOptionalNoneDecl())
+        return false;
+      optionalNone = none;
+      continue;
+    }
+    if (auto *noneBranch = dyn_cast<BranchInst>(inst)) {
+      if (noneBranch->getNumArgs() != 1 ||
+          (noneBranch->getArg(0) != SEI->getOperand() &&
+           noneBranch->getArg(0) != optionalNone))
+        return false;
+      continue;
+    }
+    return false;
+  }
+  return true;
+}
+
+/// Check whether \p noneBB has the same ultimate successor as the successor to someBB.
+static bool hasSameUlitmateSuccessor(SILBasicBlock *noneBB, SILBasicBlock *someBB) {
+  auto *someSuccessorBB = someBB->getSingleSuccessorBlock();
+  if (!someSuccessorBB)
+    return false;
+  auto *noneSuccessorBB = noneBB->getSingleSuccessorBlock();
+  while (noneSuccessorBB != nullptr && noneSuccessorBB != someSuccessorBB)
+    noneSuccessorBB = noneSuccessorBB->getSingleSuccessorBlock();
+  return noneSuccessorBB == someSuccessorBB;
+}
+
+bool SimplifyCFG::simplfySwitchEnumOnObjcClassOptional(SwitchEnumInst *SEI) {
+  auto optional = SEI->getOperand();
+  auto optionalType = optional->getType().getOptionalObjectType();
+  if (!optionalType || !optionalType.getClassOrBoundGenericClass())
+    return false;
+
+  if (SEI->getNumCases() != 2)
+    return false;
+
+  auto *noneBB = SEI->getCase(0).second;
+  auto *someBB = SEI->getCase(1).second;
+  if (noneBB == someBB)
+    return false;
+  auto someDecl = SEI->getModule().getASTContext().getOptionalSomeDecl();
+  if (SEI->getCaseDestination(someDecl) != someBB)
+    std::swap(someBB, noneBB);
+
+  if (!hasSameUlitmateSuccessor(noneBB, someBB))
+    return false;
+
+  if (!onlyForwardsNone(noneBB, someBB, SEI))
+    return false;
+
+  SILValue branchArg;
+  SILValue optionalPayload;
+  if (!containsOnlyObjMethodCallOnSelf(optional, someBB, branchArg, optionalPayload))
+    return false;
+
+  SILBuilderWithScope Builder(SEI);
+  auto *payloadCast =
+      Builder.createUncheckedRefCast(SEI->getLoc(), optional, optionalType);
+  optionalPayload->replaceAllUsesWith(payloadCast);
+  auto *switchBB = SEI->getParent();
+  if (someBB->getNumArguments())
+    Builder.createBranch(SEI->getLoc(), someBB, SILValue(payloadCast));
+  else
+    Builder.createBranch(SEI->getLoc(), someBB);
+
+  SEI->eraseFromParent();
+  addToWorklist(switchBB);
+  simplifyAfterDroppingPredecessor(noneBB);
+  addToWorklist(someBB);
+  ++NumConstantFolded;
+  return true;
+}
+
 /// simplifySwitchEnumBlock - Simplify a basic block that ends with a
 /// switch_enum instruction that gets its operand from an enum
 /// instruction.
@@ -2321,6 +2465,7 @@ bool SimplifyCFG::simplifyBlocks() {
         Changed |= simplifySwitchEnumUnreachableBlocks(SEI);
       }
       Changed |= simplifyTermWithIdenticalDestBlocks(BB);
+      Changed |= simplfySwitchEnumOnObjcClassOptional(SEI);
       break;
     }
     case TermKind::UnreachableInst:
