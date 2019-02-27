@@ -341,6 +341,7 @@ public:
   ///
   /// If yes, \p Nominal is added to eligibleLazyMetadata and true is returned.
   bool tryEnableLazyTypeMetadata(NominalTypeDecl *Nominal);
+  bool tryEnableLazyTypeMetadata(OpaqueTypeDecl *Opaque);
 
   /// Emit everything which is reachable from already emitted IR.
   void emitLazyDefinitions();
@@ -1182,6 +1183,8 @@ public:
   void emitStructDecl(StructDecl *D);
   void emitClassDecl(ClassDecl *D);
   void emitExtension(ExtensionDecl *D);
+  void emitFuncDecl(FuncDecl *D);
+  void emitOpaqueTypeDecl(OpaqueTypeDecl *D);
   void emitSILGlobalVariable(SILGlobalVariable *gv);
   void emitCoverageMapping();
   void emitSILFunction(SILFunction *f);
