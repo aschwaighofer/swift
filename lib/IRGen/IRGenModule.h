@@ -239,6 +239,15 @@ private:
   /// The queue of lazy type context descriptors to emit.
   llvm::SmallVector<NominalTypeDecl*, 4> LazyTypeContextDescriptors;
 
+  struct LazyOpaqueInfo {
+    bool IsLazy = false;
+    bool IsDescriptorUsed = false;
+  };
+  /// The set of opaque types enqueued for lazy emission.
+  llvm::DenseMap<OpaqueTypeDecl*, LazyOpaqueInfo> LazyOpaqueTypes;
+  /// The queue of opaque type descriptors to emit.
+  llvm::SmallVector<OpaqueTypeDecl*, 4> LazyOpaqueTypeDescriptors;
+  
   llvm::SmallPtrSet<SILFunction*, 4> LazilyEmittedFunctions;
 
   llvm::SetVector<SILFunction*> DynamicReplacements;
@@ -373,6 +382,8 @@ public:
                                       RequireMetadata_t requireMetadata) {
     noteUseOfTypeGlobals(type, false, requireMetadata);
   }
+  
+  void noteUseOfOpaqueTypeDescriptor(OpaqueTypeDecl *opaque);
 
   void noteUseOfAnyParentTypeMetadata(NominalTypeDecl *type);
 
@@ -1297,6 +1308,9 @@ public:
   llvm::Constant *getAddrOfClangImporterModuleContextDescriptor();
   ConstantReference getAddrOfParentContextDescriptor(DeclContext *from,
                                                      bool fromAnonymousContext);
+  ConstantReference getAddrOfContextDescriptorForParent(DeclContext *parent,
+                                                    DeclContext *ofChild,
+                                                    bool fromAnonymousContext);
   llvm::Constant *getAddrOfGenericEnvironment(CanGenericSignature signature);
   llvm::Constant *getAddrOfProtocolRequirementsBaseDescriptor(
                                                   ProtocolDecl *proto);
