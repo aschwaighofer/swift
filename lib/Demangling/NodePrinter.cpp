@@ -316,6 +316,7 @@ private:
       return Node->getChild(0)->getChild(0)->getNumChildren() == 0;
 
     case Node::Kind::ProtocolListWithClass:
+    case Node::Kind::AccessorFunctionReference:
     case Node::Kind::Allocator:
     case Node::Kind::ArgumentTuple:
     case Node::Kind::AssociatedConformanceDescriptor:
@@ -2240,6 +2241,9 @@ NodePointer NodePrinter::print(NodePointer Node, bool asPrefixContext) {
     return nullptr;
   case Node::Kind::OpaqueType:
     printChildren(Node);
+    return nullptr;
+  case Node::Kind::AccessorFunctionReference:
+    Printer << "accessor function at " << Node->getIndex();
     return nullptr;
   }
   printer_unreachable("bad node kind!");

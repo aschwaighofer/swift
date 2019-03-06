@@ -97,6 +97,14 @@ ResolveAsSymbolicReference::operator()(SymbolicReferenceKind kind,
     }
     break;
   }
+  case Demangle::SymbolicReferenceKind::AccessorFunctionReference: {
+    // Save the pointer to the accessor function. We can't demangle it any
+    // further as AST, but the consumer of the demangle tree may be able to
+    // invoke the function to resolve the thing they're trying to access.
+    nodeKind = Node::Kind::AccessorFunctionReference;
+    isType = false;
+    break;
+  }
   }
   
   auto node = Dem.createNode(nodeKind, ptr);
@@ -116,6 +124,9 @@ _buildDemanglingForSymbolicReference(SymbolicReferenceKind kind,
   case SymbolicReferenceKind::Context:
     return _buildDemanglingForContext(
       (const ContextDescriptor *)resolvedReference, {}, Dem);
+  case SymbolicReferenceKind::AccessorFunctionReference:
+    return Dem.createNode(Node::Kind::AccessorFunctionReference,
+                          (uintptr_t)resolvedReference);
   }
   
   swift_runtime_unreachable("invalid symbolic reference kind");
@@ -1276,8 +1287,23 @@ static TypeInfo swift_getTypeByMangledNodeImpl(
                               MetadataRequest request,
                               Demangler &demangler,
                               Demangle::NodePointer node,
+                              const void * const *origArgumentVector,
                               SubstGenericParameterFn substGenericParam,
                               SubstDependentWitnessTableFn substWitnessTable) {
+  // Simply call an accessor function if that's all we got.
+  if (node->getKind() == Node::Kind::AccessorFunctionReference) {
+    // The accessor function is passed the pointer to the original argument
+    // buffer. It's assumed to match the generic context.
+    auto accessorFn =
+      (const Metadata *(*)(const void * const *))node->getIndex();
+    auto type = accessorFn(origArgumentVector);
+    // We don't call checkMetadataState here since the result may not really
+    // *be* type metadata. If the accessor returns a type, it is responsible
+    // for completing the metadata.
+    return TypeInfo{MetadataResponse{type, MetadataState::Complete},
+                    TypeReferenceOwnership()};
+  }
+  
   // TODO: propagate the request down to the builder instead of calling
   // swift_checkMetadataState after the fact.
   DecodedMetadataBuilder builder(demangler, substGenericParam,
@@ -1296,6 +1322,7 @@ SWIFT_CC(swift)
 static TypeInfo swift_getTypeByMangledNameImpl(
                               MetadataRequest request,
                               StringRef typeName,
+                              const void * const *origArgumentVector,
                               SubstGenericParameterFn substGenericParam,
                               SubstDependentWitnessTableFn substWitnessTable) {
   DemanglerForRuntimeTypeResolution<StackAllocatedDemangler<2048>> demangler;
@@ -1343,8 +1370,9 @@ static TypeInfo swift_getTypeByMangledNameImpl(
       return TypeInfo();
   }
 
-  return swift_getTypeByMangledNode(request, demangler, node, substGenericParam,
-                                    substWitnessTable);
+  return swift_getTypeByMangledNode(request, demangler, node,
+                                    origArgumentVector,
+                                    substGenericParam, substWitnessTable);
 }
 
 SWIFT_CC(swift) SWIFT_RUNTIME_EXPORT
@@ -1357,6 +1385,7 @@ swift_getTypeByMangledNameInEnvironment(
   llvm::StringRef typeName(typeNameStart, typeNameLength);
   SubstGenericParametersFromMetadata substitutions(environment, genericArgs);
   return swift_getTypeByMangledName(MetadataState::Complete, typeName,
+                                    genericArgs,
                                     substitutions, substitutions).getMetadata();
 }
 
@@ -1370,6 +1399,7 @@ swift_getTypeByMangledNameInContext(
   llvm::StringRef typeName(typeNameStart, typeNameLength);
   SubstGenericParametersFromMetadata substitutions(context, genericArgs);
   return swift_getTypeByMangledName(MetadataState::Complete, typeName,
+                                    genericArgs,
                                     substitutions, substitutions).getMetadata();
 }
 
@@ -1384,7 +1414,7 @@ swift_stdlib_getTypeByMangledNameUntrusted(const char *typeNameStart,
       return nullptr;
   }
   
-  return swift_getTypeByMangledName(MetadataState::Complete, typeName,
+  return swift_getTypeByMangledName(MetadataState::Complete, typeName, nullptr,
                                     {}, {}).getMetadata();
 }
 
@@ -1708,8 +1738,9 @@ void swift::gatherWrittenGenericArgs(
                                                           genericParamCounts);
       allGenericArgs[*lhsFlatIndex] =
           swift_getTypeByMangledName(MetadataState::Abstract,
-                                     req.getMangledTypeName(), substitutions,
-                                     substitutions).getMetadata();
+                                     req.getMangledTypeName(),
+                                     (const void * const *)allGenericArgs.data(),
+                                     substitutions, substitutions).getMetadata();
       continue;
     }
 

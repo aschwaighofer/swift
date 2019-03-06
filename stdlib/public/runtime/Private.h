@@ -317,6 +317,8 @@ public:
                const void * const *arguments)
       : sourceIsMetadata(false), environment(environment),
         genericArgs(arguments) { }
+    
+    const void * const *getGenericArgs() const { return genericArgs; }
 
     const Metadata *operator()(unsigned depth, unsigned index) const;
     const WitnessTable *operator()(const Metadata *type, unsigned index) const;
@@ -333,6 +335,7 @@ public:
                                MetadataRequest request,
                                Demangler &demangler,
                                Demangle::NodePointer node,
+                               const void * const *arguments,
                                SubstGenericParameterFn substGenericParam,
                                SubstDependentWitnessTableFn substWitnessTable);
 
@@ -346,6 +349,7 @@ public:
   TypeInfo swift_getTypeByMangledName(
                                MetadataRequest request,
                                StringRef typeName,
+                               const void * const *arguments,
                                SubstGenericParameterFn substGenericParam,
                                SubstDependentWitnessTableFn substWitnessTable);
 
