@@ -332,11 +332,11 @@ static void maybeEmitDebugInfoForLocalTypeData(IRGenFunction &IGF,
   if (key.Kind != LocalTypeDataKind::forFormalTypeMetadata())
     return;
 
-  // Only for archetypes, and not for opened archetypes.
+  // Only for archetypes, and not for opened/opaque archetypes.
   auto type = dyn_cast<ArchetypeType>(key.Type);
   if (!type)
     return;
-  if (isa<OpenedArchetypeType>(type))
+  if (!isa<PrimaryArchetypeType>(type))
     return;
 
   llvm::Value *data = value.getMetadata();
