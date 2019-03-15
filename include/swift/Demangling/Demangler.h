@@ -550,6 +550,9 @@ protected:
   NodePointer demangleSymbolicReference(unsigned char rawKind,
                                         const void *at);
 
+  bool demangleBoundGenerics(Vector<NodePointer> &TypeListList,
+                             NodePointer &RetroactiveConformances);
+  
   void dump();
 
 public:

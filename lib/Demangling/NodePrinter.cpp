@@ -511,6 +511,7 @@ private:
     case Node::Kind::DynamicallyReplaceableFunctionImpl:
     case Node::Kind::DynamicallyReplaceableFunctionVar:
     case Node::Kind::OpaqueType:
+    case Node::Kind::OpaqueTypeDescriptorSymbolicReference:
     case Node::Kind::OpaqueReturnType:
     case Node::Kind::OpaqueReturnTypeOf:
       return false;
@@ -1557,6 +1558,10 @@ NodePointer NodePrinter::print(NodePointer Node, bool asPrefixContext) {
     return nullptr;
   case Node::Kind::TypeSymbolicReference:
     Printer << "type symbolic reference 0x";
+    Printer.writeHex(Node->getIndex());
+    return nullptr;
+  case Node::Kind::OpaqueTypeDescriptorSymbolicReference:
+    Printer << "opaque type symbolic reference 0x";
     Printer.writeHex(Node->getIndex());
     return nullptr;
   case Node::Kind::DynamicallyReplaceableFunctionKey:

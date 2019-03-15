@@ -114,6 +114,9 @@ IRGenMangler::withSymbolicReferences(IRGenModule &IGM,
           return false;
       
       return true;
+    } else if (auto opaque = s.dyn_cast<const OpaqueTypeDecl *>()) {
+      // Always symbolically reference opaque types.
+      return true;
     } else {
       llvm_unreachable("symbolic referent not handled");
     }
@@ -246,6 +249,8 @@ mangleSymbolNameForSymbolicMangling(const SymbolicMangling &mangling,
     Buffer << ' ';
     if (auto ty = referent.dyn_cast<const NominalTypeDecl*>())
       appendContext(ty);
+    else if (auto opaque = referent.dyn_cast<const OpaqueTypeDecl*>())
+      appendOpaqueDeclName(opaque);
     else
       llvm_unreachable("unhandled referent");
   }
