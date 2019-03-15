@@ -26,6 +26,20 @@ Swift 5.1
 
 * Key path expressions can now include references to tuple elements.
 
+* [SE-0244][]:
+
+  Functions can now hide their concrete return type by declaring what protocols
+  it conforms to instead of specifying the exact return type:
+
+  ```
+  func makeMeACollection() -> some Collection {
+    return [1, 2, 3]
+  }
+  ```
+
+  Code that calls the function can use the interface of the protocol, but
+  does not have visibility into the underlying type.
+
 Swift 5.0
 ---------
 
