@@ -3874,7 +3874,7 @@ void Serializer::writeType(Type ty) {
 
   case TypeKind::OpaqueTypeArchetype: {
     auto archetypeTy = cast<OpaqueTypeArchetypeType>(ty.getPointer());
-    auto declID = addDeclRef(archetypeTy->getOpaqueDecl());
+    auto declID = addDeclRef(archetypeTy->getDecl());
     auto substMapID = addSubstitutionMapRef(archetypeTy->getSubstitutions());
     unsigned abbrCode = DeclTypeAbbrCodes[OpaqueArchetypeTypeLayout::Code];
     OpaqueArchetypeTypeLayout::emitRecord(Out, ScratchRecord, abbrCode,

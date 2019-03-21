@@ -18,6 +18,7 @@
 #include "swift/AST/AccessRequests.h"
 #include "swift/AST/AccessScope.h"
 #include "swift/AST/ASTContext.h"
+#include "swift/AST/ASTMangler.h"
 #include "swift/AST/ASTWalker.h"
 #include "swift/AST/DiagnosticEngine.h"
 #include "swift/AST/DiagnosticsSema.h"
@@ -2333,6 +2334,21 @@ void ValueDecl::setOpaqueResultTypeDecl(OpaqueTypeDecl *D) {
   } else {
     llvm_unreachable("decl does not support opaque result types");
   }
+}
+
+Identifier OpaqueTypeDecl::getInterfacePseudonym() const {
+  if (InterfacePseudonym.empty()) {
+    SmallString<64> buf;
+    {
+      llvm::raw_svector_ostream os(buf);
+      os << "__return_type_of_";
+      
+      Mangle::ASTMangler mangler;
+      os << mangler.mangleDeclAsUSR(getNamingDecl(), "");
+    }
+    InterfacePseudonym = getASTContext().getIdentifier(buf);
+  }
+  return InterfacePseudonym;
 }
 
 bool ValueDecl::isObjC() const {

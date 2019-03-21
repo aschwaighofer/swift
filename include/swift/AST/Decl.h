@@ -2780,6 +2780,8 @@ class OpaqueTypeDecl : public GenericTypeDecl {
   /// signature of the original declaration.
   Optional<SubstitutionMap> UnderlyingTypeSubstitutions;
   
+  mutable Identifier InterfacePseudonym;
+  
 public:
   OpaqueTypeDecl(ValueDecl *NamingDecl,
                  GenericParamList *GenericParams,
@@ -2808,6 +2810,14 @@ public:
   
   // Opaque type decls are currently always implicit
   SourceRange getSourceRange() const { return SourceRange(); }
+  
+  /// Return a generated name that can be used in printed interfaces to refer
+  /// to this decl.
+  Identifier getInterfacePseudonym() const;
+
+  static bool classof(const Decl *D) {
+    return D->getKind() == DeclKind::OpaqueType;
+  }
 };
 
 /// TypeAliasDecl - This is a declaration of a typealias, for example:

@@ -4799,7 +4799,7 @@ public:
   static OpaqueTypeArchetypeType *get(OpaqueTypeDecl *Decl,
                                       SubstitutionMap Substitutions);
   
-  OpaqueTypeDecl *getOpaqueDecl() const {
+  OpaqueTypeDecl *getDecl() const {
     return OpaqueDecl;
   }
   SubstitutionMap getSubstitutions() const {
@@ -4826,7 +4826,7 @@ public:
                       SubstitutionMap Substitutions);
   
   void Profile(llvm::FoldingSetNodeID &ID) {
-    Profile(ID, getOpaqueDecl(), getSubstitutions());
+    Profile(ID, getDecl(), getSubstitutions());
   };
   
 private:

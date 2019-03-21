@@ -105,6 +105,7 @@ PrintOptions PrintOptions::printParseableInterfaceFile() {
   result.FunctionDefinitions = true;
   result.CollapseSingleGetterProperty = false;
   result.VarInitializers = true;
+  result.PrintOpaqueReturnTypeAsNamedDecl = true;
 
   // We should print __consuming, __owned, etc for the module interface file.
   result.SkipUnderscoredKeywords = false;
@@ -941,6 +942,18 @@ void PrintAST::printAttributes(const Decl *D) {
       if (VD->isObjC() && !VD->getAttrs().hasAttribute<ObjCAttr>()) {
         Printer.printAttrName("@objc");
         Printer << " ";
+      }
+      
+      // If the declaration has an opaque return type, print an attribute
+      // so that we can restore the association between the two declarations at
+      // parse time.
+      if (Options.PrintOpaqueReturnTypeAsNamedDecl) {
+        if (auto *opaqueDecl = VD->getOpaqueResultTypeDecl()) {
+          Printer.printAttrName("@_opaqueReturnTypeDecl");
+          Printer << '(';
+          Printer.printName(opaqueDecl->getInterfacePseudonym());
+          Printer << ") ";
+        }
       }
     }
   }
@@ -2176,7 +2189,63 @@ void PrintAST::visitPoundDiagnosticDecl(PoundDiagnosticDecl *PDD) {
 }
 
 void PrintAST::visitOpaqueTypeDecl(OpaqueTypeDecl *decl) {
-  // TODO: Need a parsable representation for generated interfaces.
+  /// Only print the decl if we're in a mode to do so.
+  /// TODO: If we support named opaque aliases in the future, we'd want to
+  /// always print them here.
+  if (!Options.PrintOpaqueReturnTypeAsNamedDecl)
+    return;
+  
+  printDocumentationComment(decl);
+  printAttributes(decl);
+  printAccess(decl);
+  
+  Printer << "__opaque_type ";
+  
+  printContextIfNeeded(decl);
+  
+  GenericContext *declForGenerics;
+  if (auto namingDecl = decl->getNamingDecl())
+    declForGenerics = const_cast<GenericContext*>(namingDecl->getAsGenericContext());
+  else
+    declForGenerics = decl;
+  
+  // Print the decl and the "input" generic arguments.
+  recordDeclLoc(decl,
+    [&]{ // Name
+      if (!decl->hasName()) {
+        Printer.printName(decl->getInterfacePseudonym());
+      } else {
+        Printer.printName(decl->getName());
+      }
+    }, [&] {
+      printGenericDeclGenericParams(declForGenerics);
+    });
+  
+  // Print the "output" generic arguments of the opaque interface, along with
+  // the opaque type.
+  Printer << " -> ";
+  printGenericSignature(decl->getOpaqueInterfaceGenericSignature(),
+                        PrintParams | InnermostOnly);
+  Printer << " ";
+  printType(decl->getUnderlyingInterfaceType());
+  
+  // Print requirements on both the innermost "input" level and the
+  // opaque interface's output level.
+  unsigned printReqtDepth;
+  if (declForGenerics->getGenericParams())
+    printReqtDepth = declForGenerics->getGenericSignature()
+                                    ->getInnermostGenericParams()[0]
+                                    ->getDepth();
+  else
+    printReqtDepth = decl->getOpaqueInterfaceGenericSignature()
+      ->getInnermostGenericParams()[0]
+      ->getDepth();
+  
+  printGenericSignature(decl->getOpaqueInterfaceGenericSignature(),
+                        PrintRequirements,
+    [&](const Requirement &filter) {
+      return getDepthOfRequirement(filter) >= printReqtDepth;
+    });
 }
 
 void PrintAST::visitTypeAliasDecl(TypeAliasDecl *decl) {
@@ -2201,6 +2270,16 @@ void PrintAST::visitTypeAliasDecl(TypeAliasDecl *decl) {
 
   if (ShouldPrint) {
     Printer << " = ";
+    // FIXME: An inferred associated type witness type alias may reference
+    // an opaque type, but OpaqueTypeArchetypes are always canonicalized
+    // so lose type sugar for generic params. Bind the generic environment so
+    // we can map params back into the generic environment and print them
+    // correctly.
+    //
+    // Remove this when we have a way to represent non-canonical archetypes
+    // preserving sugar.
+    llvm::SaveAndRestore<GenericEnvironment*> setGenericEnv(Options.GenericEnv,
+                                                decl->getGenericEnvironment());
     printTypeLoc(decl->getUnderlyingTypeLoc());
     printGenericDeclGenericRequirements(decl);
   }
@@ -2739,6 +2818,12 @@ void PrintAST::visitFuncDecl(FuncDecl *decl) {
   }
 
   printBodyIfNecessary(decl);
+  
+  // If the function has an opaque result type, print the opaque type decl.
+  if (auto opaqueResult = decl->getOpaqueResultTypeDecl()) {
+    Printer.printNewline();
+    visit(opaqueResult);
+  }
 }
 
 void PrintAST::printEnumElement(EnumElementDecl *elt) {
@@ -4063,17 +4148,73 @@ public:
   }
   
   void visitOpaqueTypeArchetypeType(OpaqueTypeArchetypeType *T) {
-    // TODO(opaque): present opaque types with user-facing syntax
-    Printer << "(some " << T->getOpaqueDecl()->getNamingDecl()->printRef();
-    if (!T->getSubstitutions().empty()) {
-      Printer << '<';
-      auto replacements = T->getSubstitutions().getReplacementTypes();
-      interleave(replacements.begin(), replacements.end(),
-                 [&](Type t) { visit(t); },
-                 [&] { Printer << ", "; });
-      Printer << '>';
+    // Print the type by referencing the opaque decl's synthetic name, if we
+    // were asked to.
+    OpaqueTypeDecl *decl = T->getDecl();
+    
+    if (decl->hasName()
+        || Options.PrintOpaqueReturnTypeAsNamedDecl) {
+      Identifier name;
+      DeclContext *baseContext;
+      if (decl->hasName()) {
+        name = decl->getName();
+        baseContext = decl;
+      } else {
+        name = decl->getInterfacePseudonym();
+        baseContext = decl->getNamingDecl()->getInnermostDeclContext();
+      }
+      
+      // If the naming decl is nested in a type, print the parent type.
+      auto genericArgs = T->getSubstitutions().getReplacementTypes();
+      auto parentTypeContext = baseContext->getParent();
+      if (parentTypeContext)
+        parentTypeContext = parentTypeContext->getInnermostTypeContext();
+      
+      if (parentTypeContext) {
+        auto parentTypeDecl = cast<GenericTypeDecl>(parentTypeContext);
+        
+        // Slice off the generic args of the parent and apply them.
+        auto parentOrigType = parentTypeDecl->getDeclaredInterfaceType();
+        Type parentSubstType = parentOrigType;
+        if (auto parentSig = parentTypeDecl->getGenericSignature()) {
+          auto numParentArgs =
+            parentSig->getGenericParams().size();
+          auto parentArgs = genericArgs.slice(0, numParentArgs);
+          genericArgs = genericArgs.slice(numParentArgs);
+          
+          parentSubstType = parentOrigType.subst(
+            [&](SubstitutableType *type) -> Type {
+              auto genericParam = cast<GenericTypeParamType>(type);
+              auto ordinal = parentSig->getGenericParamOrdinal(genericParam);
+              return parentArgs[ordinal];
+            },
+            LookUpConformanceInModule(Options.CurrentModule));
+        }
+        
+        visit(parentSubstType);
+        Printer << ".";
+        
+      } else if (shouldPrintFullyQualified(T)) {
+        printModuleContext(T);
+      }
+      
+      Printer.printTypeRef(T, T->getDecl(), name);
+      printGenericArgs(genericArgs);
+    } else {
+      // TODO(opaque): present opaque types with user-facing syntax. we should
+      // probably print this as `some P` and record the fact that we printed that
+      // so that diagnostics can add followup notes.
+      Printer << "(return type of " << T->getDecl()->getNamingDecl()->printRef();
+      Printer << ')';
+      if (!T->getSubstitutions().empty()) {
+        Printer << '<';
+        auto replacements = T->getSubstitutions().getReplacementTypes();
+        interleave(replacements.begin(), replacements.end(),
+                   [&](Type t) { visit(t); },
+                   [&] { Printer << ", "; });
+        Printer << '>';
+      }
     }
-    Printer << ')';
   }
 
   void visitGenericTypeParamType(GenericTypeParamType *T) {
