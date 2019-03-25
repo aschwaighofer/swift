@@ -414,6 +414,10 @@ private:
     case Node::Kind::ObjCBlock:
     case Node::Kind::ObjCMetadataUpdateFunction:
     case Node::Kind::OpaqueTypeDescriptor:
+    case Node::Kind::OpaqueTypeDescriptorAccessor:
+    case Node::Kind::OpaqueTypeDescriptorAccessorImpl:
+    case Node::Kind::OpaqueTypeDescriptorAccessorKey:
+    case Node::Kind::OpaqueTypeDescriptorAccessorVar:
     case Node::Kind::Owned:
     case Node::Kind::OwningAddressor:
     case Node::Kind::OwningMutableAddressor:
@@ -1703,6 +1707,22 @@ NodePointer NodePrinter::print(NodePointer Node, bool asPrefixContext) {
     return nullptr;
   case Node::Kind::OpaqueTypeDescriptor:
     Printer << "opaque type descriptor for ";
+    print(Node->getChild(0));
+    return nullptr;
+  case Node::Kind::OpaqueTypeDescriptorAccessor:
+    Printer << "opaque type descriptor accessor for ";
+    print(Node->getChild(0));
+    return nullptr;
+  case Node::Kind::OpaqueTypeDescriptorAccessorImpl:
+    Printer << "opaque type descriptor accessor impl for ";
+    print(Node->getChild(0));
+    return nullptr;
+  case Node::Kind::OpaqueTypeDescriptorAccessorKey:
+    Printer << "opaque type descriptor accessor key for ";
+    print(Node->getChild(0));
+    return nullptr;
+  case Node::Kind::OpaqueTypeDescriptorAccessorVar:
+    Printer << "opaque type descriptor accessor var for ";
     print(Node->getChild(0));
     return nullptr;
   case Node::Kind::CoroutineContinuationPrototype:

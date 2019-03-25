@@ -183,6 +183,10 @@ class LinkEntity {
     /// The descriptor for an opaque type.
     /// The pointer is an OpaqueTypeDecl*.
     OpaqueTypeDescriptor,
+    OpaqueTypeDescriptorAccessor,
+    OpaqueTypeDescriptorAccessorImpl,
+    OpaqueTypeDescriptorAccessorKey,
+    OpaqueTypeDescriptorAccessorVar,
 
     /// The metadata pattern for a generic nominal type.
     /// The pointer is a NominalTypeDecl*.
@@ -691,6 +695,30 @@ public:
   static LinkEntity forOpaqueTypeDescriptor(OpaqueTypeDecl *decl) {
     LinkEntity entity;
     entity.setForDecl(Kind::OpaqueTypeDescriptor, decl);
+    return entity;
+  }
+
+  static LinkEntity forOpaqueTypeDescriptorAccessor(OpaqueTypeDecl *decl) {
+    LinkEntity entity;
+    entity.setForDecl(Kind::OpaqueTypeDescriptorAccessor, decl);
+    return entity;
+  }
+
+  static LinkEntity forOpaqueTypeDescriptorAccessorImpl(OpaqueTypeDecl *decl) {
+    LinkEntity entity;
+    entity.setForDecl(Kind::OpaqueTypeDescriptorAccessorImpl, decl);
+    return entity;
+  }
+
+  static LinkEntity forOpaqueTypeDescriptorAccessorKey(OpaqueTypeDecl *decl) {
+    LinkEntity entity;
+    entity.setForDecl(Kind::OpaqueTypeDescriptorAccessorKey, decl);
+    return entity;
+  }
+
+  static LinkEntity forOpaqueTypeDescriptorAccessorVar(OpaqueTypeDecl *decl) {
+    LinkEntity entity;
+    entity.setForDecl(Kind::OpaqueTypeDescriptorAccessorVar, decl);
     return entity;
   }
 
