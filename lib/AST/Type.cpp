@@ -2459,7 +2459,8 @@ Type ReplaceOpaqueTypesWithUnderlyingTypes::operator()(
   // Don't replace opaque types from resilient modules.
   auto namingDecl = opaqueRoot->getDecl()->getNamingDecl();
   auto module = namingDecl->getModuleContext();
-  if (module->isResilient() && module != modulePerformingSubstitution) {
+  if (module->isResilient() && module != modulePerformingSubstitution &&
+      !namingDecl->getAttrs().hasAttribute<InlinableAttr>()) {
     return maybeOpaqueType;
   }
 
@@ -2504,7 +2505,8 @@ ReplaceOpaqueTypesWithUnderlyingTypes::operator()(CanType maybeOpaqueType,
   // Don't replace opaque types from resilient modules.
   auto namingDecl = opaqueRoot->getDecl()->getNamingDecl();
   auto module = namingDecl->getModuleContext();
-  if (module->isResilient() && module != modulePerformingSubstitution) {
+  if (module->isResilient() && module != modulePerformingSubstitution &&
+      !namingDecl->getAttrs().hasAttribute<InlinableAttr>()) {
     return abstractRef;
   }
 
