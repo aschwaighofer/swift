@@ -372,3 +372,32 @@ public func testResilientInlinablePropertyCallsResilientInlinable() {
 // RESILIENT:  [[RES:%.*]] = alloc_stack $@_opaqueReturnTypeOf("$s9External218ResilientContainerV16computedPropertyQrvp", 0)
 // RESILIENT:  [[FUN:%.*]] = function_ref @$s9External218ResilientContainerV16computedPropertyQrvg
 // RESILIENT:  apply [[FUN]]([[RES]], %0)
+
+
+protocol P4 {
+  associatedtype AT
+  func foo(_ x: Int64) -> AT
+}
+struct PA : P4 {
+  func foo(_ x: Int64)  -> some P {
+    return Int64(x)
+  }
+}
+
+@inline(never)
+func testIt<T>(cl: (Int64) throws -> T) {
+ do {
+   print(try cl(5))
+ } catch (_) {}
+}
+
+@inline(never)
+func testPartialApply<T: P4>(_ t: T) {
+  let fun = t.foo
+  testIt(cl: fun)
+  print(fun(5))
+}
+
+public func testPartialApply() {
+  testPartialApply(PA())
+}
