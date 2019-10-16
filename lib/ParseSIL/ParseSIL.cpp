@@ -4093,8 +4093,9 @@ bool SILParser::parseSILInstruction(SILBuilder &B) {
       return true;
     
     EnumElementDecl *Elt = cast<EnumElementDecl>(EltRef.getDecl());
-    auto ResultTy = Operand->getType().getEnumElementType(Elt, SILMod);
-    
+    auto ResultTy = Operand->getType().getEnumElementType(
+        Elt, SILMod, B.getTypeExpansionContext());
+
     switch (Opcode) {
     case swift::SILInstructionKind::InitEnumDataAddrInst:
       ResultVal = B.createInitEnumDataAddr(InstLoc, Operand, Elt, ResultTy);
@@ -4442,7 +4443,8 @@ bool SILParser::parseSILInstruction(SILBuilder &B) {
 
     // FIXME: substitution means this type should be explicit to improve
     // performance.
-    auto ResultTy = Val->getType().getFieldType(Field, SILMod);
+    auto ResultTy =
+        Val->getType().getFieldType(Field, SILMod, B.getTypeExpansionContext());
     if (Opcode == SILInstructionKind::StructElementAddrInst)
       ResultVal = B.createStructElementAddr(InstLoc, Val, Field,
                                             ResultTy.getAddressType());
@@ -4464,7 +4466,8 @@ bool SILParser::parseSILInstruction(SILBuilder &B) {
       return true;
     }
     VarDecl *Field = cast<VarDecl>(FieldV);
-    auto ResultTy = Val->getType().getFieldType(Field, SILMod);
+    auto ResultTy =
+        Val->getType().getFieldType(Field, SILMod, B.getTypeExpansionContext());
     ResultVal = B.createRefElementAddr(InstLoc, Val, Field, ResultTy);
     break;
   }
@@ -5147,8 +5150,8 @@ bool SILParser::parseCallInstruction(SILLocation InstLoc,
   CanSILFunctionType substFTI = FTI;
   if (!subs.empty()) {
     auto silFnTy = FnTy.castTo<SILFunctionType>();
-    substFTI
-      = silFnTy->substGenericArgs(SILMod, subs);
+    substFTI =
+        silFnTy->substGenericArgs(SILMod, subs, B.getTypeExpansionContext());
     FnTy = SILType::getPrimitiveObjectType(substFTI);
   }
   SILFunctionConventions substConv(substFTI, B.getModule());

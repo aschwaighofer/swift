@@ -368,7 +368,9 @@ computeNewArgInterfaceTypes(SILFunction *F, IndicesSet &PromotableIndices,
     assert(paramBoxTy->getLayout()->getFields().size() == 1
            && "promoting compound box not implemented yet");
     auto paramBoxedTy = getSILBoxFieldType(paramBoxTy, Types, 0);
-    auto &paramTL = Types.getTypeLowering(paramBoxedTy, expansion);
+    assert(expansion == F->getResilienceExpansion());
+    auto &paramTL =
+        Types.getTypeLowering(paramBoxedTy, TypeExpansionContext(*F));
     ParameterConvention convention;
     if (paramTL.isAddressOnly()) {
       convention = ParameterConvention::Indirect_In;
@@ -1272,8 +1274,8 @@ processPartialApplyInst(SILOptFunctionBuilder &FuncBuilder,
   auto CalleeFunctionTy = PAI->getCallee()->getType().castTo<SILFunctionType>();
   auto SubstCalleeFunctionTy = CalleeFunctionTy;
   if (PAI->hasSubstitutions())
-    SubstCalleeFunctionTy =
-        CalleeFunctionTy->substGenericArgs(M, PAI->getSubstitutionMap());
+    SubstCalleeFunctionTy = CalleeFunctionTy->substGenericArgs(
+        M, PAI->getSubstitutionMap(), TypeExpansionContext(*F));
   SILFunctionConventions calleeConv(SubstCalleeFunctionTy, M);
   auto CalleePInfo = SubstCalleeFunctionTy->getParameters();
   SILFunctionConventions paConv(PAI->getType().castTo<SILFunctionType>(), M);

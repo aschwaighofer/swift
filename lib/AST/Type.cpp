@@ -2689,8 +2689,8 @@ operator()(SubstitutableType *maybeOpaqueType) const {
 
   // If the type still contains opaque types, recur.
   if (substTy->hasOpaqueArchetype()) {
-    return substOpaqueTypesWithUnderlyingTypes(substTy, inContext,
-                                               contextExpansion);
+    return ::substOpaqueTypesWithUnderlyingTypes(substTy, inContext,
+                                                 contextExpansion);
   }
 
   return substTy;
@@ -2701,6 +2701,14 @@ substOpaqueTypesWithUnderlyingTypes(ProtocolConformanceRef ref, Type origType,
                                     DeclContext *inContext,
                                     ResilienceExpansion contextExpansion) {
   ReplaceOpaqueTypesWithUnderlyingTypes replacer(inContext, contextExpansion);
+  return ref.subst(origType, replacer, replacer,
+                   SubstFlags::SubstituteOpaqueArchetypes);
+}
+
+ProtocolConformanceRef swift::substOpaqueTypesWithUnderlyingTypes(
+    ProtocolConformanceRef ref, Type origType, TypeExpansionContext context) {
+  ReplaceOpaqueTypesWithUnderlyingTypes replacer(
+      context.getContext(), context.getResilienceExpansion());
   return ref.subst(origType, replacer, replacer,
                    SubstFlags::SubstituteOpaqueArchetypes);
 }
@@ -2757,8 +2765,8 @@ operator()(CanType maybeOpaqueType, Type replacementType,
 
   // If the type still contains opaque types, recur.
   if (substTy->hasOpaqueArchetype()) {
-    return substOpaqueTypesWithUnderlyingTypes(substRef, substTy, inContext,
-                                               contextExpansion);
+    return ::substOpaqueTypesWithUnderlyingTypes(substRef, substTy, inContext,
+                                                 contextExpansion);
   }
   return substRef;
 }
@@ -4538,4 +4546,35 @@ Type TypeBase::openAnyExistentialType(OpenedArchetypeType *&opened) {
   }
   opened = OpenedArchetypeType::get(this);
   return opened;
+}
+
+bool TypeBase::hasOpaqueArchetype() {
+  // TODO: we should cache this result.
+  if (auto *structDecl = getStructOrBoundGenericStruct()) {
+    for (auto *field : structDecl->getStoredProperties()) {
+      if (!field->hasInterfaceType())
+        getASTContext().getLazyResolver()->resolveDeclSignature(field);
+
+      auto fieldTy = field->getInterfaceType();
+      if (fieldTy->getCanonicalType()->hasOpaqueArchetype())
+        return true;
+    }
+  }
+  return getRecursiveProperties().hasOpaqueArchetype();
+}
+
+CanType swift::substOpaqueTypesWithUnderlyingTypes(CanType ty,
+                                                   TypeExpansionContext context,
+                                                   bool allowLoweredTypes) {
+  if (!context.shouldLookThroughOpaqueTypeArchetypes() ||
+      !ty->hasOpaqueArchetype())
+    return ty;
+
+  ReplaceOpaqueTypesWithUnderlyingTypes replacer(
+      context.getContext(), context.getResilienceExpansion());
+  SubstOptions flags = SubstFlags::SubstituteOpaqueArchetypes;
+  if (allowLoweredTypes)
+    flags =
+        SubstFlags::SubstituteOpaqueArchetypes | SubstFlags::AllowLoweredTypes;
+  return ty.subst(replacer, replacer, flags)->getCanonicalType();
 }

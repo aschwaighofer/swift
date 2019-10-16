@@ -1253,7 +1253,8 @@ public:
   /// Cast the given constant to i8*.
   llvm::Constant *getOpaquePtr(llvm::Constant *pointer);
 
-  llvm::Function *getAddrOfDispatchThunk(SILDeclRef declRef,
+  llvm::Function *getAddrOfDispatchThunk(TypeExpansionContext context,
+                                         SILDeclRef declRef,
                                          ForDefinition_t forDefinition);
   void emitDispatchThunk(SILDeclRef declRef);
 

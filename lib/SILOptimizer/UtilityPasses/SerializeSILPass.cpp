@@ -12,10 +12,98 @@
 
 #define DEBUG_TYPE "serialize-sil"
 #include "swift/Strings.h"
+#include "swift/SIL/SILCloner.h"
+#include "swift/SIL/SILFunction.h"
 #include "swift/SILOptimizer/PassManager/Passes.h"
 #include "swift/SILOptimizer/PassManager/Transforms.h"
+#include "swift/SILOptimizer/Utils/BasicBlockOptUtils.h"
 
 using namespace swift;
+
+namespace {
+/// In place map opaque archetypes to their underlying type in a function.
+/// This needs to happen when a function changes from serializable to not
+/// serializable.
+class MapOpaqueArchetypes : public SILCloner<MapOpaqueArchetypes> {
+  using SuperTy = SILCloner<MapOpaqueArchetypes>;
+
+  SILBasicBlock *origEntryBlock;
+  SILBasicBlock *clonedEntryBlock;
+public:
+  friend class SILCloner<MapOpaqueArchetypes>;
+  friend class SILCloner<MapOpaqueArchetypes>;
+  friend class SILInstructionVisitor<MapOpaqueArchetypes>;
+
+  MapOpaqueArchetypes(SILFunction &fun) : SuperTy(fun) {
+    origEntryBlock = fun.getEntryBlock();
+    clonedEntryBlock = fun.createBasicBlock();
+  }
+
+  SILType remapType(SILType Ty) {
+    if (!Ty.getASTType()->hasOpaqueArchetype() ||
+        !getBuilder()
+             .getTypeExpansionContext()
+             .shouldLookThroughOpaqueTypeArchetypes())
+      return Ty;
+
+    return getBuilder().getTypeLowering(Ty).getLoweredType().getCategoryType(
+        Ty.getCategory());
+  }
+
+  CanType remapASTType(CanType ty) {
+    if (!ty->hasOpaqueArchetype() ||
+        !getBuilder()
+             .getTypeExpansionContext()
+             .shouldLookThroughOpaqueTypeArchetypes())
+      return ty;
+    // Remap types containing opaque result types in the current context.
+    return getBuilder()
+        .getTypeLowering(SILType::getPrimitiveObjectType(ty))
+        .getLoweredType()
+        .getASTType();
+  }
+
+  ProtocolConformanceRef remapConformance(Type ty,
+                                          ProtocolConformanceRef conf) {
+    auto context = getBuilder().getTypeExpansionContext();
+    auto conformance = conf;
+    if (ty->hasOpaqueArchetype() &&
+        context.shouldLookThroughOpaqueTypeArchetypes()) {
+      conformance =
+          substOpaqueTypesWithUnderlyingTypes(conformance, ty, context);
+    }
+    return conformance;
+  }
+
+  void replace();
+};
+} // namespace
+
+void MapOpaqueArchetypes::replace() {
+  // Map the function arguments.
+  SmallVector<SILValue, 4> entryArgs;
+  entryArgs.reserve(origEntryBlock->getArguments().size());
+  for (auto &origArg : origEntryBlock->getArguments()) {
+    SILType mappedType = remapType(origArg->getType());
+    auto *NewArg = clonedEntryBlock->createFunctionArgument(
+        mappedType, origArg->getDecl(), true);
+    entryArgs.push_back(NewArg);
+  }
+
+  getBuilder().setInsertionPoint(clonedEntryBlock);
+  auto &fn = getBuilder().getFunction();
+  cloneFunctionBody(&fn, clonedEntryBlock, entryArgs,
+                    true /*replaceOriginalFunctionInPlace*/);
+  // Insert the new entry block at the beginning.
+  fn.getBlocks().splice(fn.getBlocks().begin(), fn.getBlocks(),
+                        clonedEntryBlock);
+  removeUnreachableBlocks(fn);
+}
+
+void updateOpaqueArchetypes(SILFunction &F) {
+  // TODO: only map if there are opaque archetypes.
+  MapOpaqueArchetypes(F).replace();
+}
 
 /// A utility pass to serialize a SILModule at any place inside the optimization
 /// pipeline.
@@ -24,7 +112,16 @@ class SerializeSILPass : public SILModuleTransform {
   /// optimizations and for a better dead function elimination.
   void removeSerializedFlagFromAllFunctions(SILModule &M) {
     for (auto &F : M) {
+      bool wasSerialized = F.isSerialized() != IsNotSerialized;
       F.setSerialized(IsNotSerialized);
+
+      // We are removing [serialized] from the function. This will change how
+      // opaque archetypes are lowered in SIL - they might lower to their
+      // underlying type. Update the function's opaque archetypes.
+      if (wasSerialized && F.isDefinition()) {
+        updateOpaqueArchetypes(F);
+        invalidateAnalysis(&F, SILAnalysis::InvalidationKind::Everything);
+      }
     }
 
     for (auto &WT : M.getWitnessTables()) {

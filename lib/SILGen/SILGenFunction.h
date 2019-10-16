@@ -500,16 +500,24 @@ public:
   const TypeLowering &getTypeLowering(Type t) {
     return F.getTypeLowering(t);
   }
-  CanSILFunctionType getSILFunctionType(AbstractionPattern orig,
+  CanSILFunctionType getSILFunctionType(TypeExpansionContext context,
+                                        AbstractionPattern orig,
                                         CanFunctionType substFnType) {
-    return SGM.Types.getSILFunctionType(orig, substFnType);
+    return SGM.Types.getSILFunctionType(context, orig, substFnType);
   }
-  SILType getLoweredType(AbstractionPattern orig, Type subst) {
+  SILType getLoweredType(AbstractionPattern orig,
+                         Type subst) {
     return F.getLoweredType(orig, subst);
   }
   SILType getLoweredType(Type t) {
     return F.getLoweredType(t);
   }
+  SILType getLoweredTypeForFunctionArgument(Type t) {
+    auto typeForConv =
+        SGM.Types.getLoweredType(t, TypeExpansionContext::minimal());
+    return getLoweredType(t).getCategoryType(typeForConv.getCategory());
+  }
+
   SILType getLoweredLoadableType(Type t) {
     return F.getLoweredLoadableType(t);
   }
@@ -524,8 +532,19 @@ public:
     return silConv.getSILType(result);
   }
 
-  const SILConstantInfo &getConstantInfo(SILDeclRef constant) {
-    return SGM.Types.getConstantInfo(constant);
+  SILType getSILTypeInContext(SILResultInfo result) {
+    auto t = F.mapTypeIntoContext(getSILType(result));
+    return getTypeLowering(t).getLoweredType().getCategoryType(t.getCategory());
+  }
+
+  SILType getSILTypeInContext(SILParameterInfo param) {
+    auto t = F.mapTypeIntoContext(getSILType(param));
+    return getTypeLowering(t).getLoweredType().getCategoryType(t.getCategory());
+  }
+
+  const SILConstantInfo &getConstantInfo(TypeExpansionContext context,
+                                         SILDeclRef constant) {
+    return SGM.Types.getConstantInfo(context, constant);
   }
 
   Optional<SILAccessEnforcement> getStaticEnforcement(VarDecl *var = nullptr);
@@ -1162,7 +1181,8 @@ public:
   /// Returns a reference to a constant in global context. For local func decls
   /// this returns the function constant with unapplied closure context.
   SILValue emitGlobalFunctionRef(SILLocation loc, SILDeclRef constant) {
-    return emitGlobalFunctionRef(loc, constant, getConstantInfo(constant));
+    return emitGlobalFunctionRef(
+        loc, constant, getConstantInfo(TypeExpansionContext(F), constant));
   }
   SILValue
   emitGlobalFunctionRef(SILLocation loc, SILDeclRef constant,

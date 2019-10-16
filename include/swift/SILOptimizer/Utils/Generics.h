@@ -100,6 +100,9 @@ class ReabstractionInfo {
   // Reference to the original generic non-specialized callee function.
   SILFunction *Callee;
 
+  // The module the specialization is created in.
+  ModuleDecl *TargetModule = nullptr;
+
   // The apply site which invokes the generic function.
   ApplySite Apply;
 
@@ -140,7 +143,8 @@ public:
   /// substitutions \p ParamSubs.
   /// If specialization is not possible getSpecializedType() will return an
   /// invalid type.
-  ReabstractionInfo(ApplySite Apply, SILFunction *Callee,
+  ReabstractionInfo(ModuleDecl *targetModule,
+                    ApplySite Apply, SILFunction *Callee,
                     SubstitutionMap ParamSubs,
                     IsSerialized_t Serialized,
                     bool ConvertIndirectToDirect = true,
@@ -148,16 +152,17 @@ public:
 
   /// Constructs the ReabstractionInfo for generic function \p Callee with
   /// a specialization signature.
-  ReabstractionInfo(SILFunction *Callee, GenericSignature SpecializedSig);
+  ReabstractionInfo(ModuleDecl *targetModule, SILFunction *Callee,
+                    GenericSignature SpecializedSig);
 
   IsSerialized_t isSerialized() const {
     return Serialized;
   }
 
-  ResilienceExpansion getResilienceExpansion() const {
-    return (Serialized
-            ? ResilienceExpansion::Minimal
-            : ResilienceExpansion::Maximal);
+  TypeExpansionContext getResilienceExpansion() const {
+    auto resilience = (Serialized ? ResilienceExpansion::Minimal
+                                  : ResilienceExpansion::Maximal);
+    return TypeExpansionContext(resilience, TargetModule);
   }
 
   /// Returns true if the \p ParamIdx'th (non-result) formal parameter is

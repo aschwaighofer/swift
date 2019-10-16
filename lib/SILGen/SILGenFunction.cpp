@@ -153,10 +153,12 @@ SILGenFunction::emitSiblingMethodRef(SILLocation loc,
   // dispatch (viz. objc_msgSend for now).
   if (methodConstant.hasDecl()
       && methodConstant.getDecl()->isObjCDynamic()) {
-    methodValue = emitDynamicMethodRef(
-                      loc, methodConstant,
-                      SGM.Types.getConstantInfo(methodConstant).SILFnType)
-                      .getValue();
+    methodValue =
+        emitDynamicMethodRef(
+            loc, methodConstant,
+            SGM.Types.getConstantInfo(TypeExpansionContext(F), methodConstant)
+                .SILFnType)
+            .getValue();
   } else {
     methodValue = emitGlobalFunctionRef(loc, methodConstant);
   }
@@ -164,7 +166,7 @@ SILGenFunction::emitSiblingMethodRef(SILLocation loc,
   SILType methodTy = methodValue->getType();
 
   // Specialize the generic method.
-  methodTy = methodTy.substGenericArgs(SGM.M, subMap);
+  methodTy = methodTy.substGenericArgs(SGM.M, subMap, TypeExpansionContext(F));
 
   return std::make_tuple(ManagedValue::forUnmanaged(methodValue),
                          methodTy);
@@ -190,8 +192,8 @@ void SILGenFunction::emitCaptures(SILLocation loc,
     canGuarantee = true;
     break;
   }
-  
-  auto expansion = F.getResilienceExpansion();
+
+  auto expansion = TypeExpansionContext(F);
 
   for (auto capture : captureInfo.getCaptures()) {
     if (capture.isDynamicSelfMetadata()) {
@@ -377,7 +379,7 @@ SILGenFunction::emitClosureValue(SILLocation loc, SILDeclRef constant,
                                  SubstitutionMap subs) {
   auto loweredCaptureInfo = SGM.Types.getLoweredLocalCaptures(constant);
 
-  auto constantInfo = getConstantInfo(constant);
+  auto constantInfo = getConstantInfo(TypeExpansionContext(F), constant);
   SILValue functionRef = emitGlobalFunctionRef(loc, constant, constantInfo);
   SILType functionTy = functionRef->getType();
 
@@ -400,7 +402,8 @@ SILGenFunction::emitClosureValue(SILLocation loc, SILDeclRef constant,
 
   bool wasSpecialized = false;
   if (!subs.empty()) {
-    auto specialized = pft->substGenericArgs(F.getModule(), subs);
+    auto specialized =
+        pft->substGenericArgs(F.getModule(), subs, TypeExpansionContext(F));
     functionTy = SILType::getPrimitiveObjectType(specialized);
     wasSpecialized = true;
   }

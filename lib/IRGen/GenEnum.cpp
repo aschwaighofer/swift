@@ -315,9 +315,10 @@ namespace {
 
     SILType getSingletonType(IRGenModule &IGM, SILType T) const {
       assert(!ElementsWithPayload.empty());
-      
-      return T.getEnumElementType(ElementsWithPayload[0].decl,
-                                  IGM.getSILModule());
+
+      return T.getEnumElementType(
+          ElementsWithPayload[0].decl, IGM.getSILModule(),
+          TypeExpansionContext::maximal(IGM.getSwiftModule()));
     }
 
   public:
@@ -614,8 +615,9 @@ namespace {
       assert(ElementsWithPayload.size() == 1 &&
              "empty singleton enum should not be dynamic!");
 
-      auto payloadTy = T.getEnumElementType(ElementsWithPayload[0].decl,
-                                            IGM.getSILModule());
+      auto payloadTy =
+          T.getEnumElementType(ElementsWithPayload[0].decl, IGM.getSILModule(),
+                               TypeExpansionContext::maximal(IGM.getSwiftModule()));
       auto payloadLayout = emitTypeLayoutRef(IGF, payloadTy, collector);
       auto flags = emitEnumLayoutFlags(IGF.IGM, isVWTMutable);
       IGF.Builder.CreateCall(
@@ -1566,8 +1568,9 @@ namespace {
     }
 
     SILType getPayloadType(IRGenModule &IGM, SILType T) const {
-      return T.getEnumElementType(ElementsWithPayload[0].decl,
-                                  IGM.getSILModule());
+      return T.getEnumElementType(
+          ElementsWithPayload[0].decl, IGM.getSILModule(),
+          TypeExpansionContext::maximal(IGM.getSwiftModule()));
     }
 
     const TypeInfo &getPayloadTypeInfo() const {
@@ -2957,8 +2960,9 @@ namespace {
 
       // Ask the runtime to do our layout using the payload metadata and number
       // of empty cases.
-      auto payloadTy = T.getEnumElementType(ElementsWithPayload[0].decl,
-                                            IGM.getSILModule());
+      auto payloadTy = T.getEnumElementType(
+          ElementsWithPayload[0].decl, IGM.getSILModule(),
+          TypeExpansionContext::maximal(IGM.getSwiftModule()));
       auto payloadLayout = emitTypeLayoutRef(IGF, payloadTy, collector);
       auto emptyCasesVal = llvm::ConstantInt::get(IGM.Int32Ty,
                                                   ElementsWithNoPayload.size());
@@ -4575,8 +4579,9 @@ namespace {
 
         unsigned tagIndex = 0;
         for (auto &payloadCasePair : ElementsWithPayload) {
-          SILType PayloadT = T.getEnumElementType(payloadCasePair.decl,
-                                                  IGF.getSILModule());
+          SILType PayloadT = T.getEnumElementType(
+              payloadCasePair.decl, IGF.getSILModule(),
+              TypeExpansionContext::maximal(IGF.IGM.getSwiftModule()));
           auto &payloadTI = *payloadCasePair.ti;
           // Trivial and, in the case of a take, bitwise-takable payloads,
           // can all share the default path.
@@ -4692,9 +4697,9 @@ namespace {
       }
 
       for (auto &payloadCasePair : ElementsWithPayload) {
-        SILType payloadT =
-          T.getEnumElementType(payloadCasePair.decl,
-                               collector.IGF.getSILModule());
+        SILType payloadT = T.getEnumElementType(
+            payloadCasePair.decl, collector.IGF.getSILModule(),
+            TypeExpansionContext::maximal(collector.IGF.IGM.getSwiftModule()));
         auto &payloadTI = *payloadCasePair.ti;
         payloadTI.collectMetadataForOutlining(collector, payloadT);
       }
@@ -4737,8 +4742,9 @@ namespace {
                 // Destroy the data.
                 Address dataAddr = IGF.Builder.CreateBitCast(
                     addr, elt.ti->getStorageType()->getPointerTo());
-                SILType payloadT =
-                    T.getEnumElementType(elt.decl, IGF.getSILModule());
+                SILType payloadT = T.getEnumElementType(
+                    elt.decl, IGF.getSILModule(),
+                    TypeExpansionContext::maximal(IGF.IGM.getSwiftModule()));
                 elt.ti->destroy(IGF, dataAddr, payloadT, true /*isOutlined*/);
               });
           return;
@@ -4977,9 +4983,11 @@ namespace {
         Address eltAddr = IGF.Builder.CreateStructGEP(metadataBuffer, i,
                                                   IGM.getPointerSize() * i);
         if (i == 0) firstAddr = eltAddr.getAddress();
-        
-        auto payloadTy = T.getEnumElementType(elt.decl, IGF.getSILModule());
-        
+
+        auto payloadTy = T.getEnumElementType(
+            elt.decl, IGF.getSILModule(),
+            TypeExpansionContext::maximal(IGF.IGM.getSwiftModule()));
+
         auto metadata = emitTypeLayoutRef(IGF, payloadTy, collector);
         
         IGF.Builder.CreateStore(metadata, eltAddr);
@@ -5809,7 +5817,9 @@ EnumImplStrategy::get(TypeConverter &TC, SILType type, EnumDecl *theEnum) {
       // *Now* apply the substitutions and get the type info for the instance's
       // payload type, since we know this case carries an apparent payload in
       // the generic case.
-      SILType fieldTy = type.getEnumElementType(elt, TC.IGM.getSILModule());
+      SILType fieldTy = type.getEnumElementType(
+          elt, TC.IGM.getSILModule(),
+          TypeExpansionContext::maximal(TC.IGM.getSwiftModule()));
       auto *substArgTI = &TC.IGM.getTypeInfo(fieldTy);
 
       elementsWithPayload.push_back({elt, substArgTI, origArgTI});

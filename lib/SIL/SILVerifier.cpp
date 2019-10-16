@@ -134,14 +134,15 @@ void verifyKeyPathComponent(SILModule &M,
                             bool forPropertyDescriptor,
                             bool hasIndices) {
   auto &C = M.getASTContext();
-
+  auto typeExpansionContext =
+      TypeExpansionContext::noOpaqueTypeArchetypesSubstitution(expansion);
   auto opaque = AbstractionPattern::getOpaque();
   auto loweredBaseTy =
-    M.Types.getLoweredType(opaque, baseTy, expansion);
+      M.Types.getLoweredType(opaque, baseTy, typeExpansionContext);
   auto componentTy = component.getComponentType().subst(patternSubs)
     ->getCanonicalType();
   auto loweredComponentTy =
-    M.Types.getLoweredType(opaque, componentTy, expansion);
+      M.Types.getLoweredType(opaque, componentTy, typeExpansionContext);
 
   auto checkIndexEqualsAndHash = [&]{
     if (!component.getSubscriptIndices().empty()) {
@@ -153,7 +154,7 @@ void verifyKeyPathComponent(SILModule &M,
                         "operator");
         
         auto substEqualsType = equals->getLoweredFunctionType()
-          ->substGenericArgs(M, patternSubs);
+          ->substGenericArgs(M, patternSubs, TypeExpansionContext::minimal());
         
         require(substEqualsType->getParameters().size() == 2,
                 "must have two arguments");
@@ -185,7 +186,7 @@ void verifyKeyPathComponent(SILModule &M,
                       "operator");
         
         auto substHashType = hash->getLoweredFunctionType()
-          ->substGenericArgs(M, patternSubs);
+          ->substGenericArgs(M, patternSubs, TypeExpansionContext::minimal());
         
         require(substHashType->getParameters().size() == 1,
                 "must have two arguments");
@@ -232,7 +233,8 @@ void verifyKeyPathComponent(SILModule &M,
     require(property->hasStorage(), "property must be stored");
     require(!property->isResilient(M.getSwiftModule(), expansion),
             "cannot access storage of resilient property");
-    auto propertyTy = loweredBaseTy.getFieldType(property, M);
+    auto propertyTy =
+        loweredBaseTy.getFieldType(property, M, typeExpansionContext);
     require(propertyTy.getObjectType()
               == loweredComponentTy.getObjectType(),
             "component type should match the maximal abstraction of the "
@@ -267,8 +269,8 @@ void verifyKeyPathComponent(SILModule &M,
                 "less visible getters");
       }
 
-      auto substGetterType = getter->getLoweredFunctionType()
-        ->substGenericArgs(M, patternSubs);
+      auto substGetterType = getter->getLoweredFunctionType()->substGenericArgs(
+          M, patternSubs, TypeExpansionContext::minimal());
       require(substGetterType->getRepresentation() ==
                 SILFunctionTypeRepresentation::Thin,
               "getter should be a thin function");
@@ -313,7 +315,7 @@ void verifyKeyPathComponent(SILModule &M,
       }
 
       auto substSetterType = setter->getLoweredFunctionType()
-        ->substGenericArgs(M, patternSubs);
+        ->substGenericArgs(M, patternSubs, TypeExpansionContext::minimal());
       
       require(substSetterType->getRepresentation() ==
                 SILFunctionTypeRepresentation::Thin,
@@ -362,8 +364,9 @@ void verifyKeyPathComponent(SILModule &M,
         require(contextType == operands[opIndex].get()->getType(),
                 "operand must match type required by pattern");
         SILType loweredType = index.LoweredType;
-        require(loweredType.isLoweringOf(M, index.FormalType),
-                "pattern index formal type doesn't match lowered type");
+        require(
+            loweredType.isLoweringOf(typeExpansionContext, M, index.FormalType),
+            "pattern index formal type doesn't match lowered type");
       }
 
       checkIndexEqualsAndHash();
@@ -1297,7 +1300,7 @@ public:
     }
 
     // Apply the substitutions.
-    return fnTy->substGenericArgs(F.getModule(), subs);
+    return fnTy->substGenericArgs(F.getModule(), subs, TypeExpansionContext(F));
   }
 
   /// Check that for each opened archetype or dynamic self type in substitutions
@@ -1737,7 +1740,8 @@ public:
 
   void checkGlobalAccessInst(GlobalAccessInst *GAI) {
     SILGlobalVariable *RefG = GAI->getReferencedGlobal();
-    require(GAI->getType().getObjectType() == RefG->getLoweredType(),
+    require(GAI->getType().getObjectType() ==
+                RefG->getLoweredTypeInContext(TypeExpansionContext(F)),
             "global_addr/value must be the type of the variable it references");
     if (auto *VD = RefG->getDecl()) {
       require(!VD->isResilient(F.getModule().getSwiftModule(),
@@ -2387,7 +2391,8 @@ public:
               "number of struct operands does not match number of stored "
               "member variables of struct");
 
-      SILType loweredType = structTy.getFieldType(field, F.getModule());
+      SILType loweredType =
+          structTy.getFieldType(field, F.getModule(), TypeExpansionContext(F));
       if (SI->getModule().getStage() != SILStage::Lowered) {
         require((*opi)->getType() == loweredType,
                 "struct operand type does not match field type");
@@ -2409,8 +2414,8 @@ public:
     if (UI->getElement()->hasAssociatedValues()) {
       require(UI->getOperand()->getType().isObject(),
               "EnumInst operand must be an object");
-      SILType caseTy = UI->getType().getEnumElementType(UI->getElement(),
-                                                        F.getModule());
+      SILType caseTy = UI->getType().getEnumElementType(
+          UI->getElement(), F.getModule(), TypeExpansionContext(F));
       if (UI->getModule().getStage() != SILStage::Lowered) {
         require(caseTy == UI->getOperand()->getType(),
                 "EnumInst operand type does not match type of case");
@@ -2430,9 +2435,8 @@ public:
     require(UI->getType().isAddress(),
             "InitEnumDataAddrInst must produce an address");
 
-    SILType caseTy =
-      UI->getOperand()->getType().getEnumElementType(UI->getElement(),
-                                                    F.getModule());
+    SILType caseTy = UI->getOperand()->getType().getEnumElementType(
+        UI->getElement(), F.getModule(), TypeExpansionContext(F));
 
     if (UI->getModule().getStage() != SILStage::Lowered) {
       requireSameType(
@@ -2453,9 +2457,8 @@ public:
     require(UI->getType().isObject(),
             "UncheckedEnumData must produce an address");
 
-    SILType caseTy =
-      UI->getOperand()->getType().getEnumElementType(UI->getElement(),
-                                                    F.getModule());
+    SILType caseTy = UI->getOperand()->getType().getEnumElementType(
+        UI->getElement(), F.getModule(), TypeExpansionContext(F));
 
     if (UI->getModule().getStage() != SILStage::Lowered) {
       require(caseTy == UI->getType(),
@@ -2475,9 +2478,8 @@ public:
     require(UI->getType().isAddress(),
             "UncheckedTakeEnumDataAddrInst must produce an address");
 
-    SILType caseTy =
-      UI->getOperand()->getType().getEnumElementType(UI->getElement(),
-                                                    F.getModule());
+    SILType caseTy = UI->getOperand()->getType().getEnumElementType(
+        UI->getElement(), F.getModule(), TypeExpansionContext(F));
 
     if (UI->getModule().getStage() != SILStage::Lowered) {
       require(caseTy == UI->getType(), "UncheckedTakeEnumDataAddrInst result "
@@ -2513,7 +2515,8 @@ public:
 
   // Is a SIL type a potential lowering of a formal type?
   bool isLoweringOf(SILType loweredType, CanType formalType) {
-    return loweredType.isLoweringOf(F.getModule(), formalType);
+    return loweredType.isLoweringOf(TypeExpansionContext(F), F.getModule(),
+                                    formalType);
   }
   
   void checkMetatypeInst(MetatypeInst *MI) {
@@ -2699,8 +2702,8 @@ public:
             "struct_extract field is not a member of the struct");
 
     if (EI->getModule().getStage() != SILStage::Lowered) {
-      SILType loweredFieldTy =
-          operandTy.getFieldType(EI->getField(), F.getModule());
+      SILType loweredFieldTy = operandTy.getFieldType(
+          EI->getField(), F.getModule(), TypeExpansionContext(F));
       require(loweredFieldTy == EI->getType(),
               "result of struct_extract does not match type of field");
     }
@@ -2745,8 +2748,8 @@ public:
             "struct_element_addr field is not a member of the struct");
 
     if (EI->getModule().getStage() != SILStage::Lowered) {
-      SILType loweredFieldTy =
-          operandTy.getFieldType(EI->getField(), F.getModule());
+      SILType loweredFieldTy = operandTy.getFieldType(
+          EI->getField(), F.getModule(), TypeExpansionContext(F));
       require(loweredFieldTy == EI->getType(),
               "result of struct_element_addr does not match type of field");
     }
@@ -2771,8 +2774,8 @@ public:
             "ref_element_addr field must be a member of the class");
 
     if (EI->getModule().getStage() != SILStage::Lowered) {
-      SILType loweredFieldTy =
-          operandTy.getFieldType(EI->getField(), F.getModule());
+      SILType loweredFieldTy = operandTy.getFieldType(
+          EI->getField(), F.getModule(), TypeExpansionContext(F));
       require(loweredFieldTy == EI->getType(),
               "result of ref_element_addr does not match type of field");
     }
@@ -2870,7 +2873,8 @@ public:
 
     // The type of the dynamic method must match the usual type of the method,
     // but with the more opaque Self type.
-    auto constantInfo = F.getModule().Types.getConstantInfo(method);
+    auto constantInfo =
+        F.getModule().Types.getConstantInfo(TypeExpansionContext(F), method);
     auto methodTy = constantInfo.SILFnType;
 
     assert(!methodTy->isCoroutine());
@@ -2878,7 +2882,8 @@ public:
     // Map interface types to archetypes.
     if (auto *env = F.getModule().Types.getConstantGenericEnvironment(method)) {
       auto subs = env->getForwardingSubstitutionMap();
-      methodTy = methodTy->substGenericArgs(F.getModule(), subs);
+      methodTy = methodTy->substGenericArgs(F.getModule(), subs,
+                                            TypeExpansionContext(F));
     }
     assert(!methodTy->isPolymorphic());
 
@@ -2946,7 +2951,8 @@ public:
 
   void checkClassMethodInst(ClassMethodInst *CMI) {
     auto member = CMI->getMember();
-    auto overrideTy = TC.getConstantOverrideType(member);
+    auto overrideTy =
+        TC.getConstantOverrideType(TypeExpansionContext(F), member);
     if (CMI->getModule().getStage() != SILStage::Lowered) {
       requireSameType(
           CMI->getType(), SILType::getPrimitiveObjectType(overrideTy),
@@ -2974,7 +2980,8 @@ public:
 
   void checkSuperMethodInst(SuperMethodInst *CMI) {
     auto member = CMI->getMember();
-    auto overrideTy = TC.getConstantOverrideType(member);
+    auto overrideTy =
+        TC.getConstantOverrideType(TypeExpansionContext(F), member);
     if (CMI->getModule().getStage() != SILStage::Lowered) {
       requireSameType(
           CMI->getType(), SILType::getPrimitiveObjectType(overrideTy),
@@ -3025,7 +3032,8 @@ public:
       operandInstanceType = metatypeType.getInstanceType();
 
     if (operandInstanceType.getClassOrBoundGenericClass()) {
-      auto overrideTy = TC.getConstantOverrideType(member);
+      auto overrideTy =
+          TC.getConstantOverrideType(TypeExpansionContext(F), member);
       requireSameType(
           OMI->getType(), SILType::getPrimitiveObjectType(overrideTy),
           "result type of objc_method must match abstracted type of method");
@@ -3050,7 +3058,8 @@ public:
 
   void checkObjCSuperMethodInst(ObjCSuperMethodInst *OMI) {
     auto member = OMI->getMember();
-    auto overrideTy = TC.getConstantOverrideType(member);
+    auto overrideTy =
+        TC.getConstantOverrideType(TypeExpansionContext(F), member);
     if (OMI->getModule().getStage() != SILStage::Lowered) {
       requireSameType(
           OMI->getType(), SILType::getPrimitiveObjectType(overrideTy),
@@ -3893,7 +3902,9 @@ public:
     LLVM_DEBUG(RI->print(llvm::dbgs()));
 
     SILType functionResultType =
-        F.mapTypeIntoContext(fnConv.getSILResultType());
+        F.getLoweredType(
+             F.mapTypeIntoContext(fnConv.getSILResultType()).getASTType())
+            .getCategoryType(fnConv.getSILResultType().getCategory());
     SILType instResultType = RI->getOperand()->getType();
     LLVM_DEBUG(llvm::dbgs() << "function return type: ";
                functionResultType.dump();
@@ -3906,11 +3917,15 @@ public:
   void checkThrowInst(ThrowInst *TI) {
     LLVM_DEBUG(TI->print(llvm::dbgs()));
 
-    CanSILFunctionType fnType = F.getLoweredFunctionType();
+    CanSILFunctionType fnType =
+        F.getLoweredFunctionTypeInContext(TypeExpansionContext(F));
     require(fnType->hasErrorResult(),
             "throw in function that doesn't have an error result");
 
-    SILType functionResultType = F.mapTypeIntoContext(fnConv.getSILErrorType());
+    SILType functionResultType =
+        F.getLoweredType(
+             F.mapTypeIntoContext(fnConv.getSILErrorType()).getASTType())
+            .getCategoryType(fnConv.getSILErrorType().getCategory());
     SILType instResultType = TI->getOperand()->getType();
     LLVM_DEBUG(llvm::dbgs() << "function error result type: ";
                functionResultType.dump();
@@ -3926,7 +3941,8 @@ public:
   }
 
   void checkYieldInst(YieldInst *YI) {
-    CanSILFunctionType fnType = F.getLoweredFunctionType();
+    CanSILFunctionType fnType =
+        F.getLoweredFunctionTypeInContext(TypeExpansionContext(F));
     require(fnType->isCoroutine(),
             "yield in non-coroutine function");
 
@@ -4126,7 +4142,8 @@ public:
         }
 
         if (dest->getArguments().size() == 1) {
-          SILType eltArgTy = uTy.getEnumElementType(elt, F.getModule());
+          SILType eltArgTy = uTy.getEnumElementType(elt, F.getModule(),
+                                                    TypeExpansionContext(F));
           SILType bbArgTy = dest->getArguments()[0]->getType();
           if (F.getModule().getStage() != SILStage::Lowered) {
             // During the lowered stage, a function type might have different
@@ -4532,7 +4549,9 @@ public:
       auto mappedTy = F.mapTypeIntoContext(ty);
       SILArgument *bbarg = *argI;
       ++argI;
-      if (bbarg->getType() != mappedTy) {
+      if (bbarg->getType() != mappedTy &&
+          bbarg->getType() != F.getLoweredType(mappedTy.getASTType())
+                                  .getCategoryType(mappedTy.getCategory())) {
         llvm::errs() << what << " type mismatch!\n";
         llvm::errs() << "  argument: "; bbarg->dump();
         llvm::errs() << "  expected: "; mappedTy.dump();
@@ -5137,7 +5156,8 @@ void SILVTable::verify(const SILModule &M) const {
   for (auto &entry : getEntries()) {
     // All vtable entries must be decls in a class context.
     assert(entry.Method.hasDecl() && "vtable entry is not a decl");
-    auto baseInfo = M.Types.getConstantInfo(entry.Method);
+    auto baseInfo =
+        M.Types.getConstantInfo(TypeExpansionContext::minimal(), entry.Method);
     ValueDecl *decl = entry.Method.getDecl();
 
     assert((!isa<AccessorDecl>(decl)

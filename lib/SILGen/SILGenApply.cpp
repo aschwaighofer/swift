@@ -92,7 +92,8 @@ getIndirectApplyAbstractionPattern(SILGenFunction &SGF,
 static CanFunctionType
 getPartialApplyOfDynamicMethodFormalType(SILGenModule &SGM, SILDeclRef member,
                                          ConcreteDeclRef memberRef) {
-  auto memberCI = SGM.Types.getConstantInfo(member);
+  auto memberCI =
+      SGM.Types.getConstantInfo(TypeExpansionContext::minimal(), member);
 
   // Construct a non-generic version of the formal type.
   // This works because we're only using foreign members, where presumably
@@ -135,7 +136,8 @@ getDynamicMethodLoweredType(SILModule &M,
   auto objcFormalTy = substMemberTy.withExtInfo(substMemberTy->getExtInfo()
              .withSILRepresentation(SILFunctionTypeRepresentation::ObjCMethod));
   return SILType::getPrimitiveObjectType(
-      M.Types.getUncachedSILFunctionTypeForConstant(constant, objcFormalTy));
+      M.Types.getUncachedSILFunctionTypeForConstant(
+          TypeExpansionContext::minimal(), constant, objcFormalTy));
 }
 
 /// Check if we can perform a dynamic dispatch on a super method call.
@@ -384,7 +386,7 @@ public:
                           SubstitutionMap subs,
                           SILLocation l,
                           bool callPreviousDynamicReplaceableImpl = false) {
-    auto &ci = SGF.getConstantInfo(c);
+    auto &ci = SGF.getConstantInfo(TypeExpansionContext(SGF.F), c);
     return Callee(SGF, c, ci.FormalPattern, ci.FormalType, subs, l,
                   callPreviousDynamicReplaceableImpl);
   }
@@ -393,7 +395,7 @@ public:
                                SubstitutionMap subs,
                                SILLocation l) {
     assert(isa<EnumElementDecl>(c.getDecl()));
-    auto &ci = SGF.getConstantInfo(c);
+    auto &ci = SGF.getConstantInfo(TypeExpansionContext(SGF.F), c);
     return Callee(Kind::EnumElement, SGF, c, ci.FormalPattern,
                   ci.FormalType, subs, l);
   }
@@ -401,15 +403,15 @@ public:
                                SILDeclRef c, SubstitutionMap subs,
                                SILLocation l) {
     auto base = c.getOverriddenVTableEntry();
-    auto &baseCI = SGF.getConstantInfo(base);
-    auto &derivedCI = SGF.getConstantInfo(c);
+    auto &baseCI = SGF.getConstantInfo(TypeExpansionContext(SGF.F), base);
+    auto &derivedCI = SGF.getConstantInfo(TypeExpansionContext(SGF.F), c);
     return Callee(Kind::ClassMethod, SGF, c,
                   baseCI.FormalPattern, derivedCI.FormalType, subs, l);
   }
   static Callee forSuperMethod(SILGenFunction &SGF,
                                SILDeclRef c, SubstitutionMap subs,
                                SILLocation l) {
-    auto &ci = SGF.getConstantInfo(c);
+    auto &ci = SGF.getConstantInfo(TypeExpansionContext(SGF.F), c);
     return Callee(Kind::SuperMethod, SGF, c,
                   ci.FormalPattern, ci.FormalType, subs, l);
   }
@@ -432,7 +434,7 @@ public:
                                                               subs);
     }
 
-    auto &ci = SGF.getConstantInfo(c);
+    auto &ci = SGF.getConstantInfo(TypeExpansionContext(SGF.F), c);
     return Callee(Kind::WitnessMethod, SGF, c, ci.FormalPattern,
                   ci.FormalType, subs, l);
   }
@@ -440,7 +442,7 @@ public:
                            SILDeclRef c, SubstitutionMap constantSubs,
                            CanAnyFunctionType substFormalType,
                            SubstitutionMap subs, SILLocation l) {
-    auto &ci = SGF.getConstantInfo(c);
+    auto &ci = SGF.getConstantInfo(TypeExpansionContext(SGF.F), c);
     AbstractionPattern origFormalType = ci.FormalPattern;
 
     // Replace the original self type with the partially-applied subst type.
@@ -536,8 +538,8 @@ public:
     CalleeTypeInfo result;
 
     result.substFnType =
-        formalFnType.castTo<SILFunctionType>()->substGenericArgs(SGF.SGM.M,
-                                                                 Substitutions);
+        formalFnType.castTo<SILFunctionType>()->substGenericArgs(
+            SGF.SGM.M, Substitutions, TypeExpansionContext(SGF.F));
 
     if (!constant || !constant->isForeign)
       return result;
@@ -580,7 +582,8 @@ public:
 
       // If the call is curried, emit a direct call to the curry thunk.
       if (constant->isCurried) {
-        auto constantInfo = SGF.getConstantInfo(*constant);
+        auto constantInfo =
+            SGF.getConstantInfo(TypeExpansionContext(SGF.F), *constant);
         SILValue ref = SGF.emitGlobalFunctionRef(Loc, *constant, constantInfo);
         return ManagedValue::forUnmanaged(ref);
       }
@@ -592,18 +595,21 @@ public:
       return IndirectValue;
     case Kind::EnumElement:
     case Kind::StandaloneFunction: {
-      auto constantInfo = SGF.getConstantInfo(*constant);
+      auto constantInfo =
+          SGF.getConstantInfo(TypeExpansionContext(SGF.F), *constant);
       SILValue ref = SGF.emitGlobalFunctionRef(Loc, *constant, constantInfo);
       return ManagedValue::forUnmanaged(ref);
     }
     case Kind::StandaloneFunctionDynamicallyReplaceableImpl: {
-      auto constantInfo = SGF.getConstantInfo(*constant);
+      auto constantInfo =
+          SGF.getConstantInfo(TypeExpansionContext(SGF.F), *constant);
       SILValue ref =
           SGF.emitGlobalFunctionRef(Loc, *constant, constantInfo, true);
       return ManagedValue::forUnmanaged(ref);
     }
     case Kind::ClassMethod: {
-      auto methodTy = SGF.SGM.Types.getConstantOverrideType(*constant);
+      auto methodTy = SGF.SGM.Types.getConstantOverrideType(
+          TypeExpansionContext(SGF.F), *constant);
 
       // Otherwise, do the dynamic dispatch inline.
       ArgumentScope S(SGF, Loc);
@@ -628,8 +634,8 @@ public:
         SGF, Loc, *borrowedSelf);
 
       auto base = constant->getOverriddenVTableEntry();
-      auto constantInfo =
-          SGF.SGM.Types.getConstantOverrideInfo(*constant, base);
+      auto constantInfo = SGF.SGM.Types.getConstantOverrideInfo(
+          TypeExpansionContext(SGF.F), *constant, base);
 
       ManagedValue fn;
       if (!constant->isForeign) {
@@ -643,8 +649,10 @@ public:
       return fn;
     }
     case Kind::WitnessMethod: {
-      auto constantInfo = SGF.getConstantInfo(*constant);
+      auto constantInfo =
+          SGF.getConstantInfo(TypeExpansionContext(SGF.F), *constant);
 
+      // TODO:  substOpaqueTypesWithUnderlyingTypes ...
       auto proto = cast<ProtocolDecl>(Constant.getDecl()->getDeclContext());
       auto selfType = proto->getSelfInterfaceType()->getCanonicalType();
       auto lookupType = selfType.subst(Substitutions)->getCanonicalType();
@@ -689,7 +697,8 @@ public:
 
       // If the call is curried, emit a direct call to the curry thunk.
       if (constant->isCurried) {
-        auto constantInfo = SGF.getConstantInfo(*constant);
+        auto constantInfo =
+            SGF.getConstantInfo(TypeExpansionContext(SGF.F), *constant);
         return createCalleeTypeInfo(SGF, constant, constantInfo.getSILType());
       }
     }
@@ -701,26 +710,30 @@ public:
 
     case Kind::StandaloneFunctionDynamicallyReplaceableImpl:
     case Kind::StandaloneFunction: {
-      auto constantInfo = SGF.getConstantInfo(*constant);
+      auto constantInfo =
+          SGF.getConstantInfo(TypeExpansionContext(SGF.F), *constant);
       return createCalleeTypeInfo(SGF, constant, constantInfo.getSILType());
     }
     case Kind::EnumElement: {
       // Emit a direct call to the element constructor thunk.
-      auto constantInfo = SGF.getConstantInfo(*constant);
+      auto constantInfo =
+          SGF.getConstantInfo(TypeExpansionContext(SGF.F), *constant);
       return createCalleeTypeInfo(SGF, constant, constantInfo.getSILType());
     }
     case Kind::ClassMethod: {
-      auto constantInfo = SGF.SGM.Types.getConstantOverrideInfo(*constant);
+      auto constantInfo = SGF.SGM.Types.getConstantOverrideInfo(
+          TypeExpansionContext(SGF.F), *constant);
       return createCalleeTypeInfo(SGF, constant, constantInfo.getSILType());
     }
     case Kind::SuperMethod: {
       auto base = constant->getOverriddenVTableEntry();
-      auto constantInfo =
-          SGF.SGM.Types.getConstantOverrideInfo(*constant, base);
+      auto constantInfo = SGF.SGM.Types.getConstantOverrideInfo(
+          TypeExpansionContext(SGF.F), *constant, base);
       return createCalleeTypeInfo(SGF, constant, constantInfo.getSILType());
     }
     case Kind::WitnessMethod: {
-      auto constantInfo = SGF.getConstantInfo(*constant);
+      auto constantInfo =
+          SGF.getConstantInfo(TypeExpansionContext(SGF.F), *constant);
       return createCalleeTypeInfo(SGF, constant, constantInfo.getSILType());
     }
     case Kind::DynamicMethod: {
@@ -3944,8 +3957,8 @@ CallEmission::applyPartiallyAppliedSuperMethod(SGFContext C) {
   // because that's what the partially applied super method expects;
   firstLevelResult.formalType = callee.getSubstFormalType();
   auto origFormalType = AbstractionPattern(firstLevelResult.formalType);
-  auto substFnType =
-      SGF.getSILFunctionType(origFormalType, firstLevelResult.formalType);
+  auto substFnType = SGF.getSILFunctionType(
+      TypeExpansionContext(SGF.F), origFormalType, firstLevelResult.formalType);
 
   // Emit the arguments.
   SmallVector<ManagedValue, 4> uncurriedArgs;
@@ -3971,7 +3984,8 @@ CallEmission::applyPartiallyAppliedSuperMethod(SGFContext C) {
   // partial_apply.
   upcastedSelf = upcastedSelf.ensurePlusOne(SGF, loc);
 
-  auto constantInfo = SGF.getConstantInfo(callee.getMethodName());
+  auto constantInfo =
+      SGF.getConstantInfo(TypeExpansionContext(SGF.F), callee.getMethodName());
   auto functionTy = constantInfo.getSILType();
   ManagedValue superMethod;
   {
@@ -4012,8 +4026,8 @@ CallEmission::applySpecializedEmitter(SpecializedEmitter &specializedEmitter,
   // expect.
   firstLevelResult.formalType = callee.getSubstFormalType();
   auto origFormalType = AbstractionPattern(firstLevelResult.formalType);
-  auto substFnType =
-      SGF.getSILFunctionType(origFormalType, firstLevelResult.formalType);
+  auto substFnType = SGF.getSILFunctionType(
+      TypeExpansionContext(SGF.F), origFormalType, firstLevelResult.formalType);
 
   // If we have an early emitter, just let it take over for the
   // uncurried call site.
@@ -4345,7 +4359,8 @@ bool SILGenModule::isNonMutatingSelfIndirect(SILDeclRef methodRef) {
   if (method->isStatic())
     return false;
 
-  auto fnType = M.Types.getConstantFunctionType(methodRef);
+  auto fnType = M.Types.getConstantFunctionType(TypeExpansionContext::minimal(),
+                                                methodRef);
   auto importAsMember = method->getImportAsMemberStatus();
 
   SILParameterInfo self;
@@ -4632,7 +4647,7 @@ void SILGenFunction::emitYield(SILLocation loc,
   SmallVector<ManagedValue, 4> yieldArgs;
   SmallVector<DelayedArgument, 2> delayedArgs;
 
-  auto fnType = F.getLoweredFunctionType();
+  auto fnType = F.getLoweredFunctionTypeInContext(TypeExpansionContext(F));
   SmallVector<SILParameterInfo, 4> substYieldTys;
   for (auto origYield : fnType->getYields()) {
     substYieldTys.push_back({
@@ -4730,7 +4745,8 @@ ManagedValue SILGenFunction::emitInjectEnum(SILLocation loc,
   // careful to stage the cleanups so that if the expression
   // throws, we know to deallocate the uninitialized box.
   if (element->isIndirect() || element->getParentEnum()->isIndirect()) {
-    auto boxTy = SGM.M.Types.getBoxTypeForEnumElement(enumTy, element);
+    auto boxTy = SGM.M.Types.getBoxTypeForEnumElement(TypeExpansionContext(F),
+                                                      enumTy, element);
     auto *box = B.createAllocBox(loc, boxTy);
     auto *addr = B.createProjectBox(loc, box, 0);
 
@@ -4858,7 +4874,7 @@ RValue SILGenFunction::emitApplyAllocatingInitializer(SILLocation loc,
   // Form the reference to the allocating initializer.
   auto initRef = SILDeclRef(ctor, SILDeclRef::Kind::Allocator)
     .asForeign(requiresForeignEntryPoint(ctor));
-  auto initConstant = getConstantInfo(initRef);
+  auto initConstant = getConstantInfo(TypeExpansionContext(F), initRef);
   auto subs = init.getSubstitutions();
 
   // Scope any further writeback just within this operation.
@@ -4869,8 +4885,8 @@ RValue SILGenFunction::emitApplyAllocatingInitializer(SILLocation loc,
   SILType selfMetaTy;
   {
     // Determine the self metatype type.
-    CanSILFunctionType substFnType =
-      initConstant.SILFnType->substGenericArgs(SGM.M, subs);
+    CanSILFunctionType substFnType = initConstant.SILFnType->substGenericArgs(
+        SGM.M, subs, TypeExpansionContext(F));
     SILType selfParamMetaTy = getSILType(substFnType->getSelfParameter());
 
     if (overriddenSelfType) {
@@ -4961,7 +4977,7 @@ RValue SILGenFunction::emitApplyMethod(SILLocation loc, ConcreteDeclRef declRef,
   // Form the reference to the method.
   auto callRef = SILDeclRef(call, SILDeclRef::Kind::Func)
                      .asForeign(requiresForeignEntryPoint(declRef.getDecl()));
-  auto declRefConstant = getConstantInfo(callRef);
+  auto declRefConstant = getConstantInfo(TypeExpansionContext(F), callRef);
   auto subs = declRef.getSubstitutions();
 
   // Scope any further writeback just within this operation.
@@ -4973,7 +4989,8 @@ RValue SILGenFunction::emitApplyMethod(SILLocation loc, ConcreteDeclRef declRef,
   {
     // Determine the self metatype type.
     CanSILFunctionType substFnType =
-        declRefConstant.SILFnType->substGenericArgs(SGM.M, subs);
+        declRefConstant.SILFnType->substGenericArgs(SGM.M, subs,
+                                                    TypeExpansionContext(F));
     SILType selfParamMetaTy = getSILType(substFnType->getSelfParameter());
     selfMetaTy = selfParamMetaTy;
   }
@@ -5478,8 +5495,8 @@ AccessorBaseArgPreparer::AccessorBaseArgPreparer(SILGenFunction &SGF,
                                                  CanType baseFormalType,
                                                  SILDeclRef accessor)
     : SGF(SGF), loc(loc), base(base), baseFormalType(baseFormalType),
-      accessor(accessor),
-      selfParam(SGF.SGM.Types.getConstantSelfParameter(accessor)),
+      accessor(accessor), selfParam(SGF.SGM.Types.getConstantSelfParameter(
+                              TypeExpansionContext(SGF.F), accessor)),
       baseLoweredType(base.getType()) {
   assert(!base.isInContext());
   assert(!base.isLValue() || !base.hasCleanup());

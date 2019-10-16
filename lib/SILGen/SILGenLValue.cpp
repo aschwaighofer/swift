@@ -201,35 +201,37 @@ static CanType getSubstFormalRValueType(Expr *expr) {
   return expr->getType()->getRValueType()->getCanonicalType();
 }
 
-static LValueTypeData getAbstractedTypeData(SILGenModule &SGM,
+static LValueTypeData getAbstractedTypeData(TypeExpansionContext context,
+                                            SILGenModule &SGM,
                                             SGFAccessKind accessKind,
                                             AbstractionPattern origFormalType,
                                             CanType substFormalType) {
   return {
-    accessKind,
-    origFormalType,
-    substFormalType,
-    SGM.Types.getLoweredRValueType(origFormalType, substFormalType)
-  };
+      accessKind, origFormalType, substFormalType,
+      SGM.Types.getLoweredRValueType(context, origFormalType, substFormalType)};
 }
 
-static LValueTypeData getLogicalStorageTypeData(SILGenModule &SGM,
+static LValueTypeData getLogicalStorageTypeData(TypeExpansionContext context,
+                                                SILGenModule &SGM,
                                                 SGFAccessKind accessKind,
                                                 CanType substFormalType) {
   assert(!isa<ReferenceStorageType>(substFormalType));
   AbstractionPattern origFormalType(
       substFormalType.getReferenceStorageReferent());
-  return getAbstractedTypeData(SGM, accessKind, origFormalType, substFormalType);
+  return getAbstractedTypeData(context, SGM, accessKind, origFormalType,
+                               substFormalType);
 }
 
-static LValueTypeData getPhysicalStorageTypeData(SILGenModule &SGM,
+static LValueTypeData getPhysicalStorageTypeData(TypeExpansionContext context,
+                                                 SILGenModule &SGM,
                                                  SGFAccessKind accessKind,
                                                  AbstractStorageDecl *storage,
                                                  CanType substFormalType) {
   assert(!isa<ReferenceStorageType>(substFormalType));
   auto origFormalType = SGM.Types.getAbstractionPattern(storage)
                                  .getReferenceStorageReferentType();
-  return getAbstractedTypeData(SGM, accessKind, origFormalType, substFormalType);
+  return getAbstractedTypeData(context, SGM, accessKind, origFormalType,
+                               substFormalType);
 }
 
 static bool shouldUseUnsafeEnforcement(VarDecl *var) {
@@ -1208,7 +1210,8 @@ namespace {
 
     bool doesAccessorMutateSelf(SILGenFunction &SGF,
                                 SILDeclRef accessor) const {
-      auto accessorSelf = SGF.SGM.Types.getConstantSelfParameter(accessor);
+      auto accessorSelf = SGF.SGM.Types.getConstantSelfParameter(
+          TypeExpansionContext(SGF.F), accessor);
       return accessorSelf.getType() && accessorSelf.isIndirectMutating();
     }
     
@@ -1395,10 +1398,12 @@ namespace {
         CanType ValType =
             SGF.F.mapTypeIntoContext(backingVar->getInterfaceType())
               ->getCanonicalType();
-        SILType varStorageType =
-          SGF.SGM.Types.getSubstitutedStorageType(backingVar, ValType);
+        // TODO: revist minimal
+        SILType varStorageType = SGF.SGM.Types.getSubstitutedStorageType(
+            TypeExpansionContext::minimal(), backingVar, ValType);
         auto typeData =
-          getLogicalStorageTypeData(SGF.SGM, getTypeData().AccessKind, ValType);
+            getLogicalStorageTypeData(TypeExpansionContext(SGF.F), SGF.SGM,
+                                      getTypeData().AccessKind, ValType);
 
         // Get the address of the storage property.
         ManagedValue proj;
@@ -1440,11 +1445,13 @@ namespace {
         ManagedValue initFn = SGF.emitManagedRValueWithCleanup(initPAI);
 
         // Create the allocating setter function. It captures the base address.
-        auto setterInfo = SGF.getConstantInfo(setter);
+        auto setterInfo =
+            SGF.getConstantInfo(TypeExpansionContext(SGF.F), setter);
         SILValue setterFRef;
         if (setter.hasDecl() && setter.getDecl()->isObjCDynamic()) {
           auto methodTy = SILType::getPrimitiveObjectType(
-              SGF.SGM.Types.getConstantFunctionType(setter));
+              SGF.SGM.Types.getConstantFunctionType(TypeExpansionContext(SGF.F),
+                                                    setter));
           setterFRef = SGF.B.createObjCMethod(
               loc, base.getValue(), setter, methodTy);
         } else
@@ -2014,7 +2021,8 @@ namespace {
       auto subs = SubstitutionMap::get(projectFnType->getGenericSignature(),
                                        keyPathTy->getGenericArgs(), {});
 
-      auto substFnType = projectFnType->substGenericArgs(SGF.SGM.M, subs);
+      auto substFnType = projectFnType->substGenericArgs(
+          SGF.SGM.M, subs, TypeExpansionContext(SGF.F));
 
       // Perform the begin_apply.
       SmallVector<ManagedValue, 1> yields;
@@ -2482,8 +2490,9 @@ namespace {
     void emitUsingStrategy(AccessStrategy strategy) {
       switch (strategy.getKind()) {
       case AccessStrategy::Storage: {
-        auto typeData = getPhysicalStorageTypeData(SGF.SGM, AccessKind, Storage,
-                                                   FormalRValueType);
+        auto typeData =
+            getPhysicalStorageTypeData(TypeExpansionContext(SGF.F), SGF.SGM,
+                                       AccessKind, Storage, FormalRValueType);
         return asImpl().emitUsingStorage(typeData);
       }
 
@@ -2494,8 +2503,8 @@ namespace {
         return asImpl().emitUsingAccessor(strategy.getAccessor(), false);
 
       case AccessStrategy::MaterializeToTemporary: {
-        auto typeData =
-          getLogicalStorageTypeData(SGF.SGM, AccessKind, FormalRValueType);
+        auto typeData = getLogicalStorageTypeData(
+            TypeExpansionContext(SGF.F), SGF.SGM, AccessKind, FormalRValueType);
         return asImpl().emitUsingMaterialization(strategy.getReadStrategy(),
                                                  strategy.getWriteStrategy(),
                                                  typeData);
@@ -2511,22 +2520,24 @@ namespace {
       switch (accessorKind) {
       case AccessorKind::Get:
       case AccessorKind::Set: {
-        auto typeData =
-          getLogicalStorageTypeData(SGF.SGM, AccessKind, FormalRValueType);
+        auto typeData = getLogicalStorageTypeData(
+            TypeExpansionContext(SGF.F), SGF.SGM, AccessKind, FormalRValueType);
         return asImpl().emitUsingGetterSetter(accessor, isDirect, typeData);
       }
 
       case AccessorKind::Address:
       case AccessorKind::MutableAddress: {
-        auto typeData = getPhysicalStorageTypeData(SGF.SGM, AccessKind, Storage,
-                                                   FormalRValueType);
+        auto typeData =
+            getPhysicalStorageTypeData(TypeExpansionContext(SGF.F), SGF.SGM,
+                                       AccessKind, Storage, FormalRValueType);
         return asImpl().emitUsingAddressor(accessor, isDirect, typeData);
       }
 
       case AccessorKind::Read:
       case AccessorKind::Modify: {
-        auto typeData = getPhysicalStorageTypeData(SGF.SGM, AccessKind, Storage,
-                                                   FormalRValueType);
+        auto typeData =
+            getPhysicalStorageTypeData(TypeExpansionContext(SGF.F), SGF.SGM,
+                                       AccessKind, Storage, FormalRValueType);
         return asImpl().emitUsingCoroutineAccessor(accessor, isDirect,
                                                    typeData);
       }
@@ -3050,8 +3061,8 @@ struct MemberStorageAccessEmitter : AccessEmitter<Impl, StorageType> {
 
   void emitUsingAddressor(SILDeclRef addressor, bool isDirect,
                           LValueTypeData typeData) {
-    SILType varStorageType =
-      SGF.SGM.Types.getSubstitutedStorageType(Storage, FormalRValueType);
+    SILType varStorageType = SGF.SGM.Types.getSubstitutedStorageType(
+        TypeExpansionContext(SGF.F), Storage, FormalRValueType);
 
     LV.add<AddressorComponent>(Storage, addressor, IsSuper, isDirect, Subs,
                                BaseFormalType, typeData, varStorageType,
@@ -3115,8 +3126,8 @@ void LValue::addMemberVarComponent(SILGenFunction &SGF, SILLocation loc,
       }
 
       // Otherwise, it's a physical member.
-      SILType varStorageType =
-        SGF.SGM.Types.getSubstitutedStorageType(Storage, FormalRValueType);
+      SILType varStorageType = SGF.SGM.Types.getSubstitutedStorageType(
+          TypeExpansionContext(SGF.F), Storage, FormalRValueType);
 
       if (BaseFormalType->mayHaveSuperclass()) {
         LV.add<RefElementComponent>(Storage, Options, varStorageType, typeData);
@@ -3252,8 +3263,8 @@ LValue SILGenLValue::visitKeyPathApplicationExpr(KeyPathApplicationExpr *e,
   }();
 
   if (useLogical) {
-    auto typeData = getLogicalStorageTypeData(SGF.SGM, accessKind,
-                                              substFormalType);
+    auto typeData = getLogicalStorageTypeData(
+        TypeExpansionContext(SGF.F), SGF.SGM, accessKind, substFormalType);
 
     Type baseFormalType = e->getBase()->getType()->getRValueType();
     lv.add<LogicalKeyPathApplicationComponent>(typeData, keyPathKind, keyPath,
@@ -3263,9 +3274,9 @@ LValue SILGenLValue::visitKeyPathApplicationExpr(KeyPathApplicationExpr *e,
     // in the opaque AbstractionPattern and push an OrigToSubstComponent here
     // so it can be peepholed.
   } else {
-    auto typeData = getAbstractedTypeData(SGF.SGM, accessKind,
-                                          AbstractionPattern::getOpaque(),
-                                          substFormalType);
+    auto typeData = getAbstractedTypeData(
+        TypeExpansionContext::minimal(), SGF.SGM, accessKind,
+        AbstractionPattern::getOpaque(), substFormalType);
 
     lv.add<PhysicalKeyPathApplicationComponent>(typeData, keyPathKind, keyPath);
 

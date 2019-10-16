@@ -572,10 +572,8 @@ public:
   bool hasOpenedExistential(OpenedArchetypeType *opened);
 
   /// Determine whether the type involves an opaque type.
-  bool hasOpaqueArchetype() const {
-    return getRecursiveProperties().hasOpaqueArchetype();
-  }
-  
+  bool hasOpaqueArchetype();
+
   /// Determine whether the type is an opened existential type.
   ///
   /// To determine whether there is an opened existential type
@@ -3633,6 +3631,86 @@ class SILFunctionType;
 typedef CanTypeWrapper<SILFunctionType> CanSILFunctionType;
 class SILFunctionConventions;
 
+/// Describes the context in which types should be expanded.
+/// Required for lowering resilient types and deciding whether to look through
+/// opaque result types to their underlying type.
+class TypeExpansionContext {
+  ResilienceExpansion expansion;
+  // The context (module, function, ...) we are expanding the type in.
+  DeclContext *inContext;
+
+  // The minimal expansion.
+  TypeExpansionContext() {
+    inContext = nullptr;
+    expansion = ResilienceExpansion::Minimal;
+  }
+
+public:
+
+  // Infer the expansion for the SIL function.
+  TypeExpansionContext(const SILFunction &f);
+
+  TypeExpansionContext(ResilienceExpansion expansion, DeclContext *inContext)
+      : expansion(expansion), inContext(inContext) {}
+
+  ResilienceExpansion getResilienceExpansion() const { return expansion; }
+
+  DeclContext *getContext() const { return inContext; }
+
+  bool shouldLookThroughOpaqueTypeArchetypes() {
+    return inContext != nullptr;
+  }
+
+  static TypeExpansionContext minimal() {
+    return TypeExpansionContext();
+  }
+
+  static TypeExpansionContext maximal(DeclContext *inContext) {
+    return TypeExpansionContext(ResilienceExpansion::Maximal, inContext);
+  }
+
+  static TypeExpansionContext maximalResilienceExpansionOnly() {
+    return maximal(nullptr);
+  }
+
+  static TypeExpansionContext
+  noOpaqueTypeArchetypesSubstitution(ResilienceExpansion expansion) {
+    return TypeExpansionContext(expansion, nullptr);
+  }
+
+  bool operator==(const TypeExpansionContext &other) const {
+    return other.inContext == this->inContext &&
+      other.expansion == this->expansion;
+  }
+
+  bool operator<(const TypeExpansionContext other) const {
+    if (this->expansion == other.expansion)
+      return this->inContext < other.inContext;
+    return this->expansion < other.expansion;
+  }
+
+  bool operator>(const TypeExpansionContext other) const {
+    if (this->expansion == other.expansion)
+      return this->inContext > other.inContext;
+    return this->expansion > other.expansion;
+  }
+
+  uintptr_t getHashKey() const {
+    uintptr_t key = (uintptr_t)inContext | (uintptr_t)expansion;
+    return key;
+  }
+};
+
+CanType substOpaqueTypesWithUnderlyingTypes(CanType type,
+                                            TypeExpansionContext context,
+                                            bool allowLoweredTypes = false);
+ProtocolConformanceRef
+substOpaqueTypesWithUnderlyingTypes(ProtocolConformanceRef ref, Type origType,
+                                    TypeExpansionContext context);
+namespace Lowering {
+  class TypeConverter;
+};
+
 /// SILFunctionType - The lowered type of a function value, suitable
 /// for use by SIL.
 ///
@@ -4130,10 +4208,14 @@ public:
                       SILFunction *context = nullptr) const;
 
   CanSILFunctionType substGenericArgs(SILModule &silModule,
-                                      SubstitutionMap subs);
+                                      SubstitutionMap subs,
+                                      TypeExpansionContext context);
   CanSILFunctionType substGenericArgs(SILModule &silModule,
                                       TypeSubstitutionFn subs,
-                                      LookupConformanceFn conformances);
+                                      LookupConformanceFn conformances,
+                                      TypeExpansionContext context);
+  CanSILFunctionType substituteOpaqueArchetypes(Lowering::TypeConverter &TC,
+                                                TypeExpansionContext context);
 
   void Profile(llvm::FoldingSetNodeID &ID) {
     Profile(ID, getGenericSignature(), getExtInfo(), getCoroutineKind(),
@@ -5677,5 +5759,5 @@ struct DenseMapInfo<swift::BuiltinIntegerWidth> {
 };
 
 }
-  
+
 #endif

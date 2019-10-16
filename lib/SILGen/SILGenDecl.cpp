@@ -372,11 +372,12 @@ public:
     assert(decl->hasStorage() && "can't emit storage for a computed variable");
     assert(!SGF.VarLocs.count(decl) && "Already have an entry for this decl?");
 
-    auto boxType = SGF.SGM.Types
-      .getContextBoxTypeForCapture(decl,
-                     SGF.SGM.Types.getLoweredRValueType(decl->getType()),
-                     SGF.F.getGenericEnvironment(),
-                     /*mutable*/ true);
+    auto boxType = SGF.SGM.Types.getContextBoxTypeForCapture(
+        decl,
+        SGF.SGM.Types.getLoweredRValueType(TypeExpansionContext(SGF.F),
+                                           decl->getType()),
+        SGF.F.getGenericEnvironment(),
+        /*mutable*/ true);
 
     // The variable may have its lifetime extended by a closure, heap-allocate
     // it using a box.
@@ -850,7 +851,8 @@ void EnumElementPatternInitialization::emitEnumMatch(
         }
 
         // Otherwise, the bound value for the enum case is available.
-        SILType eltTy = value.getType().getEnumElementType(eltDecl, SGF.SGM.M);
+        SILType eltTy = value.getType().getEnumElementType(
+            eltDecl, SGF.SGM.M, TypeExpansionContext(SGF.F));
         auto &eltTL = SGF.getTypeLowering(eltTy);
 
         if (mv.getType().isAddress()) {
@@ -1238,7 +1240,7 @@ SILValue SILGenFunction::emitOSVersionRangeCheck(SILLocation loc,
 
   auto silDeclRef = SILDeclRef(versionQueryDecl);
   SILValue availabilityGTEFn = emitGlobalFunctionRef(
-      loc, silDeclRef, getConstantInfo(silDeclRef));
+      loc, silDeclRef, getConstantInfo(TypeExpansionContext(F), silDeclRef));
 
   SILValue args[] = {majorValue, minorValue, subminorValue};
   return B.createApply(loc, availabilityGTEFn, SubstitutionMap(), args);

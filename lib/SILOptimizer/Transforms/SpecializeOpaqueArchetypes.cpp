@@ -27,7 +27,7 @@
 
 llvm::cl::opt<bool>
     EnableOpaqueArchetypeSpecializer("enable-opaque-archetype-specializer",
-                                     llvm::cl::init(true));
+                                     llvm::cl::init(false));
 
 using namespace swift;
 
@@ -113,8 +113,9 @@ protected:
     unsigned idx = 0;
     // Adjust field types if neccessary.
     for (VarDecl *field : structDecl->getStoredProperties()) {
-      SILType loweredType = structTy.getFieldType(
-          field, getBuilder().getFunction().getModule());
+      SILType loweredType =
+          structTy.getFieldType(field, getBuilder().getFunction().getModule(),
+                                getBuilder().getTypeExpansionContext());
       if (elements[idx]->getType() != loweredType) {
         elements[idx] = createCast(getOpLocation(Inst->getLoc()), elements[idx],
                                    loweredType);
@@ -149,7 +150,8 @@ protected:
     if (Inst->hasOperand()) {
       opd = getOpValue(Inst->getOperand());
       SILType newCaseTy = newTy.getEnumElementType(
-          Inst->getElement(), getBuilder().getFunction().getModule());
+          Inst->getElement(), getBuilder().getFunction().getModule(),
+          getBuilder().getTypeExpansionContext());
       if (opd->getType() != newCaseTy)
         opd = createCast(getOpLocation(Inst->getLoc()), opd, newCaseTy);
     }
@@ -162,7 +164,8 @@ protected:
     getBuilder().setCurrentDebugScope(getOpScope(Inst->getDebugScope()));
     auto opd = getOpValue(Inst->getOperand());
     auto caseTy = opd->getType().getEnumElementType(
-        Inst->getElement(), getBuilder().getFunction().getModule());
+        Inst->getElement(), getBuilder().getFunction().getModule(),
+        getBuilder().getTypeExpansionContext());
     auto expectedTy = getOpType(Inst->getType());
     if (expectedTy != caseTy)
       expectedTy = caseTy;
@@ -440,8 +443,9 @@ protected:
 
             if (elt->hasAssociatedValues() &&
                 dest->getArguments().size() == 1) {
-              SILType eltArgTy =
-                  enumTy.getEnumElementType(elt, clonedFunction.getModule());
+              SILType eltArgTy = enumTy.getEnumElementType(
+                  elt, clonedFunction.getModule(),
+                  getBuilder().getTypeExpansionContext());
               SILType bbArgTy = dest->getArguments()[0]->getType();
               if (eltArgTy != bbArgTy)
                 replaceBlockArgumentType(switchEnum->getLoc(), dest, eltArgTy);
