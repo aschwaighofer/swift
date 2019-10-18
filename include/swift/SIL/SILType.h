@@ -620,15 +620,15 @@ inline SILType SILField::getObjectType() const {
   return SILType::getPrimitiveObjectType(getLoweredType());
 }
 
-CanType getSILBoxFieldLoweredType(SILBoxType *type,
-                                  Lowering::TypeConverter &TC,
+CanType getSILBoxFieldLoweredType(TypeExpansionContext context,
+                                  SILBoxType *type, Lowering::TypeConverter &TC,
                                   unsigned index);
 
-inline SILType getSILBoxFieldType(SILBoxType *type,
-                                  Lowering::TypeConverter &TC,
+inline SILType getSILBoxFieldType(TypeExpansionContext context,
+                                  SILBoxType *type, Lowering::TypeConverter &TC,
                                   unsigned index) {
   return SILType::getPrimitiveAddressType(
-    getSILBoxFieldLoweredType(type, TC, index));
+      getSILBoxFieldLoweredType(context, type, TC, index));
 }
 
 } // end swift namespace

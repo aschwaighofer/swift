@@ -371,10 +371,10 @@ public:
            "can't emit a local var for a non-local var decl");
     assert(decl->hasStorage() && "can't emit storage for a computed variable");
     assert(!SGF.VarLocs.count(decl) && "Already have an entry for this decl?");
-
+    // The box type's context is lowered in the minimal resilience domain.
     auto boxType = SGF.SGM.Types.getContextBoxTypeForCapture(
         decl,
-        SGF.SGM.Types.getLoweredRValueType(TypeExpansionContext(SGF.F),
+        SGF.SGM.Types.getLoweredRValueType(TypeExpansionContext::minimal(),
                                            decl->getType()),
         SGF.F.getGenericEnvironment(),
         /*mutable*/ true);

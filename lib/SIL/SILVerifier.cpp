@@ -2322,7 +2322,8 @@ public:
             "project_box operand should be a value");
     auto boxTy = I->getOperand()->getType().getAs<SILBoxType>();
     require(boxTy, "project_box operand should be a @box type");
-    require(I->getType() == getSILBoxFieldType(boxTy, F.getModule().Types,
+    require(I->getType() == getSILBoxFieldType(TypeExpansionContext(F), boxTy,
+                                               F.getModule().Types,
                                                I->getFieldIndex()),
             "project_box result should be address of boxed type");
 
@@ -2606,9 +2607,9 @@ public:
     require(AI->getType().isObject(),
             "result of alloc_box must be an object");
     for (unsigned field : indices(AI->getBoxType()->getLayout()->getFields())) {
-      verifyOpenedArchetype(AI,
-        getSILBoxFieldLoweredType(AI->getBoxType(), F.getModule().Types,
-                                  field));
+      verifyOpenedArchetype(AI, getSILBoxFieldLoweredType(
+                                    TypeExpansionContext(F), AI->getBoxType(),
+                                    F.getModule().Types, field));
     }
 
     // An alloc_box with a mark_uninitialized user can not have any other users.

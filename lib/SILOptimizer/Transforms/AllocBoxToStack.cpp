@@ -438,7 +438,8 @@ static bool rewriteAllocBoxAsAllocStack(AllocBoxInst *ABI) {
          && "rewriting multi-field box not implemented");
   auto *ASI = Builder.createAllocStack(
       ABI->getLoc(),
-      getSILBoxFieldType(ABI->getBoxType(), ABI->getModule().Types, 0),
+      getSILBoxFieldType(TypeExpansionContext(*ABI->getFunction()),
+                         ABI->getBoxType(), ABI->getModule().Types, 0),
       ABI->getVarInfo(), ABI->hasDynamicLifetime());
 
   // Transfer a mark_uninitialized if we have one.
@@ -454,9 +455,9 @@ static bool rewriteAllocBoxAsAllocStack(AllocBoxInst *ABI) {
 
   assert(ABI->getBoxType()->getLayout()->getFields().size() == 1
          && "promoting multi-field box not implemented");
-  auto &Lowering = ABI->getFunction()
-    ->getTypeLowering(
-      getSILBoxFieldType(ABI->getBoxType(), ABI->getModule().Types, 0));
+  auto &Lowering = ABI->getFunction()->getTypeLowering(
+      getSILBoxFieldType(TypeExpansionContext(*ABI->getFunction()),
+                         ABI->getBoxType(), ABI->getModule().Types, 0));
   auto Loc = CleanupLocation::get(ABI->getLoc());
 
   for (auto LastRelease : FinalReleases) {
@@ -587,7 +588,7 @@ initCloned(SILOptFunctionBuilder &FuncBuilder, SILFunction *Orig,
         auto &TC = Orig->getModule().Types;
         Lowering::GenericContextScope scope(TC,
                                             OrigFTI->getGenericSignature());
-        paramTy = getSILBoxFieldType(boxTy, TC, 0);
+        paramTy = getSILBoxFieldType(TypeExpansionContext(*Orig), boxTy, TC, 0);
       }
       auto promotedParam = SILParameterInfo(paramTy.getASTType(),
                                   ParameterConvention::Indirect_InoutAliasable);
@@ -651,7 +652,8 @@ PromotedParamCloner::populateCloned() {
       auto boxTy = (*I)->getType().castTo<SILBoxType>();
       assert(boxTy->getLayout()->getFields().size() == 1
              && "promoting multi-field boxes not implemented yet");
-      auto promotedTy = getSILBoxFieldType(boxTy, Cloned->getModule().Types, 0);
+      auto promotedTy = getSILBoxFieldType(TypeExpansionContext(*Cloned), boxTy,
+                                           Cloned->getModule().Types, 0);
       auto *promotedArg =
           ClonedEntryBB->createFunctionArgument(promotedTy, (*I)->getDecl());
       OrigPromotedParameters.insert(*I);

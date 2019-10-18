@@ -4234,8 +4234,9 @@ void IRGenSILFunction::visitDeallocBoxInst(swift::DeallocBoxInst *i) {
 void IRGenSILFunction::visitAllocBoxInst(swift::AllocBoxInst *i) {
   assert(i->getBoxType()->getLayout()->getFields().size() == 1
          && "multi field boxes not implemented yet");
-  const TypeInfo &type = getTypeInfo(
-      getSILBoxFieldType(i->getBoxType(), IGM.getSILModule().Types, 0));
+  const TypeInfo &type = getTypeInfo(getSILBoxFieldType(
+      TypeExpansionContext::maximal(IGM.getSILModule().getSwiftModule()),
+      i->getBoxType(), IGM.getSILModule().Types, 0));
 
   // Derive name from SIL location.
   bool IsAnonymous = false;
@@ -4273,7 +4274,9 @@ void IRGenSILFunction::visitAllocBoxInst(swift::AllocBoxInst *i) {
 
   assert(i->getBoxType()->getLayout()->getFields().size() == 1 &&
          "box for a local variable should only have one field");
-  auto SILTy = getSILBoxFieldType(i->getBoxType(), IGM.getSILModule().Types, 0);
+  auto SILTy = getSILBoxFieldType(
+      TypeExpansionContext::maximal(IGM.getSILModule().getSwiftModule()),
+      i->getBoxType(), IGM.getSILModule().Types, 0);
   auto RealType = SILTy.getASTType();
   auto DbgTy = DebugTypeInfo::getLocalVariable(Decl, RealType, type);
 

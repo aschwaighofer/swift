@@ -187,8 +187,8 @@ SILType Projection::getType(SILType BaseType, SILModule &M,
   case ProjectionKind::Enum:
     return BaseType.getEnumElementType(getEnumElementDecl(BaseType), M, context);
   case ProjectionKind::Box:
-    return getSILBoxFieldType(BaseType.castTo<SILBoxType>(),
-                              M.Types, getIndex());
+    return getSILBoxFieldType(context, BaseType.castTo<SILBoxType>(), M.Types,
+                              getIndex());
   case ProjectionKind::Tuple:
     return BaseType.getTupleElementType(getIndex());
   case ProjectionKind::Upcast:
@@ -339,10 +339,9 @@ void Projection::getFirstLevelProjections(
     for (unsigned field : indices(Box->getLayout()->getFields())) {
       Projection P(ProjectionKind::Box, field);
       LLVM_DEBUG(ProjectionPath X(Ty);
-                 assert(X.getMostDerivedType(Mod, context) == Ty);
-                 X.append(P);
-                 assert(X.getMostDerivedType(Mod, context)
-                        == getSILBoxFieldType(Box, Mod.Types, field));
+                 assert(X.getMostDerivedType(Mod, context) == Ty); X.append(P);
+                 assert(X.getMostDerivedType(Mod, context) ==
+                        getSILBoxFieldType(context, Box, Mod.Types, field));
                  X.verify(Mod, context););
       (void)Box;
       Out.push_back(P);

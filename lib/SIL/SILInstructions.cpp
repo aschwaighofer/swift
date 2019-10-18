@@ -285,7 +285,9 @@ AllocBoxInst *AllocBoxInst::create(SILDebugLocation Loc,
 }
 
 SILType AllocBoxInst::getAddressType() const {
-  return getSILBoxFieldType(getBoxType(), getModule().Types, 0).getAddressType();
+  return getSILBoxFieldType(TypeExpansionContext(*this->getFunction()),
+                            getBoxType(), getModule().Types, 0)
+      .getAddressType();
 }
 
 VarDecl *AllocBoxInst::getDecl() const {

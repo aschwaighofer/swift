@@ -392,21 +392,22 @@ SILType SILType::mapTypeOutOfContext() const {
                                    getCategory());
 }
 
-CanType
-swift::getSILBoxFieldLoweredType(SILBoxType *type, TypeConverter &TC,
-                                 unsigned index) {
+CanType swift::getSILBoxFieldLoweredType(TypeExpansionContext context,
+                                         SILBoxType *type, TypeConverter &TC,
+                                         unsigned index) {
   auto fieldTy = type->getLayout()->getFields()[index].getLoweredType();
   
   // Apply generic arguments if the layout is generic.
   if (auto subMap = type->getSubstitutions()) {
     auto sig = type->getLayout()->getGenericSignature();
-    return SILType::getPrimitiveObjectType(fieldTy)
+    fieldTy = SILType::getPrimitiveObjectType(fieldTy)
       .subst(TC,
              QuerySubstitutionMap{subMap},
              LookUpConformanceInSubstitutionMap(subMap),
              sig)
       .getASTType();
   }
+  fieldTy = TC.getLoweredType(fieldTy, context).getASTType();
   return fieldTy;
 }
 

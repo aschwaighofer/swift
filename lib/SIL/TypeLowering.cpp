@@ -2686,10 +2686,11 @@ TypeConverter::getInterfaceBoxTypeForCapture(ValueDecl *captured,
       env->mapTypeIntoContext(contextBoxTy)
          ->getCanonicalType());
   }
-  assert(contextBoxTy->getLayout()->getFields().size() == 1
-         && getSILBoxFieldType(contextBoxTy, *this, 0).getASTType()
-             == loweredContextType
-         && "box field type doesn't match capture!");
+  assert(contextBoxTy->getLayout()->getFields().size() == 1 &&
+         getSILBoxFieldType(TypeExpansionContext::minimal(), contextBoxTy,
+                            *this, 0)
+                 .getASTType() == loweredContextType &&
+         "box field type doesn't match capture!");
 #endif
   return boxTy;
 }

@@ -264,10 +264,12 @@ void SILGenFunction::emitCaptures(SILLocation loc,
         capturedArgs.push_back(emitUndef(getLoweredType(type).getAddressType()));
         break;
       case CaptureKind::Box: {
-        auto boxTy = SGM.Types.getContextBoxTypeForCapture(vd,
-                                  getLoweredType(type).getASTType(),
-                                  FunctionDC->getGenericEnvironmentOfContext(),
-                                  /*mutable*/ true);
+        auto boxTy = SGM.Types.getContextBoxTypeForCapture(
+            vd,
+            SGM.Types.getLoweredRValueType(TypeExpansionContext::minimal(),
+                                           type),
+            FunctionDC->getGenericEnvironmentOfContext(),
+            /*mutable*/ true);
         capturedArgs.push_back(emitUndef(boxTy));
         break;
       }

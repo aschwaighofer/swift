@@ -1456,7 +1456,8 @@ static SILType getMemoryType(AllocationInst *memory) {
   if (auto *abi = dyn_cast<AllocBoxInst>(memory)) {
     assert(abi->getBoxType()->getLayout()->getFields().size() == 1 &&
            "optimizing multi-field boxes not implemented");
-    return getSILBoxFieldType(abi->getBoxType(), abi->getModule().Types, 0);
+    return getSILBoxFieldType(TypeExpansionContext(*abi->getFunction()),
+                              abi->getBoxType(), abi->getModule().Types, 0);
   }
 
   assert(isa<AllocStackInst>(memory));

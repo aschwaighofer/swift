@@ -401,9 +401,12 @@ static void emitCaptureArguments(SILGenFunction &SGF,
     // LValues are captured as a retained @box that owns
     // the captured value.
     auto type = getVarTypeInCaptureContext();
+    // Get the content for the box in the minimal  resilience domain because we
+    // are declaring a type.
     auto boxTy = SGF.SGM.Types.getContextBoxTypeForCapture(
         VD,
-        SGF.SGM.Types.getLoweredRValueType(TypeExpansionContext(SGF.F), type),
+        SGF.SGM.Types.getLoweredRValueType(TypeExpansionContext::minimal(),
+                                           type),
         SGF.F.getGenericEnvironment(), /*mutable*/ true);
     SILValue box = SGF.F.begin()->createFunctionArgument(
         SILType::getPrimitiveObjectType(boxTy), VD);

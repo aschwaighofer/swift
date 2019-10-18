@@ -913,7 +913,6 @@ SILFunction *SILGenModule::emitClosure(AbstractClosureExpr *ce) {
   // initializer of the containing type.
   if (!f->isExternalDeclaration())
     return f;
-
   preEmitFunction(constant, ce, f, ce);
   PrettyStackTraceSILFunction X("silgen closureexpr", f);
   SILGenFunction(*this, *f, ce).emitClosure(ce);

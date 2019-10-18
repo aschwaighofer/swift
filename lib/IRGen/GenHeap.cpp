@@ -1528,8 +1528,9 @@ const TypeInfo *TypeConverter::convertBoxType(SILBoxType *T) {
   // TODO: Multi-field boxes
   assert(T->getLayout()->getFields().size() == 1
          && "multi-field boxes not implemented yet");
-  auto &eltTI = IGM.getTypeInfoForLowered(
-    getSILBoxFieldLoweredType(T, IGM.getSILModule().Types, 0));
+  auto &eltTI = IGM.getTypeInfoForLowered(getSILBoxFieldLoweredType(
+      TypeExpansionContext::maximal(IGM.getSILModule().getSwiftModule()), T,
+      IGM.getSILModule().Types, 0));
   if (!eltTI.isFixedSize()) {
     if (!NonFixedBoxTI)
       NonFixedBoxTI = new NonFixedBoxTypeInfo(IGM);
@@ -1577,8 +1578,10 @@ const TypeInfo *TypeConverter::convertBoxType(SILBoxType *T) {
   // Produce a tailored box metadata for the type.
   assert(T->getLayout()->getFields().size() == 1
          && "multi-field boxes not implemented yet");
-  return new FixedBoxTypeInfo(IGM,
-      getSILBoxFieldType(T, IGM.getSILModule().Types, 0));
+  return new FixedBoxTypeInfo(
+      IGM, getSILBoxFieldType(TypeExpansionContext::maximal(
+                                  IGM.getSILModule().getSwiftModule()),
+                              T, IGM.getSILModule().Types, 0));
 }
 
 OwnedAddress
@@ -1588,9 +1591,12 @@ irgen::emitAllocateBox(IRGenFunction &IGF, CanSILBoxType boxType,
   auto &boxTI = IGF.getTypeInfoForLowered(boxType).as<BoxTypeInfo>();
   assert(boxType->getLayout()->getFields().size() == 1
          && "multi-field boxes not implemented yet");
-  return boxTI.allocate(IGF,
-                  getSILBoxFieldType(boxType, IGF.IGM.getSILModule().Types, 0),
-                        env, name);
+  return boxTI.allocate(
+      IGF,
+      getSILBoxFieldType(TypeExpansionContext::maximal(
+                             IGF.IGM.getSILModule().getSwiftModule()),
+                         boxType, IGF.IGM.getSILModule().Types, 0),
+      env, name);
 }
 
 void irgen::emitDeallocateBox(IRGenFunction &IGF,
@@ -1599,8 +1605,11 @@ void irgen::emitDeallocateBox(IRGenFunction &IGF,
   auto &boxTI = IGF.getTypeInfoForLowered(boxType).as<BoxTypeInfo>();
   assert(boxType->getLayout()->getFields().size() == 1
          && "multi-field boxes not implemented yet");
-  return boxTI.deallocate(IGF, box,
-                 getSILBoxFieldType(boxType, IGF.IGM.getSILModule().Types, 0));
+  return boxTI.deallocate(
+      IGF, box,
+      getSILBoxFieldType(TypeExpansionContext::maximal(
+                             IGF.IGM.getSILModule().getSwiftModule()),
+                         boxType, IGF.IGM.getSILModule().Types, 0));
 }
 
 Address irgen::emitProjectBox(IRGenFunction &IGF,
@@ -1609,8 +1618,11 @@ Address irgen::emitProjectBox(IRGenFunction &IGF,
   auto &boxTI = IGF.getTypeInfoForLowered(boxType).as<BoxTypeInfo>();
   assert(boxType->getLayout()->getFields().size() == 1
          && "multi-field boxes not implemented yet");
-  return boxTI.project(IGF, box,
-                 getSILBoxFieldType(boxType, IGF.IGM.getSILModule().Types, 0));
+  return boxTI.project(
+      IGF, box,
+      getSILBoxFieldType(TypeExpansionContext::maximal(
+                             IGF.IGM.getSILModule().getSwiftModule()),
+                         boxType, IGF.IGM.getSILModule().Types, 0));
 }
 
 Address irgen::emitAllocateExistentialBoxInBuffer(

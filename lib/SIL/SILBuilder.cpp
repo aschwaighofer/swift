@@ -99,7 +99,8 @@ ProjectBoxInst *SILBuilder::createProjectBox(SILLocation Loc,
                                              SILValue boxOperand,
                                              unsigned index) {
   auto boxTy = boxOperand->getType().castTo<SILBoxType>();
-  auto fieldTy = getSILBoxFieldType(boxTy, getModule().Types, index);
+  auto fieldTy = getSILBoxFieldType(getTypeExpansionContext(), boxTy,
+                                    getModule().Types, index);
 
   return insert(new (getModule()) ProjectBoxInst(
       getSILDebugLocation(Loc), boxOperand, index, fieldTy));
