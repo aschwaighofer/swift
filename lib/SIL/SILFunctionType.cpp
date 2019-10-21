@@ -797,9 +797,14 @@ lowerCaptureContextParameters(TypeConverter &TC, SILDeclRef function,
       break;
     }
     case CaptureKind::Box: {
+      // The type in the box is lowered in the minimal context.
+      auto minimalLoweredTy =
+          TC.getTypeLowering(AbstractionPattern(genericSig, canType), canType,
+                             TypeExpansionContext::minimal())
+              .getLoweredType();
       // Lvalues are captured as a box that owns the captured value.
       auto boxTy = TC.getInterfaceBoxTypeForCapture(
-          VD, loweredTy.getASTType(),
+          VD, minimalLoweredTy.getASTType(),
           /*mutable*/ true);
       auto convention = ParameterConvention::Direct_Guaranteed;
       auto param = SILParameterInfo(boxTy, convention);
@@ -1015,11 +1020,7 @@ static CanSILFunctionType getSILFunctionType(
 
   // Lower the capture context parameters, if any.
   if (constant && constant->getAnyFunctionRef()) {
-    // TODO FIXME: Pass module decl context?
-    auto expansion = TypeExpansionContext::maximal(nullptr);
-    if (constant->isSerialized())
-      expansion = TypeExpansionContext::minimal();
-    lowerCaptureContextParameters(TC, *constant, genericSig, expansion,
+    lowerCaptureContextParameters(TC, *constant, genericSig, expansionContext,
                                   inputs);
   }
   
