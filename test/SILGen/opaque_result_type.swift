@@ -46,3 +46,38 @@ func reabstraction(x: @escaping () -> ()) -> some Any {
   // CHECK: store [[VALUE_REABSTRACT]] to [init] [[UNDERLYING]]
   return x
 }
+
+protocol X {
+  associatedtype A
+  func foo() -> A
+}
+
+extension Int : P {}
+
+func useClosure2(_ cl: () -> ()) {}
+
+func useClosure(_ cl: @escaping () -> ()) {
+  cl()
+}
+
+struct S : X {
+  func foo() -> some P {
+    return 1
+  }
+
+  func testCapture() {
+    var someP = foo()
+    useClosure {
+      someP = self.foo()
+    }
+    print(someP)
+  }
+
+  func testCapture2() {
+    var someP = foo()
+    useClosure2 {
+      someP = self.foo()
+    }
+    print(someP)
+  }
+}
