@@ -1020,8 +1020,11 @@ static CanSILFunctionType getSILFunctionType(
 
   // Lower the capture context parameters, if any.
   if (constant && constant->getAnyFunctionRef()) {
-    lowerCaptureContextParameters(TC, *constant, genericSig, expansionContext,
-                                  inputs);
+    auto expansion =
+        TypeExpansionContext::maximal(expansionContext.getContext());
+    if (constant->isSerialized())
+      expansion = TypeExpansionContext::minimal();
+    lowerCaptureContextParameters(TC, *constant, genericSig, expansion, inputs);
   }
   
   auto calleeConvention = ParameterConvention::Direct_Unowned;
