@@ -419,7 +419,8 @@ static SILValue emitCodeForSymbolicValue(SymbolicValue symVal,
 
     VarDecl *propertyDecl = structDecl->getStoredProperties().front();
     SILType propertyType =
-        expectedType.getFieldType(propertyDecl, builder.getModule());
+        expectedType.getFieldType(propertyDecl, builder.getModule(),
+                                  TypeExpansionContext(builder.getFunction()));
     SymbolicValue propertyVal = symVal.lookThroughSingleElementAggregates();
     SILValue newPropertySIL = emitCodeForSymbolicValue(
         propertyVal, propertyType, builder, loc, stringInfo);
@@ -664,9 +665,11 @@ static bool detectAndDiagnoseErrors(Optional<SymbolicValue> errorInfo,
   StructDecl *structDecl = osLogMessageType.getStructOrBoundGenericStruct();
   assert(structDecl);
 
+  auto typeExpansionContext =
+      TypeExpansionContext(*osLogMessage->getFunction());
   VarDecl *interpolationPropDecl = structDecl->getStoredProperties().front();
-  SILType osLogInterpolationType =
-      osLogMessageType.getFieldType(interpolationPropDecl, module);
+  SILType osLogInterpolationType = osLogMessageType.getFieldType(
+      interpolationPropDecl, module, typeExpansionContext);
   StructDecl *interpolationStruct =
       osLogInterpolationType.getStructOrBoundGenericStruct();
   assert(interpolationStruct);
@@ -682,9 +685,9 @@ static bool detectAndDiagnoseErrors(Optional<SymbolicValue> errorInfo,
       continue;
     }
 
-    if (!isIntegerOrStringType(
-            osLogInterpolationType.getFieldType(propDecl, module),
-            astContext)) {
+    if (!isIntegerOrStringType(osLogInterpolationType.getFieldType(
+                                   propDecl, module, typeExpansionContext),
+                               astContext)) {
       continue;
     }
 

@@ -194,16 +194,23 @@ public:
     assert(F && "cannot create this instruction without a function context");
     return *F;
   }
+
+  TypeExpansionContext getTypeExpansionContext() const {
+    return TypeExpansionContext(getFunction());
+  }
+
   SILBuilderContext &getBuilderContext() const { return C; }
   SILModule &getModule() const { return C.Module; }
   ASTContext &getASTContext() const { return getModule().getASTContext(); }
   const Lowering::TypeLowering &getTypeLowering(SILType T) const {
-    auto expansion = ResilienceExpansion::Maximal;
+
+    auto expansion = TypeExpansionContext::maximal(getModule().getSwiftModule(),
+                                                   getModule().isWholeModule());
     // If there's no current SILFunction, we're inserting into a global
     // variable initializer.
-    if (F)
-      expansion = F->getResilienceExpansion();
-
+    if (F) {
+      expansion = TypeExpansionContext(getFunction());
+    }
     return getModule().Types.getTypeLowering(T, expansion);
   }
 
@@ -333,12 +340,11 @@ public:
   // Type remapping
   //===--------------------------------------------------------------------===//
 
-  static SILType
-  getPartialApplyResultType(SILType Ty, unsigned ArgCount, SILModule &M,
-                            SubstitutionMap subs,
-                            ParameterConvention calleeConvention,
-                            PartialApplyInst::OnStackKind onStack =
-                                PartialApplyInst::OnStackKind::NotOnStack);
+  static SILType getPartialApplyResultType(
+      TypeExpansionContext context, SILType Ty, unsigned ArgCount, SILModule &M,
+      SubstitutionMap subs, ParameterConvention calleeConvention,
+      PartialApplyInst::OnStackKind onStack =
+          PartialApplyInst::OnStackKind::NotOnStack);
 
   //===--------------------------------------------------------------------===//
   // CFG Manipulation
@@ -571,7 +577,8 @@ public:
   FunctionRefBaseInst *createFunctionRefFor(SILLocation Loc, SILFunction *f) {
     if (f->isDynamicallyReplaceable())
       return createDynamicFunctionRef(Loc, f);
-    else return createFunctionRef(Loc, f);
+    else
+      return createFunctionRef(Loc, f);
   }
 
   FunctionRefBaseInst *createFunctionRef(SILLocation Loc, SILFunction *f,
@@ -587,20 +594,20 @@ public:
   }
 
   FunctionRefInst *createFunctionRef(SILLocation Loc, SILFunction *f) {
-    return insert(new (getModule())
-                      FunctionRefInst(getSILDebugLocation(Loc), f));
+    return insert(new (getModule()) FunctionRefInst(getSILDebugLocation(Loc), f,
+                                                    getTypeExpansionContext()));
   }
 
   DynamicFunctionRefInst *
   createDynamicFunctionRef(SILLocation Loc, SILFunction *f) {
     return insert(new (getModule()) DynamicFunctionRefInst(
-        getSILDebugLocation(Loc), f));
+        getSILDebugLocation(Loc), f, getTypeExpansionContext()));
   }
 
   PreviousDynamicFunctionRefInst *
   createPreviousDynamicFunctionRef(SILLocation Loc, SILFunction *f) {
     return insert(new (getModule()) PreviousDynamicFunctionRefInst(
-        getSILDebugLocation(Loc), f));
+        getSILDebugLocation(Loc), f, getTypeExpansionContext()));
   }
 
   AllocGlobalInst *createAllocGlobal(SILLocation Loc, SILGlobalVariable *g) {
@@ -608,16 +615,16 @@ public:
                       AllocGlobalInst(getSILDebugLocation(Loc), g));
   }
   GlobalAddrInst *createGlobalAddr(SILLocation Loc, SILGlobalVariable *g) {
-    return insert(new (getModule())
-                      GlobalAddrInst(getSILDebugLocation(Loc), g));
+    return insert(new (getModule()) GlobalAddrInst(getSILDebugLocation(Loc), g,
+                                                   getTypeExpansionContext()));
   }
   GlobalAddrInst *createGlobalAddr(SILLocation Loc, SILType Ty) {
     return insert(new (F->getModule())
                   GlobalAddrInst(getSILDebugLocation(Loc), Ty));
   }
   GlobalValueInst *createGlobalValue(SILLocation Loc, SILGlobalVariable *g) {
-    return insert(new (getModule())
-                      GlobalValueInst(getSILDebugLocation(Loc), g));
+    return insert(new (getModule()) GlobalValueInst(getSILDebugLocation(Loc), g,
+                                                    getTypeExpansionContext()));
   }
   IntegerLiteralInst *createIntegerLiteral(IntegerLiteralExpr *E);
 
@@ -1282,8 +1289,8 @@ public:
   UncheckedEnumDataInst *createUncheckedEnumData(SILLocation Loc,
                                                  SILValue Operand,
                                                  EnumElementDecl *Element) {
-    SILType EltType =
-        Operand->getType().getEnumElementType(Element, getModule());
+    SILType EltType = Operand->getType().getEnumElementType(
+        Element, getModule(), getTypeExpansionContext());
     return createUncheckedEnumData(Loc, Operand, Element, EltType);
   }
 
@@ -1304,8 +1311,8 @@ public:
   UncheckedTakeEnumDataAddrInst *
   createUncheckedTakeEnumDataAddr(SILLocation Loc, SILValue Operand,
                                   EnumElementDecl *Element) {
-    SILType EltType =
-        Operand->getType().getEnumElementType(Element, getModule());
+    SILType EltType = Operand->getType().getEnumElementType(
+        Element, getModule(), getTypeExpansionContext());
     return createUncheckedTakeEnumDataAddr(Loc, Operand, Element, EltType);
   }
 
@@ -1380,7 +1387,8 @@ public:
 
   StructExtractInst *createStructExtract(SILLocation Loc, SILValue Operand,
                                          VarDecl *Field) {
-    auto type = Operand->getType().getFieldType(Field, getModule());
+    auto type = Operand->getType().getFieldType(Field, getModule(),
+                                                getTypeExpansionContext());
     return createStructExtract(Loc, Operand, Field, type);
   }
 
@@ -1394,7 +1402,8 @@ public:
 
   StructElementAddrInst *
   createStructElementAddr(SILLocation Loc, SILValue Operand, VarDecl *Field) {
-    auto ResultTy = Operand->getType().getFieldType(Field, getModule());
+    auto ResultTy = Operand->getType().getFieldType(Field, getModule(),
+                                                    getTypeExpansionContext());
     return createStructElementAddr(Loc, Operand, Field, ResultTy);
   }
 
@@ -1405,7 +1414,8 @@ public:
   }
   RefElementAddrInst *createRefElementAddr(SILLocation Loc, SILValue Operand,
                                            VarDecl *Field) {
-    auto ResultTy = Operand->getType().getFieldType(Field, getModule());
+    auto ResultTy = Operand->getType().getFieldType(Field, getModule(),
+                                                    getTypeExpansionContext());
     return createRefElementAddr(Loc, Operand, Field, ResultTy);
   }
 
@@ -2128,7 +2138,8 @@ public:
 
   SILValue emitStructExtract(SILLocation Loc, SILValue Operand,
                              VarDecl *Field) {
-    auto type = Operand->getType().getFieldType(Field, getModule());
+    auto type = Operand->getType().getFieldType(Field, getModule(),
+                                                getTypeExpansionContext());
     return emitStructExtract(Loc, Operand, Field, type);
   }
 
