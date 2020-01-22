@@ -518,7 +518,14 @@ static void buildValueWitnessFunction(IRGenModule &IGM,
     value = IGF.Builder.CreateBitCast(value, enumTy);
     auto enumAddr = type.getAddressForPointer(value);
 
-    llvm::Value *result = strategy.emitGetEnumTag(IGF, concreteType, enumAddr);
+    llvm::Value *result;
+    auto &typeLayoutEntry = IGM.getTypeLayoutEntry(concreteType);
+    const auto *enumTypeLayoutEntry = typeLayoutEntry.getAsEnum();
+    if (enumTypeLayoutEntry) {
+      result = enumTypeLayoutEntry->getEnumTag(IGF, enumAddr);
+    } else {
+      result = strategy.emitGetEnumTag(IGF, concreteType, enumAddr);
+    }
     IGF.Builder.CreateRet(result);
     return;
   }
@@ -530,9 +537,15 @@ static void buildValueWitnessFunction(IRGenModule &IGM,
     getArgAsLocalSelfTypeMetadata(IGF, argv, abstractType);
 
     if (!strategy.getElementsWithPayload().empty()) {
-      strategy.destructiveProjectDataForLoad(
-          IGF, concreteType,
-          Address(value, type.getBestKnownAlignment()));
+      auto &typeLayoutEntry = IGM.getTypeLayoutEntry(concreteType);
+      const auto *enumTypeLayoutEntry = typeLayoutEntry.getAsEnum();
+      if (enumTypeLayoutEntry) {
+        enumTypeLayoutEntry->destructiveProjectEnumData(
+            IGF, Address(value, type.getBestKnownAlignment()));
+      } else {
+        strategy.destructiveProjectDataForLoad(
+            IGF, concreteType, Address(value, type.getBestKnownAlignment()));
+      }
     }
 
     IGF.Builder.CreateRetVoid();
@@ -550,10 +563,15 @@ static void buildValueWitnessFunction(IRGenModule &IGM,
     llvm::Value *tag = getArg(argv, "tag");
 
     getArgAsLocalSelfTypeMetadata(IGF, argv, abstractType);
-
-    strategy.emitStoreTag(IGF, concreteType,
-                          Address(value, type.getBestKnownAlignment()),
-                          tag);
+    auto &typeLayoutEntry = IGM.getTypeLayoutEntry(concreteType);
+    const auto *enumTypeLayoutEntry = typeLayoutEntry.getAsEnum();
+    if (enumTypeLayoutEntry) {
+      enumTypeLayoutEntry->destructiveInjectEnumTag(
+          IGF, tag, Address(value, type.getBestKnownAlignment()));
+    } else {
+      strategy.emitStoreTag(IGF, concreteType,
+                            Address(value, type.getBestKnownAlignment()), tag);
+    }
 
     IGF.Builder.CreateRetVoid();
     return;
@@ -567,11 +585,18 @@ static void buildValueWitnessFunction(IRGenModule &IGM,
     llvm::Value *numEmptyCases = getArg(argv, "numEmptyCases");
 
     getArgAsLocalSelfTypeMetadata(IGF, argv, abstractType);
+    auto &typeLayoutEntry = IGM.getTypeLayoutEntry(concreteType);
+    if (!typeLayoutEntry.containsEnum()) {
+      auto *idx = typeLayoutEntry.getEnumTagSinglePayload(
+          IGF, numEmptyCases, Address(value, type.getBestKnownAlignment()));
+      IGF.Builder.CreateRet(idx);
+    } else {
+      llvm::Value *idx = type.getEnumTagSinglePayload(
+          IGF, numEmptyCases, Address(value, type.getBestKnownAlignment()),
+          concreteType, true);
+      IGF.Builder.CreateRet(idx);
+    }
 
-    llvm::Value *idx = type.getEnumTagSinglePayload(
-        IGF, numEmptyCases, Address(value, type.getBestKnownAlignment()),
-        concreteType, true);
-    IGF.Builder.CreateRet(idx);
     return;
   }
 
@@ -584,10 +609,16 @@ static void buildValueWitnessFunction(IRGenModule &IGM,
     llvm::Value *numEmptyCases = getArg(argv, "numEmptyCases");
 
     getArgAsLocalSelfTypeMetadata(IGF, argv, abstractType);
-
-    type.storeEnumTagSinglePayload(IGF, whichCase, numEmptyCases,
-                                   Address(value, type.getBestKnownAlignment()),
-                                   concreteType, true);
+    auto &typeLayoutEntry = IGM.getTypeLayoutEntry(concreteType);
+    if (!typeLayoutEntry.containsEnum()) {
+      typeLayoutEntry.storeEnumTagSinglePayload(
+          IGF, whichCase, numEmptyCases,
+          Address(value, type.getBestKnownAlignment()));
+    } else {
+      type.storeEnumTagSinglePayload(
+          IGF, whichCase, numEmptyCases,
+          Address(value, type.getBestKnownAlignment()), concreteType, true);
+    }
     IGF.Builder.CreateRetVoid();
     return;
   }

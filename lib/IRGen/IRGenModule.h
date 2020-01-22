@@ -20,6 +20,7 @@
 
 #include "IRGen.h"
 #include "SwiftTargetInfo.h"
+#include "TypeLayout.h"
 #include "swift/AST/Decl.h"
 #include "swift/AST/Module.h"
 #include "swift/AST/ReferenceCounting.h"
@@ -556,6 +557,8 @@ public:
   /// incremental compilation.
   llvm::GlobalVariable *ModuleHash;
 
+  TypeLayoutCache typeLayoutCache;
+
   /// Does the current target require Objective-C interoperation?
   bool ObjCInterop = true;
 
@@ -851,6 +854,8 @@ public:
   clang::CanQual<clang::Type> getClangType(SILType type);
   clang::CanQual<clang::Type> getClangType(SILParameterInfo param,
                                            CanSILFunctionType funcTy);
+
+  const TypeLayoutEntry &getTypeLayoutEntry(SILType T);
 
   const clang::ASTContext &getClangASTContext() {
     assert(ClangASTContext &&
