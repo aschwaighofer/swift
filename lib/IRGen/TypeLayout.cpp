@@ -327,6 +327,7 @@ llvm::Value *TypeLayoutEntry::getEnumTagSinglePayloadGeneric(
   Builder.CreateCondBr(isNonZeroXI, hasXIBB, contBB2);
   {
     Builder.emitBlock(hasXIBB);
+    ConditionalDominanceScope scope(IGF);
     // Get tag in payload.
     auto tagInPayload = getExtraInhabitantIndexFun(addr);
     result0->addIncoming(tagInPayload, Builder.GetInsertBlock());
@@ -1323,7 +1324,10 @@ void EnumTypeLayoutEntry::multiPayloadEnumForPayloadAndEmptyCases(
 
   if (anyTrivial) {
     Builder.emitBlock(trivialBB);
-    noPayloadFunction();
+    {
+      ConditionalDominanceScope scope(IGF);
+      noPayloadFunction();
+    }
     Builder.CreateBr(endBB);
   } else {
     // If there are no trivial cases to handle, this is unreachable.
