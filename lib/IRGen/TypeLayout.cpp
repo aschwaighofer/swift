@@ -42,6 +42,11 @@ llvm::Value *TypeLayoutEntry::size(IRGenFunction &IGF) const {
   return IGF.IGM.getSize(Size(0));
 }
 
+llvm::Value *TypeLayoutEntry::isBitwiseTakable(IRGenFunction &IGF) const {
+  assert(isEmpty());
+  return llvm::ConstantInt::get(IGF.IGM.Int1Ty, true);
+}
+
 llvm::Value *TypeLayoutEntry::extraInhabitantCount(IRGenFunction &IGF) const {
   assert(isEmpty());
   return llvm::ConstantInt::get(IGF.IGM.Int32Ty, 0);
@@ -486,6 +491,86 @@ void TypeLayoutEntry::storeEnumTagSinglePayloadGeneric(
   Builder.emitBlock(returnBB);
 }
 
+static llvm::Value *projectOutlineBuffer(IRGenFunction &IGF, Address buffer,
+                                         llvm::Value *alignmentMask) {
+  auto &IGM = IGF.IGM;
+  auto &Builder = IGF.Builder;
+  Address boxAddress(Builder.CreateBitCast(buffer.getAddress(),
+                                           IGM.RefCountedPtrTy->getPointerTo()),
+                     buffer.getAlignment());
+  auto *boxStart = Builder.CreateLoad(boxAddress);
+  auto *heapHeaderSize =
+      llvm::ConstantInt::get(IGM.SizeTy, IGM.RefCountedStructSize.getValue());
+  auto *startOffset =
+      Builder.CreateAnd(Builder.CreateAdd(heapHeaderSize, alignmentMask),
+                        Builder.CreateNot(alignmentMask));
+  auto *addressInBox =
+      IGF.emitByteOffsetGEP(boxStart, startOffset, IGM.OpaqueTy);
+
+  addressInBox = Builder.CreateBitCast(addressInBox, IGM.OpaquePtrTy);
+  return addressInBox;
+}
+
+llvm::Value *TypeLayoutEntry::initBufferWithCopyOfBuffer(IRGenFunction &IGF,
+                                                         Address dest,
+                                                         Address src) const {
+  auto &IGM = IGF.IGM;
+  auto &Builder = IGF.Builder;
+
+  auto size = this->size(IGF);
+  auto alignMask = this->alignmentMask(IGF);
+  auto isBitwiseTakable = this->isBitwiseTakable(IGF);
+
+  auto bufferSize = IGM.getSize(getFixedBufferSize(IGM));
+  auto bufferAlign = IGM.getSize(Size(getFixedBufferAlignment(IGM).getValue()));
+  auto bufferAlignMask = Builder.CreateSub(bufferAlign, IGM.getSize(Size(1)));
+
+  auto bufferAlignFits = Builder.CreateICmpUGE(bufferAlignMask, alignMask);
+  auto bufferFits = Builder.CreateICmpUGE(bufferSize, size);
+
+  auto canUseInline = Builder.CreateAnd(isBitwiseTakable, bufferFits);
+  canUseInline = Builder.CreateAnd(canUseInline, bufferAlignFits);
+
+  auto inlineBB = IGF.createBasicBlock("inlineBB");
+  auto allocateBB = IGF.createBasicBlock("allocateBB");
+  auto finishedBB = IGF.createBasicBlock("");
+  auto pointerToObject = llvm::PHINode::Create(IGM.OpaquePtrTy, 2);
+  Builder.CreateCondBr(canUseInline, inlineBB, allocateBB);
+
+  Builder.emitBlock(inlineBB);
+  {
+    // Inline of the buffer.
+    this->initWithCopy(IGF, dest, src);
+    pointerToObject->addIncoming(
+        Builder.CreateBitCast(dest, IGM.OpaquePtrTy).getAddress(),
+        Builder.GetInsertBlock());
+    Builder.CreateBr(finishedBB);
+  }
+
+  Builder.emitBlock(allocateBB);
+  {
+    // The buffer stores a reference to a copy-on-write managed heap buffer.
+    auto *destReferenceAddr = Builder.CreateBitCast(
+        dest.getAddress(), IGM.RefCountedPtrTy->getPointerTo());
+    auto *srcReferenceAddr = Builder.CreateBitCast(
+        src.getAddress(), IGM.RefCountedPtrTy->getPointerTo());
+    auto *srcReference =
+        Builder.CreateLoad(srcReferenceAddr, src.getAlignment());
+    IGF.emitNativeStrongRetain(srcReference, IGF.getDefaultAtomicity());
+    Builder.CreateStore(srcReference,
+                        Address(destReferenceAddr, dest.getAlignment()));
+
+    pointerToObject->addIncoming(projectOutlineBuffer(IGF, dest, alignMask),
+                                 Builder.GetInsertBlock());
+    Builder.CreateBr(finishedBB);
+  }
+
+  Builder.emitBlock(finishedBB);
+  Builder.Insert(pointerToObject);
+
+  return pointerToObject;
+}
+
 void ScalarTypeLayoutEntry::Profile(llvm::FoldingSetNodeID &id) const {
   ScalarTypeLayoutEntry::Profile(id, typeInfo);
 }
@@ -514,6 +599,13 @@ ScalarTypeLayoutEntry::extraInhabitantCount(IRGenFunction &IGF) const {
   auto fixedXICount =
       cast<FixedTypeInfo>(typeInfo).getFixedExtraInhabitantCount(IGM);
   return llvm::ConstantInt::get(IGM.Int32Ty, fixedXICount);
+}
+
+llvm::Value *ScalarTypeLayoutEntry::isBitwiseTakable(IRGenFunction &IGF) const {
+  assert(typeInfo.isFixedSize());
+  return llvm::ConstantInt::get(IGF.IGM.Int1Ty,
+                                cast<FixedTypeInfo>(typeInfo).isBitwiseTakable(
+                                    ResilienceExpansion::Maximal));
 }
 
 bool ScalarTypeLayoutEntry::containsEnum() const {
@@ -692,6 +784,17 @@ llvm::Value *AlignedGroupEntry::extraInhabitantCount(IRGenFunction &IGF) const {
   }
   currentMaxXICount->setName("num-extra-inhabitants");
   return currentMaxXICount;
+}
+
+llvm::Value *AlignedGroupEntry::isBitwiseTakable(IRGenFunction &IGF) const {
+  auto &IGM = IGF.IGM;
+  auto &Builder = IGF.Builder;
+  llvm::Value *isBitwiseTakable = llvm::ConstantInt::get(IGM.Int1Ty, true);
+  for(auto *entry : entries) {
+    isBitwiseTakable =
+        Builder.CreateAnd(isBitwiseTakable, entry->isBitwiseTakable(IGF));
+  }
+  return isBitwiseTakable;
 }
 
 static Address alignAddress(IRGenFunction &IGF, Address addr,
@@ -922,6 +1025,11 @@ ArchetypeLayoutEntry::extraInhabitantCount(IRGenFunction &IGF) const {
   return emitLoadOfExtraInhabitantCount(IGF, archetype);
 }
 
+llvm::Value *
+ArchetypeLayoutEntry::isBitwiseTakable(IRGenFunction &IGF) const {
+  return emitLoadOfIsBitwiseTakable(IGF, archetype);
+}
+
 bool ArchetypeLayoutEntry::containsEnum() const {
   return false;
 }
@@ -1018,6 +1126,17 @@ llvm::Value *EnumTypeLayoutEntry::maxPayloadSize(IRGenFunction &IGF) const {
     payloadSize->setName("payload-size");
   }
   return payloadSize;
+}
+
+llvm::Value *EnumTypeLayoutEntry::isBitwiseTakable(IRGenFunction &IGF) const {
+  auto &IGM = IGF.IGM;
+  auto &Builder = IGF.Builder;
+  llvm::Value *isBitwiseTakable = llvm::ConstantInt::get(IGM.Int1Ty, true);
+  for (auto &entry: cases) {
+    isBitwiseTakable =
+        Builder.CreateAnd(isBitwiseTakable, entry->isBitwiseTakable(IGF));
+  }
+  return isBitwiseTakable;
 }
 
 bool EnumTypeLayoutEntry::containsEnum() const {
@@ -1889,6 +2008,11 @@ llvm::Value *ResilientTypeLayoutEntry::size(IRGenFunction &IGF) const {
 llvm::Value *
 ResilientTypeLayoutEntry::extraInhabitantCount(IRGenFunction &IGF) const {
   return emitLoadOfExtraInhabitantCount(IGF, ty);
+}
+
+llvm::Value *
+ResilientTypeLayoutEntry::isBitwiseTakable(IRGenFunction &IGF) const {
+  return emitLoadOfIsBitwiseTakable(IGF, ty);
 }
 
 bool ResilientTypeLayoutEntry::containsEnum() const {

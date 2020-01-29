@@ -494,11 +494,17 @@ static void buildValueWitnessFunction(IRGenModule &IGM,
     Address src = getArgAsBuffer(IGF, argv, "src");
     getArgAsLocalSelfTypeMetadata(IGF, argv, abstractType);
 
-    Address result =
-      emitInitializeBufferWithCopyOfBuffer(IGF, dest, src, concreteType,
-                                           type, packing);
-    result = IGF.Builder.CreateBitCast(result, IGF.IGM.OpaquePtrTy);
-    IGF.Builder.CreateRet(result.getAddress());
+    llvm::Value *objectPtr = nullptr;
+    auto &typeLayoutEntry = IGM.getTypeLayoutEntry(concreteType);
+    if (!typeLayoutEntry.containsEnum()) {
+      objectPtr = typeLayoutEntry.initBufferWithCopyOfBuffer(IGF, dest, src);
+    } else {
+      Address result = emitInitializeBufferWithCopyOfBuffer(
+          IGF, dest, src, concreteType, type, packing);
+      result = IGF.Builder.CreateBitCast(result, IGF.IGM.OpaquePtrTy);
+      objectPtr = result.getAddress();
+    }
+    IGF.Builder.CreateRet(objectPtr);
     return;
   }
 

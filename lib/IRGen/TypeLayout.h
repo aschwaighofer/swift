@@ -46,6 +46,7 @@ public:
   virtual llvm::Value *alignmentMask(IRGenFunction &IGF) const;
   virtual llvm::Value *size(IRGenFunction &IGF) const;
   virtual llvm::Value *extraInhabitantCount(IRGenFunction &IGF) const;
+  virtual llvm::Value *isBitwiseTakable(IRGenFunction &IGF) const;
 
   virtual void destroy(IRGenFunction &IGF, Address addr) const;
 
@@ -62,7 +63,12 @@ public:
   virtual void initWithCopy(IRGenFunction &IGF, Address dest,
                               Address src) const;
   virtual void initWithTake(IRGenFunction &IGF, Address dest,
-                              Address src) const;
+                            Address src) const;
+
+  /// Returns a pointer to the object (T*) inside of the buffer.
+  virtual llvm::Value *initBufferWithCopyOfBuffer(IRGenFunction &IGF,
+                                                  Address dest,
+                                                  Address src) const;
 
   virtual llvm::Value *getEnumTagSinglePayload(IRGenFunction &IGF,
                                                llvm::Value *numEmptyCases,
@@ -115,6 +121,7 @@ public:
   llvm::Value *alignmentMask(IRGenFunction &IGF) const override;
   llvm::Value *size(IRGenFunction &IGF) const override;
   llvm::Value *extraInhabitantCount(IRGenFunction &IGF) const override;
+  llvm::Value *isBitwiseTakable(IRGenFunction &IGF) const override;
 
   void destroy(IRGenFunction &IGF, Address addr) const override;
 
@@ -161,6 +168,7 @@ public:
   llvm::Value *alignmentMask(IRGenFunction &IGF) const override;
   llvm::Value *size(IRGenFunction &IGF) const override;
   llvm::Value *extraInhabitantCount(IRGenFunction &IGF) const override;
+  llvm::Value *isBitwiseTakable(IRGenFunction &IGF) const override;
 
   void destroy(IRGenFunction &IGF, Address addr) const override;
 
@@ -206,6 +214,7 @@ public:
   llvm::Value *alignmentMask(IRGenFunction &IGF) const override;
   llvm::Value *size(IRGenFunction &IGF) const override;
   llvm::Value *extraInhabitantCount(IRGenFunction &IGF) const override;
+  llvm::Value *isBitwiseTakable(IRGenFunction &IGF) const override;
 
   void destroy(IRGenFunction &IGF, Address addr) const override;
 
@@ -256,6 +265,7 @@ public:
   llvm::Value *alignmentMask(IRGenFunction &IGF) const override;
   llvm::Value *size(IRGenFunction &IGF) const override;
   llvm::Value *extraInhabitantCount(IRGenFunction &IGF) const override;
+  llvm::Value *isBitwiseTakable(IRGenFunction &IGF) const override;
 
   void destroy(IRGenFunction &IGF, Address addr) const override;
 
@@ -319,6 +329,7 @@ public:
   llvm::Value *alignmentMask(IRGenFunction &IGF) const override;
   llvm::Value *size(IRGenFunction &IGF) const override;
   llvm::Value *extraInhabitantCount(IRGenFunction &IGF) const override;
+  llvm::Value *isBitwiseTakable(IRGenFunction &IGF) const override;
 
   void destroy(IRGenFunction &IGF, Address addr) const override;
 
