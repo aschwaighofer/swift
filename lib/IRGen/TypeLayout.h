@@ -365,6 +365,11 @@ private:
   void assignSinglePayloadEnum(IRGenFunction &IGF, Address dest, Address src,
                                IsTake_t isTake) const;
 
+  void initializeMultiPayloadEnum(IRGenFunction &IGF, Address dest,
+                                   Address src, IsTake_t isTake) const;
+  void assignMultiPayloadEnum(IRGenFunction &IGF, Address dest, Address src,
+                              IsTake_t isTake) const;
+
   std::pair<Address, llvm::Value *>
   getMultiPalyloadEnumTagByteAddrAndNumBytes(IRGenFunction &IGF,
                                              Address addr) const;
@@ -395,6 +400,15 @@ private:
   /// Store a value to the enum's payload bytes.
   void storeMultiPayloadValue(IRGenFunction &IGF, llvm::Value *value,
                               Address enumAddr) const;
+
+  void destroyMultiPayloadEnum(IRGenFunction &IGF, Address enumAddr) const;
+  void destroySinglePayloadEnum(IRGenFunction &IGF, Address enumAddr) const;
+
+  void multiPayloadEnumForPayloadAndEmptyCases(
+      IRGenFunction &IGF, Address addr,
+      llvm::function_ref<void(TypeLayoutEntry *payload, llvm::Value *tagIndex)>
+          payloadFunction,
+      llvm::function_ref<void()> noPayloadFunction) const;
 };
 
 class TypeLayoutCache {

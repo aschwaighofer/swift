@@ -10,11 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 #include "TypeLayout.h"
+#include "EnumPayload.h"
 #include "FixedTypeInfo.h"
 #include "GenOpaque.h"
 #include "IRGen.h"
 #include "IRGenFunction.h"
 #include "IRGenModule.h"
+#include "SwitchBuilder.h"
 #include "swift/ABI/MetadataValues.h"
 #include "llvm/IR/DerivedTypes.h"
 
@@ -1140,11 +1142,16 @@ llvm::Value *EnumTypeLayoutEntry::extraInhabitantCount(IRGenFunction &IGF) const
 
 static void emitMemCpy(IRGenFunction &IGF, Address dest, Address src,
                        llvm::Value *size) {
+  auto &Builder = IGF.Builder;
+  auto &IGM = IGF.IGM;
+
   // If the layout is fixed, the size will be a constant.
   // Otherwise, do a memcpy of the dynamic size of the type.
-  IGF.Builder.CreateMemCpy(dest.getAddress(), dest.getAlignment().getValue(),
-                           src.getAddress(), src.getAlignment().getValue(),
-                           size);
+  auto byteDestAddr = Builder.CreateBitOrPointerCast(dest.getAddress(), IGM.Int8PtrTy);
+  auto byteSrcAddr =
+      Builder.CreateBitOrPointerCast(src.getAddress(), IGM.Int8PtrTy);
+  Builder.CreateMemCpy(byteDestAddr, dest.getAlignment().getValue(),
+                       byteSrcAddr, src.getAlignment().getValue(), size);
 }
 
 llvm::BasicBlock *
@@ -1277,13 +1284,118 @@ void EnumTypeLayoutEntry::assignSinglePayloadEnum(IRGenFunction &IGF,
   Builder.emitBlock(endBB);
 }
 
-void EnumTypeLayoutEntry::destroy(IRGenFunction &IGF, Address addr) const {
-  assert(!cases.empty());
+void EnumTypeLayoutEntry::multiPayloadEnumForPayloadAndEmptyCases(
+    IRGenFunction &IGF, Address addr,
+    llvm::function_ref<void(TypeLayoutEntry *payload, llvm::Value *tagIndex)>
+        payloadFunction,
+    llvm::function_ref<void()> noPayloadFunction) const {
+  auto &IGM = IGF.IGM;
+  auto &Builder = IGF.Builder;
+  auto &ctxt = IGM.getLLVMContext();
 
-  if (cases.size() == 1) {
-    // Check that there is a payload at the address.
-    llvm::BasicBlock *endBB = testSinglePayloadEnumContainsPayload(IGF, addr);
+  auto tag = getEnumTagMultipayload(IGF, addr);
+  auto *endBB = llvm::BasicBlock::Create(ctxt);
 
+  auto *trivialBB = llvm::BasicBlock::Create(ctxt);
+  bool anyTrivial = numEmptyCases != 0;
+  unsigned numPayloads = cases.size();
+
+  auto switchBuilder = SwitchBuilder::create(
+      IGF, tag,
+      SwitchDefaultDest(trivialBB,
+                        anyTrivial ? IsNotUnreachable : IsUnreachable),
+      numPayloads);
+
+  unsigned tagIndex = 0;
+  // Payload cases start at 0.
+  for (auto &payload : cases) {
+    auto *caseBB = llvm::BasicBlock::Create(ctxt);
+    auto *tag = IGM.getInt32(tagIndex);
+    switchBuilder->addCase(tag, caseBB);
+    Builder.emitBlock(caseBB);
+    {
+      ConditionalDominanceScope scope(IGF);
+      payloadFunction(payload, tag);
+    }
+    Builder.CreateBr(endBB);
+    ++tagIndex;
+  }
+
+  if (anyTrivial) {
+    Builder.emitBlock(trivialBB);
+    noPayloadFunction();
+    Builder.CreateBr(endBB);
+  } else {
+    // If there are no trivial cases to handle, this is unreachable.
+    if (trivialBB->use_empty()) {
+      delete trivialBB;
+    } else {
+      Builder.emitBlock(trivialBB);
+      Builder.CreateUnreachable();
+    }
+  }
+
+  Builder.emitBlock(endBB);
+}
+
+void EnumTypeLayoutEntry::destroyMultiPayloadEnum(IRGenFunction &IGF,
+                                                  Address addr) const {
+  multiPayloadEnumForPayloadAndEmptyCases(
+      IGF, addr,
+      [&](TypeLayoutEntry *payload, llvm::Value *) {
+        payload->destroy(IGF, addr);
+      },
+      []() { /* nothing to do */ });
+}
+
+void EnumTypeLayoutEntry::assignMultiPayloadEnum(IRGenFunction &IGF,
+                                                 Address dest, Address src,
+                                                 IsTake_t isTake) const {
+  auto &IGM = IGF.IGM;
+  auto &Builder = IGF.Builder;
+  auto &ctxt = IGM.getLLVMContext();
+  auto *endBB = llvm::BasicBlock::Create(ctxt);
+
+  // Check whether the source and destination alias.
+  llvm::Value *alias =
+      Builder.CreateICmpEQ(dest.getAddress(), src.getAddress());
+  auto *noAliasBB = llvm::BasicBlock::Create(ctxt);
+  Builder.CreateCondBr(alias, endBB, noAliasBB);
+  Builder.emitBlock(noAliasBB);
+  {
+    ConditionalDominanceScope condition(IGF);
+
+    // Destroy the old value.
+    destroyMultiPayloadEnum(IGF, dest);
+
+    // Reinitialize with the new value.
+    initializeMultiPayloadEnum(IGF, dest, src, isTake);
+
+    IGF.Builder.CreateBr(endBB);
+  }
+  IGF.Builder.emitBlock(endBB);
+}
+
+void EnumTypeLayoutEntry::initializeMultiPayloadEnum(IRGenFunction &IGF,
+                                                     Address dest, Address src,
+                                                     IsTake_t isTake) const {
+  multiPayloadEnumForPayloadAndEmptyCases(
+      IGF, src,
+      [&](TypeLayoutEntry *payload, llvm::Value *tagIndex) {
+        if (isTake)
+          payload->initWithTake(IGF, dest, src);
+        else
+          payload->initWithCopy(IGF, dest, src);
+        storeMultiPayloadTag(IGF, tagIndex, dest);
+      },
+      [&]() { emitMemCpy(IGF, dest, src, this->size(IGF)); });
+}
+
+void EnumTypeLayoutEntry::destroySinglePayloadEnum(IRGenFunction &IGF,
+                                                   Address addr) const {
+  // Check that there is a payload at the address.
+  llvm::BasicBlock *endBB = testSinglePayloadEnumContainsPayload(IGF, addr);
+  {
     ConditionalDominanceScope condition(IGF);
 
     // If there is, destroy it.
@@ -1291,11 +1403,19 @@ void EnumTypeLayoutEntry::destroy(IRGenFunction &IGF, Address addr) const {
     payload->destroy(IGF, addr);
 
     IGF.Builder.CreateBr(endBB);
-    IGF.Builder.emitBlock(endBB);
+  }
+  IGF.Builder.emitBlock(endBB);
+}
+
+void EnumTypeLayoutEntry::destroy(IRGenFunction &IGF, Address addr) const {
+  assert(!cases.empty());
+
+  if (cases.size() == 1) {
+    destroySinglePayloadEnum(IGF, addr);
     return;
   }
 
-  llvm_unreachable("not yet implemented");
+  destroyMultiPayloadEnum(IGF, addr);
 }
 
 void EnumTypeLayoutEntry::assignWithCopy(IRGenFunction &IGF, Address dest,
@@ -1304,9 +1424,8 @@ void EnumTypeLayoutEntry::assignWithCopy(IRGenFunction &IGF, Address dest,
   if (cases.size() == 1) {
     return assignSinglePayloadEnum(IGF, dest, src, IsNotTake);
   }
-
   assert(cases.size() > 1);
-  llvm_unreachable("not yet implemented");
+  assignMultiPayloadEnum(IGF, dest, src, IsNotTake);
 }
 
 void EnumTypeLayoutEntry::assignWithTake(IRGenFunction &IGF, Address dest,
@@ -1317,7 +1436,7 @@ void EnumTypeLayoutEntry::assignWithTake(IRGenFunction &IGF, Address dest,
   }
 
   assert(cases.size() > 1);
-  llvm_unreachable("not yet implemented");
+  assignMultiPayloadEnum(IGF, dest, src, IsTake);
 }
 
 void EnumTypeLayoutEntry::initWithCopy(IRGenFunction &IGF, Address dest,
@@ -1328,7 +1447,7 @@ void EnumTypeLayoutEntry::initWithCopy(IRGenFunction &IGF, Address dest,
   }
 
   assert(cases.size() > 1);
-  llvm_unreachable("not yet implemented");
+  initializeMultiPayloadEnum(IGF, dest, src, IsNotTake);
 }
 
 void EnumTypeLayoutEntry::initWithTake(IRGenFunction &IGF, Address dest,
@@ -1339,7 +1458,7 @@ void EnumTypeLayoutEntry::initWithTake(IRGenFunction &IGF, Address dest,
   }
 
   assert(cases.size() > 1);
-  llvm_unreachable("not yet implemented");
+  initializeMultiPayloadEnum(IGF, dest, src, IsTake);
 }
 
 std::pair<Address, llvm::Value *>
