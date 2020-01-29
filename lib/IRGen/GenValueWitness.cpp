@@ -449,7 +449,13 @@ static void buildValueWitnessFunction(IRGenModule &IGM,
     Address dest = getArgAs(IGF, argv, type, "dest");
     Address src = getArgAs(IGF, argv, type, "src");
     getArgAsLocalSelfTypeMetadata(IGF, argv, abstractType);
-    type.assignWithCopy(IGF, dest, src, concreteType, true);
+
+    auto &typeLayoutEntry = IGM.getTypeLayoutEntry(concreteType);
+    if (!typeLayoutEntry.containsEnum()) {
+      typeLayoutEntry.assignWithCopy(IGF, dest, src);
+    } else {
+      type.assignWithCopy(IGF, dest, src, concreteType, true);
+    }
     dest = IGF.Builder.CreateBitCast(dest, IGF.IGM.OpaquePtrTy);
     IGF.Builder.CreateRet(dest.getAddress());
     return;
@@ -459,7 +465,12 @@ static void buildValueWitnessFunction(IRGenModule &IGM,
     Address dest = getArgAs(IGF, argv, type, "dest");
     Address src = getArgAs(IGF, argv, type, "src");
     getArgAsLocalSelfTypeMetadata(IGF, argv, abstractType);
-    type.assignWithTake(IGF, dest, src, concreteType, true);
+    auto &typeLayoutEntry = IGM.getTypeLayoutEntry(concreteType);
+    if (!typeLayoutEntry.containsEnum()) {
+      typeLayoutEntry.assignWithTake(IGF, dest, src);
+    } else {
+      type.assignWithTake(IGF, dest, src, concreteType, true);
+    }
     dest = IGF.Builder.CreateBitCast(dest, IGF.IGM.OpaquePtrTy);
     IGF.Builder.CreateRet(dest.getAddress());
     return;
@@ -468,7 +479,12 @@ static void buildValueWitnessFunction(IRGenModule &IGM,
   case ValueWitness::Destroy: {
     Address object = getArgAs(IGF, argv, type, "object");
     getArgAsLocalSelfTypeMetadata(IGF, argv, abstractType);
-    type.destroy(IGF, object, concreteType, true);
+    auto &typeLayoutEntry = IGM.getTypeLayoutEntry(concreteType);
+    if (!typeLayoutEntry.containsEnum()) {
+      typeLayoutEntry.destroy(IGF, object);
+    } else {
+      type.destroy(IGF, object, concreteType, true);
+    }
     IGF.Builder.CreateRetVoid();
     return;
   }
@@ -490,8 +506,12 @@ static void buildValueWitnessFunction(IRGenModule &IGM,
     Address dest = getArgAs(IGF, argv, type, "dest");
     Address src = getArgAs(IGF, argv, type, "src");
     getArgAsLocalSelfTypeMetadata(IGF, argv, abstractType);
-
-    type.initializeWithCopy(IGF, dest, src, concreteType, true);
+    auto &typeLayoutEntry = IGM.getTypeLayoutEntry(concreteType);
+    if (!typeLayoutEntry.containsEnum()) {
+      typeLayoutEntry.initWithCopy(IGF, dest, src);
+    } else {
+      type.initializeWithCopy(IGF, dest, src, concreteType, true);
+    }
     dest = IGF.Builder.CreateBitCast(dest, IGF.IGM.OpaquePtrTy);
     IGF.Builder.CreateRet(dest.getAddress());
     return;
@@ -502,7 +522,12 @@ static void buildValueWitnessFunction(IRGenModule &IGM,
     Address src = getArgAs(IGF, argv, type, "src");
     getArgAsLocalSelfTypeMetadata(IGF, argv, abstractType);
 
-    type.initializeWithTake(IGF, dest, src, concreteType, true);
+    auto &typeLayoutEntry = IGM.getTypeLayoutEntry(concreteType);
+    if (!typeLayoutEntry.containsEnum()) {
+      typeLayoutEntry.initWithTake(IGF, dest, src);
+    } else {
+      type.initializeWithTake(IGF, dest, src, concreteType, true);
+    }
     dest = IGF.Builder.CreateBitCast(dest, IGF.IGM.OpaquePtrTy);
     IGF.Builder.CreateRet(dest.getAddress());
     return;
