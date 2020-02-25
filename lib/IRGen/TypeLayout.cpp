@@ -1147,13 +1147,14 @@ llvm::Value *AlignedGroupEntry::withExtraInhabitantProvidingEntry(
     auto falseBB = IGF.createBasicBlock("");
 
     Builder.CreateCondBr(isMaxXICount, trueBB, falseBB);
-    ConditionalDominanceScope scope(IGF);
     Builder.emitBlock(trueBB);
-
-    auto tag = entryFun(entry, currentAddr, xiCount);
-    if (mergePHI)
-      mergePHI->addIncoming(tag, Builder.GetInsertBlock());
-    Builder.CreateBr(mergeBB);
+    {
+      ConditionalDominanceScope scope(IGF);
+      auto tag = entryFun(entry, currentAddr, xiCount);
+      if (mergePHI)
+        mergePHI->addIncoming(tag, Builder.GetInsertBlock());
+      Builder.CreateBr(mergeBB);
+    }
 
     Builder.emitBlock(falseBB);
     --remainingEntries;
