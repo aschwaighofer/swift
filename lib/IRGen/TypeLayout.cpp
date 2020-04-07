@@ -12,6 +12,7 @@
 #include "TypeLayout.h"
 #include "EnumPayload.h"
 #include "FixedTypeInfo.h"
+#include "GenMeta.h"
 #include "GenOpaque.h"
 #include "IRGen.h"
 #include "IRGenFunction.h"
@@ -22,6 +23,10 @@
 
 using namespace swift;
 using namespace irgen;
+
+void SelfTypeMetadata::setAsLocalSelfTypeMetadata(IRGenFunction &IGF) const {
+  getArgAsLocalSelfTypeMetadata(IGF, metadataArg, abstractType);
+}
 
 TypeLayoutEntry::~TypeLayoutEntry() {}
 
@@ -64,49 +69,54 @@ llvm::Value *TypeLayoutEntry::extraInhabitantCount(IRGenFunction &IGF) const {
   return llvm::ConstantInt::get(IGF.IGM.Int32Ty, 0);
 }
 
-void TypeLayoutEntry::destroy(IRGenFunction &IGF, Address addr) const {
+void TypeLayoutEntry::destroy(IRGenFunction &IGF, Address addr,
+                              SelfTypeMetadata selfType) const {
   assert(isEmpty());
   // Nothing to destroy.
 }
 
 void TypeLayoutEntry::assign(IRGenFunction &IGF, Address dest, Address src,
-                             IsTake_t isTake) const {
+                             IsTake_t isTake, SelfTypeMetadata selfType) const {
   if (isTake == IsTake) {
-    assignWithTake(IGF, dest, src);
+    assignWithTake(IGF, dest, src, selfType);
   } else {
-    assignWithCopy(IGF, dest, src);
+    assignWithCopy(IGF, dest, src, selfType);
   }
 }
 
 void TypeLayoutEntry::initialize(IRGenFunction &IGF, Address dest, Address src,
-                                 IsTake_t isTake) const {
+                                 IsTake_t isTake, SelfTypeMetadata selfType) const {
   if (isTake == IsTake) {
-    initWithTake(IGF, dest, src);
+    initWithTake(IGF, dest, src, selfType);
   } else {
-    initWithCopy(IGF, dest, src);
+    initWithCopy(IGF, dest, src, selfType);
   }
 }
 
 void TypeLayoutEntry::assignWithCopy(IRGenFunction &IGF, Address dest,
-                                     Address src) const {
+                                     Address src,
+                                     SelfTypeMetadata selfType) const {
   assert(isEmpty());
   // Nothing to copy.
 }
 
 void TypeLayoutEntry::assignWithTake(IRGenFunction &IGF, Address dest,
-                                     Address src) const {
+                                     Address src,
+                                     SelfTypeMetadata selfType) const {
   assert(isEmpty());
   // Nothing to copy.
 }
 
 void TypeLayoutEntry::initWithCopy(IRGenFunction &IGF, Address dest,
-                                     Address src) const {
+                                   Address src,
+                                   SelfTypeMetadata selfType) const {
   assert(isEmpty());
   // Nothing to copy.
 }
 
 void TypeLayoutEntry::initWithTake(IRGenFunction &IGF, Address dest,
-                                   Address src) const {
+                                   Address src,
+                                   SelfTypeMetadata selfType) const {
   assert(isEmpty());
   // Nothing to copy.
 }
@@ -124,7 +134,8 @@ bool TypeLayoutEntry::containsDependentResilientField() const {
 }
 
 llvm::Value *TypeLayoutEntry::getEnumTagSinglePayload(
-    IRGenFunction &IGF, llvm::Value *numEmptyCases, Address addr) const {
+    IRGenFunction &IGF, llvm::Value *numEmptyCases, Address addr,
+    SelfTypeMetadata selfType) const {
   assert(isEmpty());
   return getFixedTypeEnumTagSinglePayload(
       IGF, numEmptyCases, addr, IGF.IGM.getSize(Size(0)), Size(0), 0,
@@ -138,10 +149,9 @@ llvm::Value *TypeLayoutEntry::getEnumTagSinglePayload(
       true);
 }
 
-void TypeLayoutEntry::storeEnumTagSinglePayload(IRGenFunction &IGF,
-                                                llvm::Value *tag,
-                                                llvm::Value *numEmptyCases,
-                                                Address addr) const {
+void TypeLayoutEntry::storeEnumTagSinglePayload(
+    IRGenFunction &IGF, llvm::Value *tag, llvm::Value *numEmptyCases,
+    Address addr, SelfTypeMetadata selfType) const {
   assert(isEmpty());
   storeFixedTypeEnumTagSinglePayload(
       IGF, tag, numEmptyCases, addr, IGF.IGM.getSize(Size(0)), Size(0), 0,
@@ -252,8 +262,9 @@ static EnumTagInfo getEnumTagBytes(IRGenFunction &IGF, llvm::Value *size,
 
 llvm::Value *TypeLayoutEntry::getEnumTagSinglePayloadGeneric(
     IRGenFunction &IGF, Address addr, llvm::Value *numEmptyCases,
-    llvm::function_ref<llvm::Value *(Address addr)> getExtraInhabitantIndexFun)
-    const {
+    llvm::function_ref<llvm::Value *(Address addr, SelfTypeMetadata selfType)>
+        getExtraInhabitantIndexFun,
+    SelfTypeMetadata selfType) const {
   auto &IGM = IGF.IGM;
   auto &Ctx = IGF.IGM.getLLVMContext();
   auto &Builder = IGF.Builder;
@@ -354,7 +365,7 @@ llvm::Value *TypeLayoutEntry::getEnumTagSinglePayloadGeneric(
     Builder.emitBlock(hasXIBB);
     ConditionalDominanceScope scope(IGF);
     // Get tag in payload.
-    auto tagInPayload = getExtraInhabitantIndexFun(addr);
+    auto tagInPayload = getExtraInhabitantIndexFun(addr, selfType);
     result0->addIncoming(tagInPayload, Builder.GetInsertBlock());
     Builder.CreateBr(contBB2);
   }
@@ -379,8 +390,10 @@ llvm::Value *TypeLayoutEntry::getEnumTagSinglePayloadGeneric(
 void TypeLayoutEntry::storeEnumTagSinglePayloadGeneric(
     IRGenFunction &IGF, llvm::Value *tag, llvm::Value *numEmptyCases,
     Address addr,
-    llvm::function_ref<void(Address addr, llvm::Value *tag)>
-        storeExtraInhabitantIndexFun) const {
+    llvm::function_ref<void(Address addr, llvm::Value *tag,
+                            SelfTypeMetadata selfType)>
+        storeExtraInhabitantIndexFun,
+    SelfTypeMetadata selfType) const {
   auto &IGM = IGF.IGM;
   auto &Ctx = IGF.IGM.getLLVMContext();
   auto &Builder = IGF.Builder;
@@ -447,7 +460,7 @@ void TypeLayoutEntry::storeEnumTagSinglePayloadGeneric(
   {
     Builder.emitBlock(hasXIBB);
     // Store the extra inhabitant.
-    storeExtraInhabitantIndexFun(addr, tag);
+    storeExtraInhabitantIndexFun(addr, tag, selfType);
     Builder.CreateBr(contBB2);
   }
   Builder.emitBlock(contBB2);
@@ -531,9 +544,10 @@ static llvm::Value *projectOutlineBuffer(IRGenFunction &IGF, Address buffer,
   return addressInBox;
 }
 
-llvm::Value *TypeLayoutEntry::initBufferWithCopyOfBuffer(IRGenFunction &IGF,
-                                                         Address dest,
-                                                         Address src) const {
+llvm::Value *
+TypeLayoutEntry::initBufferWithCopyOfBuffer(IRGenFunction &IGF, Address dest,
+                                            Address src,
+                                            SelfTypeMetadata selfType) const {
   auto &IGM = IGF.IGM;
   auto &Builder = IGF.Builder;
 
@@ -560,7 +574,7 @@ llvm::Value *TypeLayoutEntry::initBufferWithCopyOfBuffer(IRGenFunction &IGF,
   Builder.emitBlock(inlineBB);
   {
     // Inline of the buffer.
-    this->initWithCopy(IGF, dest, src);
+    this->initWithCopy(IGF, dest, src, selfType);
     pointerToObject->addIncoming(
         Builder.CreateBitCast(dest, IGM.OpaquePtrTy).getAddress(),
         Builder.GetInsertBlock());
@@ -632,7 +646,8 @@ llvm::Value *ScalarTypeLayoutEntry::isBitwiseTakable(IRGenFunction &IGF) const {
                                     ResilienceExpansion::Maximal));
 }
 
-void ScalarTypeLayoutEntry::destroy(IRGenFunction &IGF, Address addr) const {
+void ScalarTypeLayoutEntry::destroy(IRGenFunction &IGF, Address addr,
+                                    SelfTypeMetadata selfType) const {
   auto alignment = cast<FixedTypeInfo>(typeInfo).getFixedAlignment();
   auto addressType = typeInfo.getStorageType()->getPointerTo();
   auto &Builder = IGF.Builder;
@@ -642,7 +657,8 @@ void ScalarTypeLayoutEntry::destroy(IRGenFunction &IGF, Address addr) const {
 }
 
 void ScalarTypeLayoutEntry::assignWithCopy(IRGenFunction &IGF, Address dest,
-                                           Address src) const {
+                                           Address src,
+                                           SelfTypeMetadata selfType) const {
   auto alignment = cast<FixedTypeInfo>(typeInfo).getFixedAlignment();
   auto addressType = typeInfo.getStorageType()->getPointerTo();
   auto &Builder = IGF.Builder;
@@ -654,7 +670,8 @@ void ScalarTypeLayoutEntry::assignWithCopy(IRGenFunction &IGF, Address dest,
 }
 
 void ScalarTypeLayoutEntry::assignWithTake(IRGenFunction &IGF, Address dest,
-                                           Address src) const {
+                                           Address src,
+                                           SelfTypeMetadata selfType) const {
   auto alignment = cast<FixedTypeInfo>(typeInfo).getFixedAlignment();
   auto addressType = typeInfo.getStorageType()->getPointerTo();
   auto &Builder = IGF.Builder;
@@ -666,7 +683,8 @@ void ScalarTypeLayoutEntry::assignWithTake(IRGenFunction &IGF, Address dest,
 }
 
 void ScalarTypeLayoutEntry::initWithCopy(IRGenFunction &IGF, Address dest,
-                                         Address src) const {
+                                         Address src,
+                                         SelfTypeMetadata selfType) const {
   auto alignment = cast<FixedTypeInfo>(typeInfo).getFixedAlignment();
   auto addressType = typeInfo.getStorageType()->getPointerTo();
   auto &Builder = IGF.Builder;
@@ -678,7 +696,8 @@ void ScalarTypeLayoutEntry::initWithCopy(IRGenFunction &IGF, Address dest,
 }
 
 void ScalarTypeLayoutEntry::initWithTake(IRGenFunction &IGF, Address dest,
-                                         Address src) const {
+                                         Address src,
+                                         SelfTypeMetadata selfType) const {
   auto alignment = cast<FixedTypeInfo>(typeInfo).getFixedAlignment();
   auto addressType = typeInfo.getStorageType()->getPointerTo();
   auto &Builder = IGF.Builder;
@@ -690,7 +709,8 @@ void ScalarTypeLayoutEntry::initWithTake(IRGenFunction &IGF, Address dest,
 }
 
 llvm::Value *ScalarTypeLayoutEntry::getEnumTagSinglePayload(
-    IRGenFunction &IGF, llvm::Value *numEmptyCases, Address value) const {
+    IRGenFunction &IGF, llvm::Value *numEmptyCases, Address value,
+    SelfTypeMetadata selfType) const {
   auto alignment = cast<FixedTypeInfo>(typeInfo).getFixedAlignment();
   auto addressType = typeInfo.getStorageType()->getPointerTo();
   auto &Builder = IGF.Builder;
@@ -700,10 +720,9 @@ llvm::Value *ScalarTypeLayoutEntry::getEnumTagSinglePayload(
                                           representative, true);
 }
 
-void ScalarTypeLayoutEntry::storeEnumTagSinglePayload(IRGenFunction &IGF,
-                                                llvm::Value *tag,
-                                                llvm::Value *numEmptyCases,
-                                                Address addr) const {
+void ScalarTypeLayoutEntry::storeEnumTagSinglePayload(
+    IRGenFunction &IGF, llvm::Value *tag, llvm::Value *numEmptyCases,
+    Address addr, SelfTypeMetadata selfType) const {
   auto alignment = cast<FixedTypeInfo>(typeInfo).getFixedAlignment();
   auto addressType = typeInfo.getStorageType()->getPointerTo();
   auto &Builder = IGF.Builder;
@@ -836,7 +855,8 @@ static Address addOffset(IRGenFunction &IGF, Address addr,
   return Address(ptr, Alignment(1));
 }
 
-void AlignedGroupEntry::destroy(IRGenFunction &IGF, Address addr) const {
+void AlignedGroupEntry::destroy(IRGenFunction &IGF, Address addr,
+                                SelfTypeMetadata selfType) const {
   Address currentDest = addr;
   auto remainingEntries = entries.size();
   for (auto *entry : entries) {
@@ -846,7 +866,7 @@ void AlignedGroupEntry::destroy(IRGenFunction &IGF, Address addr) const {
       currentDest = alignAddress(IGF, currentDest, entryMask);
     }
 
-    entry->destroy(IGF, currentDest);
+    entry->destroy(IGF, currentDest, selfType);
 
     --remainingEntries;
     if (remainingEntries == 0)
@@ -886,38 +906,42 @@ void AlignedGroupEntry::withEachEntry(
 }
 
 void AlignedGroupEntry::assignWithCopy(IRGenFunction &IGF, Address dest,
-                                       Address src) const {
+                                       Address src,
+                                       SelfTypeMetadata selfType) const {
   withEachEntry(
       IGF, dest, src,
       [&](TypeLayoutEntry *entry, Address entryDest, Address entrySrc) {
-        entry->assignWithCopy(IGF, entryDest, entrySrc);
+        entry->assignWithCopy(IGF, entryDest, entrySrc, selfType);
       });
 }
 
 void AlignedGroupEntry::assignWithTake(IRGenFunction &IGF, Address dest,
-                                       Address src) const {
+                                       Address src,
+                                       SelfTypeMetadata selfType) const {
   withEachEntry(
       IGF, dest, src,
       [&](TypeLayoutEntry *entry, Address entryDest, Address entrySrc) {
-        entry->assignWithTake(IGF, entryDest, entrySrc);
+        entry->assignWithTake(IGF, entryDest, entrySrc, selfType);
       });
 }
 
 void AlignedGroupEntry::initWithCopy(IRGenFunction &IGF, Address dest,
-                                     Address src) const {
+                                     Address src,
+                                     SelfTypeMetadata selfType) const {
   withEachEntry(
       IGF, dest, src,
       [&](TypeLayoutEntry *entry, Address entryDest, Address entrySrc) {
-        entry->initWithCopy(IGF, entryDest, entrySrc);
+        entry->initWithCopy(IGF, entryDest, entrySrc, selfType);
       });
 }
 
 void AlignedGroupEntry::initWithTake(IRGenFunction &IGF, Address dest,
-                                     Address src) const {
+                                     Address src,
+                                     SelfTypeMetadata selfType) const {
   withEachEntry(
       IGF, dest, src,
       [&](TypeLayoutEntry *entry, Address entryDest, Address entrySrc) {
-        entry->initWithTake(IGF, entryDest, entrySrc);
+        entry->initWithTake(IGF, entryDest, entrySrc, selfType);
       });
 }
 
@@ -974,37 +998,41 @@ llvm::Value *AlignedGroupEntry::withExtraInhabitantProvidingEntry(
 }
 
 llvm::Value *AlignedGroupEntry::getEnumTagSinglePayload(
-    IRGenFunction &IGF, llvm::Value *numEmptyCases, Address addr) const {
+    IRGenFunction &IGF, llvm::Value *numEmptyCases, Address addr,
+    SelfTypeMetadata selfType) const {
   return getEnumTagSinglePayloadGeneric(
-      IGF, addr, numEmptyCases, [&](Address addr) -> llvm::Value * {
+      IGF, addr, numEmptyCases,
+      [&](Address addr, SelfTypeMetadata selfType) -> llvm::Value * {
         // Get tag in payload.
         auto tagInPayload = withExtraInhabitantProvidingEntry(
             IGF, addr, IGF.IGM.Int32Ty,
             [&](TypeLayoutEntry *entry, Address entryAddress,
                 llvm::Value *entryXICount) -> llvm::Value * {
               return entry->getEnumTagSinglePayload(IGF, entryXICount,
-                                                    entryAddress);
+                                                    entryAddress, selfType);
             });
         return tagInPayload;
-      });
+      },
+      selfType);
 }
 
-void AlignedGroupEntry::storeEnumTagSinglePayload(IRGenFunction &IGF,
-                                                  llvm::Value *tag,
-                                                  llvm::Value *numEmptyCases,
-                                                  Address addr) const {
+void AlignedGroupEntry::storeEnumTagSinglePayload(
+    IRGenFunction &IGF, llvm::Value *tag, llvm::Value *numEmptyCases,
+    Address addr, SelfTypeMetadata selfType) const {
   storeEnumTagSinglePayloadGeneric(
-      IGF, tag, numEmptyCases, addr, [&](Address addr, llvm::Value *tag) {
+      IGF, tag, numEmptyCases, addr,
+      [&](Address addr, llvm::Value *tag, SelfTypeMetadata selfType) {
         // Store the extra inhabitant.
         withExtraInhabitantProvidingEntry(
             IGF, addr, IGF.IGM.VoidTy,
             [&](TypeLayoutEntry *entry, Address entryAddress,
                 llvm::Value *entryXICount) -> llvm::Value * {
               entry->storeEnumTagSinglePayload(IGF, tag, entryXICount,
-                                               entryAddress);
+                                               entryAddress, selfType);
               return nullptr;
             });
-      });
+      },
+      selfType);
 }
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
@@ -1050,32 +1078,38 @@ ArchetypeLayoutEntry::isBitwiseTakable(IRGenFunction &IGF) const {
   return emitLoadOfIsBitwiseTakable(IGF, archetype);
 }
 
-void ArchetypeLayoutEntry::destroy(IRGenFunction &IGF, Address addr) const {
+void ArchetypeLayoutEntry::destroy(IRGenFunction &IGF, Address addr,
+                                   SelfTypeMetadata selfType) const {
   emitDestroyCall(IGF, archetype, addr);
 }
 
 void ArchetypeLayoutEntry::assignWithCopy(IRGenFunction &IGF, Address dest,
-                                          Address src) const {
+                                          Address src,
+                                          SelfTypeMetadata selfType) const {
   emitAssignWithCopyCall(IGF, archetype, dest, src);
 }
 
 void ArchetypeLayoutEntry::assignWithTake(IRGenFunction &IGF, Address dest,
-                                          Address src) const {
+                                          Address src,
+                                          SelfTypeMetadata selfType) const {
   emitAssignWithTakeCall(IGF, archetype, dest, src);
 }
 
 void ArchetypeLayoutEntry::initWithCopy(IRGenFunction &IGF, Address dest,
-                                        Address src) const {
+                                        Address src,
+                                        SelfTypeMetadata selfType) const {
   emitInitializeWithCopyCall(IGF, archetype, dest, src);
 }
 
 void ArchetypeLayoutEntry::initWithTake(IRGenFunction &IGF, Address dest,
-                                        Address src) const {
+                                        Address src,
+                                        SelfTypeMetadata selfType) const {
   emitInitializeWithTakeCall(IGF, archetype, dest, src);
 }
 
 llvm::Value *ArchetypeLayoutEntry::getEnumTagSinglePayload(
-    IRGenFunction &IGF, llvm::Value *numEmptyCases, Address value) const {
+    IRGenFunction &IGF, llvm::Value *numEmptyCases, Address value,
+    SelfTypeMetadata selfType) const {
   value = Address(
       IGF.Builder.CreateBitCast(value.getAddress(), IGF.IGM.OpaquePtrTy),
       value.getAlignment());
@@ -1083,10 +1117,9 @@ llvm::Value *ArchetypeLayoutEntry::getEnumTagSinglePayload(
   return emitGetEnumTagSinglePayloadCall(IGF, archetype, numEmptyCases, value);
 }
 
-void ArchetypeLayoutEntry::storeEnumTagSinglePayload(IRGenFunction &IGF,
-                                                     llvm::Value *tag,
-                                                     llvm::Value *numEmptyCases,
-                                                     Address addr) const {
+void ArchetypeLayoutEntry::storeEnumTagSinglePayload(
+    IRGenFunction &IGF, llvm::Value *tag, llvm::Value *numEmptyCases,
+    Address addr, SelfTypeMetadata selfType) const {
   addr =
       Address(IGF.Builder.CreateBitCast(addr.getAddress(), IGF.IGM.OpaquePtrTy),
               addr.getAlignment());
@@ -1290,15 +1323,14 @@ static void emitMemCpy(IRGenFunction &IGF, Address dest, Address src,
                        byteSrcAddr, llvm::MaybeAlign(src.getAlignment()), size);
 }
 
-llvm::BasicBlock *
-EnumTypeLayoutEntry::testSinglePayloadEnumContainsPayload(IRGenFunction &IGF,
-                                                          Address addr) const {
+llvm::BasicBlock *EnumTypeLayoutEntry::testSinglePayloadEnumContainsPayload(
+    IRGenFunction &IGF, Address addr, SelfTypeMetadata selfType) const {
   assert(cases.size() == 1);
   auto &Builder = IGF.Builder;
   auto &IGM = IGF.IGM;
 
   auto emptyCases = IGM.getInt32(numEmptyCases);
-  auto tag = cases[0]->getEnumTagSinglePayload(IGF, emptyCases, addr);
+  auto tag = cases[0]->getEnumTagSinglePayload(IGF, emptyCases, addr, selfType);
   auto payloadBB = IGF.createBasicBlock("payloadBlock");
   auto noPayloadBB = IGF.createBasicBlock("noPayloadBlock");
   auto hasPaylaod = Builder.CreateICmpEQ(tag, IGM.getInt32(0));
@@ -1308,9 +1340,9 @@ EnumTypeLayoutEntry::testSinglePayloadEnumContainsPayload(IRGenFunction &IGF,
   return noPayloadBB;
 }
 
-void EnumTypeLayoutEntry::initializeSinglePayloadEnum(IRGenFunction &IGF,
-                                                      Address dest, Address src,
-                                                      IsTake_t isTake) const {
+void EnumTypeLayoutEntry::initializeSinglePayloadEnum(
+    IRGenFunction &IGF, Address dest, Address src, IsTake_t isTake,
+    SelfTypeMetadata selfType) const {
   assert(cases.size() == 1);
 
   Address destData = dest;
@@ -1322,17 +1354,18 @@ void EnumTypeLayoutEntry::initializeSinglePayloadEnum(IRGenFunction &IGF,
   auto endBB = IGF.createBasicBlock("");
 
   // See whether the source value has a payload.
-  auto noSrcPayloadBB = testSinglePayloadEnumContainsPayload(IGF, src);
+  auto noSrcPayloadBB =
+      testSinglePayloadEnumContainsPayload(IGF, src, selfType);
 
   {
     ConditionalDominanceScope condition(IGF);
 
     // Here, the source value has a payload. Initialize the destination
     // with it, and set the extra tag if any to zero.
-    payload->initialize(IGF, destData, srcData, isTake);
+    payload->initialize(IGF, destData, srcData, isTake, selfType);
     // Potentially initialize extra tag bytes.
-    payload->storeEnumTagSinglePayload(IGF, IGM.getInt32(0),
-                                       IGM.getInt32(numEmptyCases), dest);
+    payload->storeEnumTagSinglePayload(
+        IGF, IGM.getInt32(0), IGM.getInt32(numEmptyCases), dest, selfType);
     Builder.CreateBr(endBB);
   }
 
@@ -1348,9 +1381,9 @@ void EnumTypeLayoutEntry::initializeSinglePayloadEnum(IRGenFunction &IGF,
   IGF.Builder.emitBlock(endBB);
 }
 
-void EnumTypeLayoutEntry::assignSinglePayloadEnum(IRGenFunction &IGF,
-                                                  Address dest, Address src,
-                                                  IsTake_t isTake) const {
+void EnumTypeLayoutEntry::assignSinglePayloadEnum(
+    IRGenFunction &IGF, Address dest, Address src, IsTake_t isTake,
+    SelfTypeMetadata selfType) const {
   assert(cases.size() == 1);
   Address destData = dest;
   Address srcData = src;
@@ -1362,19 +1395,21 @@ void EnumTypeLayoutEntry::assignSinglePayloadEnum(IRGenFunction &IGF,
   auto endBB = IGF.createBasicBlock("");
 
   // See whether the current value at the destination has a payload.
-  auto *noDestPayloadBB = testSinglePayloadEnumContainsPayload(IGF, dest);
+  auto *noDestPayloadBB =
+      testSinglePayloadEnumContainsPayload(IGF, dest, selfType);
   {
     ConditionalDominanceScope destCondition(IGF);
 
     // Here, the destination has a payload. Now see if the source also
     // has one.
-    auto destNoSrcPayloadBB = testSinglePayloadEnumContainsPayload(IGF, src);
+    auto destNoSrcPayloadBB =
+        testSinglePayloadEnumContainsPayload(IGF, src, selfType);
     {
       ConditionalDominanceScope destSrcCondition(IGF);
 
       // Here, both source and destination have payloads. Do the
       // reassignment of the payload in-place.
-      payload->assign(IGF, destData, srcData, isTake);
+      payload->assign(IGF, destData, srcData, isTake, selfType);
       Builder.CreateBr(endBB);
     }
 
@@ -1383,7 +1418,7 @@ void EnumTypeLayoutEntry::assignSinglePayloadEnum(IRGenFunction &IGF,
     Builder.emitBlock(destNoSrcPayloadBB);
     {
       ConditionalDominanceScope destNoSrcCondition(IGF);
-      payload->destroy(IGF, destData);
+      payload->destroy(IGF, destData, selfType);
       emitMemCpy(IGF, dest, src, this->size(IGF));
       Builder.CreateBr(endBB);
     }
@@ -1393,17 +1428,18 @@ void EnumTypeLayoutEntry::assignSinglePayloadEnum(IRGenFunction &IGF,
   Builder.emitBlock(noDestPayloadBB);
   {
     ConditionalDominanceScope noDestCondition(IGF);
-    auto noDestNoSrcPayloadBB = testSinglePayloadEnumContainsPayload(IGF, src);
+    auto noDestNoSrcPayloadBB =
+        testSinglePayloadEnumContainsPayload(IGF, src, selfType);
     {
       ConditionalDominanceScope noDestSrcCondition(IGF);
 
       // Here, the source has a payload but the destination doesn't.
       // We can copy-initialize the source over the destination, then
       // primitive-store the zero extra tag (if any).
-      payload->initialize(IGF, destData, srcData, isTake);
+      payload->initialize(IGF, destData, srcData, isTake, selfType);
       // Potentially initialize extra tag bytes.
-      payload->storeEnumTagSinglePayload(IGF, IGM.getInt32(0),
-                                         IGM.getInt32(numEmptyCases), dest);
+      payload->storeEnumTagSinglePayload(
+          IGF, IGM.getInt32(0), IGM.getInt32(numEmptyCases), dest, selfType);
       Builder.CreateBr(endBB);
     }
 
@@ -1477,19 +1513,19 @@ void EnumTypeLayoutEntry::multiPayloadEnumForPayloadAndEmptyCases(
   Builder.emitBlock(endBB);
 }
 
-void EnumTypeLayoutEntry::destroyMultiPayloadEnum(IRGenFunction &IGF,
-                                                  Address addr) const {
+void EnumTypeLayoutEntry::destroyMultiPayloadEnum(
+    IRGenFunction &IGF, Address addr, SelfTypeMetadata selfType) const {
   multiPayloadEnumForPayloadAndEmptyCases(
       IGF, addr,
       [&](TypeLayoutEntry *payload, llvm::Value *) {
-        payload->destroy(IGF, addr);
+        payload->destroy(IGF, addr, selfType);
       },
       []() { /* nothing to do */ });
 }
 
-void EnumTypeLayoutEntry::assignMultiPayloadEnum(IRGenFunction &IGF,
-                                                 Address dest, Address src,
-                                                 IsTake_t isTake) const {
+void EnumTypeLayoutEntry::assignMultiPayloadEnum(
+    IRGenFunction &IGF, Address dest, Address src, IsTake_t isTake,
+    SelfTypeMetadata selfType) const {
   auto &IGM = IGF.IGM;
   auto &Builder = IGF.Builder;
   auto &ctxt = IGM.getLLVMContext();
@@ -1505,99 +1541,105 @@ void EnumTypeLayoutEntry::assignMultiPayloadEnum(IRGenFunction &IGF,
     ConditionalDominanceScope condition(IGF);
 
     // Destroy the old value.
-    destroyMultiPayloadEnum(IGF, dest);
+    destroyMultiPayloadEnum(IGF, dest, selfType);
 
     // Reinitialize with the new value.
-    initializeMultiPayloadEnum(IGF, dest, src, isTake);
+    initializeMultiPayloadEnum(IGF, dest, src, isTake, selfType);
 
     IGF.Builder.CreateBr(endBB);
   }
   IGF.Builder.emitBlock(endBB);
 }
 
-void EnumTypeLayoutEntry::initializeMultiPayloadEnum(IRGenFunction &IGF,
-                                                     Address dest, Address src,
-                                                     IsTake_t isTake) const {
+void EnumTypeLayoutEntry::initializeMultiPayloadEnum(
+    IRGenFunction &IGF, Address dest, Address src, IsTake_t isTake,
+    SelfTypeMetadata selfType) const {
   multiPayloadEnumForPayloadAndEmptyCases(
       IGF, src,
       [&](TypeLayoutEntry *payload, llvm::Value *tagIndex) {
         if (isTake)
-          payload->initWithTake(IGF, dest, src);
+          payload->initWithTake(IGF, dest, src, selfType);
         else
-          payload->initWithCopy(IGF, dest, src);
+          payload->initWithCopy(IGF, dest, src, selfType);
         storeMultiPayloadTag(IGF, tagIndex, dest);
       },
       [&]() { emitMemCpy(IGF, dest, src, this->size(IGF)); });
 }
 
-void EnumTypeLayoutEntry::destroySinglePayloadEnum(IRGenFunction &IGF,
-                                                   Address addr) const {
+void EnumTypeLayoutEntry::destroySinglePayloadEnum(
+    IRGenFunction &IGF, Address addr, SelfTypeMetadata selfType) const {
   // Check that there is a payload at the address.
-  llvm::BasicBlock *endBB = testSinglePayloadEnumContainsPayload(IGF, addr);
+  llvm::BasicBlock *endBB =
+      testSinglePayloadEnumContainsPayload(IGF, addr, selfType);
   {
     ConditionalDominanceScope condition(IGF);
 
     // If there is, destroy it.
     auto payload = cases[0];
-    payload->destroy(IGF, addr);
+    payload->destroy(IGF, addr, selfType);
 
     IGF.Builder.CreateBr(endBB);
   }
   IGF.Builder.emitBlock(endBB);
 }
 
-void EnumTypeLayoutEntry::destroy(IRGenFunction &IGF, Address addr) const {
+void EnumTypeLayoutEntry::destroy(IRGenFunction &IGF, Address addr,
+                                  SelfTypeMetadata selfType) const {
   assert(!cases.empty());
 
   if (cases.size() == 1) {
-    destroySinglePayloadEnum(IGF, addr);
+    destroySinglePayloadEnum(IGF, addr, selfType);
     return;
   }
 
-  destroyMultiPayloadEnum(IGF, addr);
+  destroyMultiPayloadEnum(IGF, addr, selfType);
 }
 
 void EnumTypeLayoutEntry::assignWithCopy(IRGenFunction &IGF, Address dest,
-                                         Address src) const {
+                                         Address src,
+                                         SelfTypeMetadata selfType) const {
   assert(!cases.empty());
   if (cases.size() == 1) {
-    return assignSinglePayloadEnum(IGF, dest, src, IsNotTake);
+    return assignSinglePayloadEnum(IGF, dest, src, IsNotTake, selfType);
   }
   assert(cases.size() > 1);
-  assignMultiPayloadEnum(IGF, dest, src, IsNotTake);
+  assignMultiPayloadEnum(IGF, dest, src, IsNotTake, selfType);
 }
 
 void EnumTypeLayoutEntry::assignWithTake(IRGenFunction &IGF, Address dest,
-                                         Address src) const {
+                                         Address src,
+                                         SelfTypeMetadata selfType) const {
   assert(!cases.empty());
   if (cases.size() == 1) {
-    return assignSinglePayloadEnum(IGF, dest, src, IsTake);
+    return assignSinglePayloadEnum(IGF, dest, src, IsTake, selfType);
   }
 
   assert(cases.size() > 1);
-  assignMultiPayloadEnum(IGF, dest, src, IsTake);
+  assignMultiPayloadEnum(IGF, dest, src, IsTake, selfType);
 }
 
 void EnumTypeLayoutEntry::initWithCopy(IRGenFunction &IGF, Address dest,
-                                       Address src) const {
+                                       Address src,
+                                       SelfTypeMetadata selfType) const {
   assert(!cases.empty());
   if (cases.size() == 1) {
-    return initializeSinglePayloadEnum(IGF, dest, src, IsNotTake);
+    return initializeSinglePayloadEnum(IGF, dest, src, IsNotTake, selfType);
   }
 
   assert(cases.size() > 1);
-  initializeMultiPayloadEnum(IGF, dest, src, IsNotTake);
+  initializeMultiPayloadEnum(IGF, dest, src, IsNotTake, selfType);
 }
 
 void EnumTypeLayoutEntry::initWithTake(IRGenFunction &IGF, Address dest,
-                                       Address src) const {
+                                       Address src,
+                                       SelfTypeMetadata selfType) const {
   assert(!cases.empty());
   if (cases.size() == 1) {
-    return initializeSinglePayloadEnum(IGF, dest, src, IsTake);
+    return initializeSinglePayloadEnum(IGF, dest, src, IsTake, selfType);
   }
 
   assert(cases.size() > 1);
-  initializeMultiPayloadEnum(IGF, dest, src, IsTake);
+  initializeMultiPayloadEnum(IGF, dest, src, IsTake, selfType);
 }
 
 std::pair<Address, llvm::Value *>
@@ -1621,7 +1663,8 @@ EnumTypeLayoutEntry::getMultiPalyloadEnumTagByteAddrAndNumBytes(
 }
 
 llvm::Value *EnumTypeLayoutEntry::getEnumTagSinglePayloadForMultiPayloadEnum(
-    IRGenFunction &IGF, Address addr, llvm::Value *emptyCases) const {
+    IRGenFunction &IGF, Address addr, llvm::Value *emptyCases,
+    SelfTypeMetadata selfType) const {
   // We don't handle (create enum type layout entries) multi payload enums that
   // have known spare bits (enums that are always fixed size) . Therefore the
   // only place to store extra inhabitants is in available bits in the extra tag
@@ -1629,7 +1672,8 @@ llvm::Value *EnumTypeLayoutEntry::getEnumTagSinglePayloadForMultiPayloadEnum(
   auto &Builder = IGF.Builder;
   auto &IGM = IGF.IGM;
   return getEnumTagSinglePayloadGeneric(
-      IGF, addr, emptyCases, [&](Address addr) -> llvm::Value * {
+      IGF, addr, emptyCases,
+      [&](Address addr, SelfTypeMetadata selfType) -> llvm::Value * {
         // Compute the address and number of the tag bytes.
         Address extraTagBitsAddr;
         llvm::Value *numTagBytes;
@@ -1686,44 +1730,51 @@ llvm::Value *EnumTypeLayoutEntry::getEnumTagSinglePayloadForMultiPayloadEnum(
         Builder.emitBlock(resultBB);
         Builder.Insert(result);
         return result;
-      });
+      }, selfType);
 }
 
 llvm::Value *EnumTypeLayoutEntry::getEnumTagSinglePayloadForSinglePayloadEnum(
-    IRGenFunction &IGF, Address addr, llvm::Value *emptyCases) const {
+    IRGenFunction &IGF, Address addr, llvm::Value *emptyCases,
+    SelfTypeMetadata selfType) const {
   assert(cases.size() == 1);
   return getEnumTagSinglePayloadGeneric(
-      IGF, addr, emptyCases, [&](Address addr) -> llvm::Value * {
+      IGF, addr, emptyCases,
+      [&](Address addr, SelfTypeMetadata selfType) -> llvm::Value * {
         auto payloadEntry = cases[0];
         auto maxNumXIPayload = payloadEntry->extraInhabitantCount(IGF);
         // Read the tag from the payload and adjust it by the number
         // cases of this enum.
         auto tag =
-            payloadEntry->getEnumTagSinglePayload(IGF, maxNumXIPayload, addr);
+            payloadEntry->getEnumTagSinglePayload(IGF, maxNumXIPayload, addr, selfType);
         auto numEnumCases = IGF.IGM.getInt32(numEmptyCases);
         auto adjustedTag = IGF.Builder.CreateSub(tag, numEnumCases);
         auto isEnumValue = IGF.Builder.CreateICmpULE(tag, numEnumCases);
         adjustedTag = IGF.Builder.CreateSelect(isEnumValue, IGF.IGM.getInt32(0),
                                                adjustedTag);
         return adjustedTag;
-      });
+      },
+      selfType);
 }
 
 llvm::Value *EnumTypeLayoutEntry::getEnumTagSinglePayload(
-    IRGenFunction &IGF, llvm::Value *emptyCases, Address addr) const {
+    IRGenFunction &IGF, llvm::Value *emptyCases, Address addr,
+    SelfTypeMetadata selfType) const {
   assert(!cases.empty());
   if (cases.size() == 1) {
-    return getEnumTagSinglePayloadForSinglePayloadEnum(IGF, addr, emptyCases);
+    return getEnumTagSinglePayloadForSinglePayloadEnum(IGF, addr, emptyCases,
+                                                       selfType);
   }
-  return getEnumTagSinglePayloadForMultiPayloadEnum(IGF, addr, emptyCases);
+  return getEnumTagSinglePayloadForMultiPayloadEnum(IGF, addr, emptyCases,
+                                                    selfType);
 }
 
 void EnumTypeLayoutEntry::storeEnumTagSinglePayloadForSinglePayloadEnum(
-    IRGenFunction &IGF, llvm::Value *tag, llvm::Value *emptyCases,
-    Address addr) const {
+    IRGenFunction &IGF, llvm::Value *tag, llvm::Value *emptyCases, Address addr,
+    SelfTypeMetadata selfType) const {
   assert(cases.size() == 1);
   storeEnumTagSinglePayloadGeneric(
-      IGF, tag, emptyCases, addr, [&](Address addr, llvm::Value *tag) {
+      IGF, tag, emptyCases, addr,
+      [&](Address addr, llvm::Value *tag, SelfTypeMetadata selfType) {
         auto payloadEntry = cases[0];
         auto maxNumXIPayload = payloadEntry->extraInhabitantCount(IGF);
         auto numExtraCases = IGF.IGM.getInt32(numEmptyCases);
@@ -1736,10 +1787,10 @@ void EnumTypeLayoutEntry::storeEnumTagSinglePayloadForSinglePayloadEnum(
         auto isEnumValue = IGF.Builder.CreateIsNull(tag);
         adjustedTag = IGF.Builder.CreateSelect(isEnumValue, IGF.IGM.getInt32(0),
                                                adjustedTag);
-        payloadEntry->storeEnumTagSinglePayload(IGF, adjustedTag,
-                                                maxNumXIPayload, addr);
-
-      });
+        payloadEntry->storeEnumTagSinglePayload(
+            IGF, adjustedTag, maxNumXIPayload, addr, selfType);
+      },
+      selfType);
 }
 
 void EnumTypeLayoutEntry::storeMultiPayloadTag(IRGenFunction &IGF,
@@ -1770,7 +1821,7 @@ void EnumTypeLayoutEntry::storeMultiPayloadValue(IRGenFunction &IGF,
 
 void EnumTypeLayoutEntry::storeEnumTagSinglePayloadForMultiPayloadEnum(
     IRGenFunction &IGF, llvm::Value *tag, llvm::Value *emptyCases,
-    Address addr) const {
+    Address addr, SelfTypeMetadata selfType) const {
   // We don't handle (create enum type layout entries) multi payload enums that
   // have known spare bits (enums that are always fixed size). Therefore the
   // only place to store extra inhabitants is in available bits in the extra tag
@@ -1778,25 +1829,28 @@ void EnumTypeLayoutEntry::storeEnumTagSinglePayloadForMultiPayloadEnum(
   auto &Builder = IGF.Builder;
   auto &IGM = IGF.IGM;
   storeEnumTagSinglePayloadGeneric(
-      IGF, tag, emptyCases, addr, [&](Address addr, llvm::Value *tag) {
+      IGF, tag, emptyCases, addr,
+      [&](Address addr, llvm::Value *tag, SelfTypeMetadata selfType) {
         ConditionalDominanceScope scope(IGF);
         auto invertedTag =
             Builder.CreateNot(Builder.CreateSub(tag, IGM.getInt32(1)));
         storeMultiPayloadTag(IGF, invertedTag, addr);
-      });
+      },
+      selfType);
 }
 
-void EnumTypeLayoutEntry::storeEnumTagSinglePayload(IRGenFunction &IGF,
-                                                    llvm::Value *tag,
-                                                    llvm::Value *emptyCases,
-                                                    Address addr) const {
+void EnumTypeLayoutEntry::storeEnumTagSinglePayload(
+    IRGenFunction &IGF, llvm::Value *tag, llvm::Value *emptyCases, Address addr,
+    SelfTypeMetadata selfType) const {
   assert(!cases.empty());
   if (cases.size() == 1) {
-    storeEnumTagSinglePayloadForSinglePayloadEnum(IGF, tag, emptyCases, addr);
+    storeEnumTagSinglePayloadForSinglePayloadEnum(IGF, tag, emptyCases, addr,
+                                                  selfType);
     return;
   }
 
-  storeEnumTagSinglePayloadForMultiPayloadEnum(IGF, tag, emptyCases, addr);
+  storeEnumTagSinglePayloadForMultiPayloadEnum(IGF, tag, emptyCases, addr,
+                                               selfType);
 }
 
 bool EnumTypeLayoutEntry::isMultiPayloadEnum() const {
@@ -1867,7 +1921,8 @@ EnumTypeLayoutEntry::getEnumTagMultipayload(IRGenFunction &IGF,
 }
 
 llvm::Value *EnumTypeLayoutEntry::getEnumTag(IRGenFunction &IGF,
-                                             Address enumAddr) const {
+                                             Address enumAddr,
+                                             SelfTypeMetadata selfType) const {
   assert(!cases.empty());
 
   if (cases.size() == 1) {
@@ -1875,7 +1930,8 @@ llvm::Value *EnumTypeLayoutEntry::getEnumTag(IRGenFunction &IGF,
     auto &IGM = IGF.IGM;
     auto payload = cases[0];
     auto emptyCases = IGM.getInt32(numEmptyCases);
-    return payload->getEnumTagSinglePayload(IGF, emptyCases, enumAddr);
+    return payload->getEnumTagSinglePayload(IGF, emptyCases, enumAddr,
+                                            selfType);
   }
 
   return getEnumTagMultipayload(IGF, enumAddr);
@@ -1971,13 +2027,14 @@ void EnumTypeLayoutEntry::storeEnumTagMultipayload(IRGenFunction &IGF,
   Builder.emitBlock(finishedBB);
 }
 
-void EnumTypeLayoutEntry::destructiveInjectEnumTag(IRGenFunction &IGF,
-                                                   llvm::Value *tag,
-                                                   Address enumAddr) const {
+void EnumTypeLayoutEntry::destructiveInjectEnumTag(
+    IRGenFunction &IGF, llvm::Value *tag, Address enumAddr,
+    SelfTypeMetadata selfType) const {
   if (cases.size() == 1) {
     auto payload = cases[0];
     auto emptyCases = IGF.IGM.getInt32(numEmptyCases);
-    payload->storeEnumTagSinglePayload(IGF, tag, emptyCases, enumAddr);
+    payload->storeEnumTagSinglePayload(IGF, tag, emptyCases, enumAddr,
+                                       selfType);
     return;
   }
 
@@ -2028,32 +2085,38 @@ void ResilientTypeLayoutEntry::computeProperties() {
     hasDependentResilientField = true;
 }
 
-void ResilientTypeLayoutEntry::destroy(IRGenFunction &IGF, Address addr) const {
+void ResilientTypeLayoutEntry::destroy(IRGenFunction &IGF, Address addr,
+                                       SelfTypeMetadata selfType) const {
   emitDestroyCall(IGF, ty, addr);
 }
 
 void ResilientTypeLayoutEntry::assignWithCopy(IRGenFunction &IGF, Address dest,
-                                           Address src) const {
+                                              Address src,
+                                              SelfTypeMetadata selfType) const {
   emitAssignWithCopyCall(IGF, ty, dest, src);
 }
 
 void ResilientTypeLayoutEntry::assignWithTake(IRGenFunction &IGF, Address dest,
-                                              Address src) const {
+                                              Address src,
+                                              SelfTypeMetadata selfType) const {
   emitAssignWithTakeCall(IGF, ty, dest, src);
 }
 
 void ResilientTypeLayoutEntry::initWithCopy(IRGenFunction &IGF, Address dest,
-                                            Address src) const {
+                                            Address src,
+                                            SelfTypeMetadata selfType) const {
   emitInitializeWithCopyCall(IGF, ty, dest, src);
 }
 
 void ResilientTypeLayoutEntry::initWithTake(IRGenFunction &IGF, Address dest,
-                                            Address src) const {
+                                            Address src,
+                                            SelfTypeMetadata selfType) const {
   emitInitializeWithTakeCall(IGF, ty, dest, src);
 }
 
 llvm::Value *ResilientTypeLayoutEntry::getEnumTagSinglePayload(
-    IRGenFunction &IGF, llvm::Value *numEmptyCases, Address value) const {
+    IRGenFunction &IGF, llvm::Value *numEmptyCases, Address value,
+    SelfTypeMetadata selfType) const {
 
   value = Address(
       IGF.Builder.CreateBitCast(value.getAddress(), IGF.IGM.OpaquePtrTy),
@@ -2064,7 +2127,7 @@ llvm::Value *ResilientTypeLayoutEntry::getEnumTagSinglePayload(
 
 void ResilientTypeLayoutEntry::storeEnumTagSinglePayload(
     IRGenFunction &IGF, llvm::Value *tag, llvm::Value *numEmptyCases,
-    Address addr) const {
+    Address addr, SelfTypeMetadata selfType) const {
   addr =
       Address(IGF.Builder.CreateBitCast(addr.getAddress(), IGF.IGM.OpaquePtrTy),
               addr.getAlignment());

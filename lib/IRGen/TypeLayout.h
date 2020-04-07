@@ -31,6 +31,25 @@ enum class TypeLayoutEntryKind : uint8_t {
   Enum,
 };
 
+/// Describes the metadata for the top level self type we emit the value
+/// operation on.
+class SelfTypeMetadata {
+  CanType abstractType;
+  llvm::Value *metadataArg;
+
+public:
+  SelfTypeMetadata(CanType abstractType, llvm::Value *metadataArg)
+      : abstractType(abstractType), metadataArg(metadataArg) {}
+
+  void setAsLocalSelfTypeMetadata(IRGenFunction &IGF) const;
+  llvm::Value *getSelfMetadata() const { return metadataArg; }
+
+  SelfTypeMetadata
+  getSelfMetadataFromFunctionArg(llvm::Value *selfMetadataArg) const {
+    return SelfTypeMetadata(this->abstractType, selfMetadataArg);
+  }
+};
+
 class TypeLayoutEntry {
 public:
   TypeLayoutEntryKind kind;
@@ -64,35 +83,39 @@ public:
   virtual llvm::Value *extraInhabitantCount(IRGenFunction &IGF) const;
   virtual llvm::Value *isBitwiseTakable(IRGenFunction &IGF) const;
 
-  virtual void destroy(IRGenFunction &IGF, Address addr) const;
+  virtual void destroy(IRGenFunction &IGF, Address addr,
+                       SelfTypeMetadata selfType) const;
 
-  void assign(IRGenFunction &IGF, Address dest, Address src,
-              IsTake_t isTake) const;
+  void assign(IRGenFunction &IGF, Address dest, Address src, IsTake_t isTake,
+              SelfTypeMetadata selfType) const;
+
   void initialize(IRGenFunction &IGF, Address dest, Address src,
-                  IsTake_t isTake) const;
+                  IsTake_t isTake, SelfTypeMetadata selfType) const;
 
   virtual void assignWithCopy(IRGenFunction &IGF, Address dest,
-                              Address src) const;
-  virtual void assignWithTake(IRGenFunction &IGF, Address dest,
-                              Address src) const;
+                              Address src, SelfTypeMetadata selfType) const;
+  virtual void assignWithTake(IRGenFunction &IGF, Address dest, Address src,
+                              SelfTypeMetadata selfType) const;
 
-  virtual void initWithCopy(IRGenFunction &IGF, Address dest,
-                              Address src) const;
-  virtual void initWithTake(IRGenFunction &IGF, Address dest,
-                            Address src) const;
+  virtual void initWithCopy(IRGenFunction &IGF, Address dest, Address src,
+                            SelfTypeMetadata selfType) const;
+  virtual void initWithTake(IRGenFunction &IGF, Address dest, Address src,
+                            SelfTypeMetadata selfType) const;
 
   /// Returns a pointer to the object (T*) inside of the buffer.
-  virtual llvm::Value *initBufferWithCopyOfBuffer(IRGenFunction &IGF,
-                                                  Address dest,
-                                                  Address src) const;
+  virtual llvm::Value *
+  initBufferWithCopyOfBuffer(IRGenFunction &IGF, Address dest, Address src,
+                             SelfTypeMetadata selfType) const;
 
   virtual llvm::Value *getEnumTagSinglePayload(IRGenFunction &IGF,
                                                llvm::Value *numEmptyCases,
-                                               Address addr) const;
+                                               Address addr,
+                                               SelfTypeMetadata selfType) const;
 
   virtual void storeEnumTagSinglePayload(IRGenFunction &IGF, llvm::Value *tag,
                                          llvm::Value *numEmptyCases,
-                                         Address enumAddr) const;
+                                         Address enumAddr,
+                                         SelfTypeMetadata selfType) const;
 
   const EnumTypeLayoutEntry *getAsEnum() const;
 
@@ -103,17 +126,19 @@ public:
   }
 #endif
 protected:
-  llvm::Value *
-  getEnumTagSinglePayloadGeneric(IRGenFunction &IGF, Address addr,
-                                 llvm::Value *numEmptyCases,
-                                 llvm::function_ref<llvm::Value *(Address addr)>
-                                     getExtraInhabitantIndexFun) const;
+  llvm::Value *getEnumTagSinglePayloadGeneric(
+      IRGenFunction &IGF, Address addr, llvm::Value *numEmptyCases,
+      llvm::function_ref<llvm::Value *(Address addr, SelfTypeMetadata selfType)>
+          getExtraInhabitantIndexFun,
+      SelfTypeMetadata selfType) const;
 
   void storeEnumTagSinglePayloadGeneric(
       IRGenFunction &IGF, llvm::Value *tag, llvm::Value *numEmptyCases,
       Address addr,
-      llvm::function_ref<void(Address addr, llvm::Value *tag)>
-          storeExtraInhabitantIndexFun) const;
+      llvm::function_ref<void(Address addr, llvm::Value *tag,
+                              SelfTypeMetadata selfType)>
+          storeExtraInhabitantIndexFun,
+      SelfTypeMetadata selfType) const;
 
   void gatherProperties(TypeLayoutEntry *fromEntry);
 };
@@ -140,25 +165,27 @@ public:
   llvm::Value *extraInhabitantCount(IRGenFunction &IGF) const override;
   llvm::Value *isBitwiseTakable(IRGenFunction &IGF) const override;
 
-  void destroy(IRGenFunction &IGF, Address addr) const override;
+  void destroy(IRGenFunction &IGF, Address addr,
+               SelfTypeMetadata selfType) const override;
 
-  void assignWithCopy(IRGenFunction &IGF, Address dest,
-                      Address src) const override;
-  void assignWithTake(IRGenFunction &IGF, Address dest,
-                      Address src) const override;
+  void assignWithCopy(IRGenFunction &IGF, Address dest, Address src,
+                      SelfTypeMetadata selfType) const override;
+  void assignWithTake(IRGenFunction &IGF, Address dest, Address src,
+                      SelfTypeMetadata selfType) const override;
 
-  void initWithCopy(IRGenFunction &IGF, Address dest,
-                    Address src) const override;
-  void initWithTake(IRGenFunction &IGF, Address dest,
-                    Address src) const override;
+  void initWithCopy(IRGenFunction &IGF, Address dest, Address src,
+                    SelfTypeMetadata selfType) const override;
+  void initWithTake(IRGenFunction &IGF, Address dest, Address src,
+                    SelfTypeMetadata selfType) const override;
 
-  llvm::Value *getEnumTagSinglePayload(IRGenFunction &IGF,
-                                       llvm::Value *numEmptyCases,
-                                       Address addr) const override;
+  llvm::Value *
+  getEnumTagSinglePayload(IRGenFunction &IGF, llvm::Value *numEmptyCases,
+                          Address addr,
+                          SelfTypeMetadata selfType) const override;
 
   void storeEnumTagSinglePayload(IRGenFunction &IGF, llvm::Value *tag,
-                                 llvm::Value *numEmptyCases,
-                                 Address enumAddr) const override;
+                                 llvm::Value *numEmptyCases, Address enumAddr,
+                                 SelfTypeMetadata selfType) const override;
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
   void dump() const override;
@@ -187,25 +214,27 @@ public:
   llvm::Value *extraInhabitantCount(IRGenFunction &IGF) const override;
   llvm::Value *isBitwiseTakable(IRGenFunction &IGF) const override;
 
-  void destroy(IRGenFunction &IGF, Address addr) const override;
+  void destroy(IRGenFunction &IGF, Address addr,
+               SelfTypeMetadata selfType) const override;
 
-  void assignWithCopy(IRGenFunction &IGF, Address dest,
-                      Address src) const override;
-  void assignWithTake(IRGenFunction &IGF, Address dest,
-                      Address src) const override;
+  void assignWithCopy(IRGenFunction &IGF, Address dest, Address src,
+                      SelfTypeMetadata selfType) const override;
+  void assignWithTake(IRGenFunction &IGF, Address dest, Address src,
+                      SelfTypeMetadata selfType) const override;
 
-  void initWithCopy(IRGenFunction &IGF, Address dest,
-                    Address src) const override;
-  void initWithTake(IRGenFunction &IGF, Address dest,
-                    Address src) const override;
+  void initWithCopy(IRGenFunction &IGF, Address dest, Address src,
+                    SelfTypeMetadata selfType) const override;
+  void initWithTake(IRGenFunction &IGF, Address dest, Address src,
+                    SelfTypeMetadata selfType) const override;
 
-  llvm::Value *getEnumTagSinglePayload(IRGenFunction &IGF,
-                                       llvm::Value *numEmptyCases,
-                                       Address addr) const override;
+  llvm::Value *
+  getEnumTagSinglePayload(IRGenFunction &IGF, llvm::Value *numEmptyCases,
+                          Address addr,
+                          SelfTypeMetadata selfType) const override;
 
   void storeEnumTagSinglePayload(IRGenFunction &IGF, llvm::Value *tag,
-                                 llvm::Value *numEmptyCases,
-                                 Address enumAddr) const override;
+                                 llvm::Value *numEmptyCases, Address enumAddr,
+                                 SelfTypeMetadata selfType) const override;
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
   void dump() const override;
@@ -233,25 +262,27 @@ public:
   llvm::Value *extraInhabitantCount(IRGenFunction &IGF) const override;
   llvm::Value *isBitwiseTakable(IRGenFunction &IGF) const override;
 
-  void destroy(IRGenFunction &IGF, Address addr) const override;
+  void destroy(IRGenFunction &IGF, Address addr,
+               SelfTypeMetadata selfType) const override;
 
-  void assignWithCopy(IRGenFunction &IGF, Address dest,
-                      Address src) const override;
-  void assignWithTake(IRGenFunction &IGF, Address dest,
-                      Address src) const override;
+  void assignWithCopy(IRGenFunction &IGF, Address dest, Address src,
+                      SelfTypeMetadata selfType) const override;
+  void assignWithTake(IRGenFunction &IGF, Address dest, Address src,
+                      SelfTypeMetadata selfType) const override;
 
-  void initWithCopy(IRGenFunction &IGF, Address dest,
-                    Address src) const override;
-  void initWithTake(IRGenFunction &IGF, Address dest,
-                    Address src) const override;
+  void initWithCopy(IRGenFunction &IGF, Address dest, Address src,
+                    SelfTypeMetadata selfType) const override;
+  void initWithTake(IRGenFunction &IGF, Address dest, Address src,
+                    SelfTypeMetadata selfType) const override;
 
-  llvm::Value *getEnumTagSinglePayload(IRGenFunction &IGF,
-                                       llvm::Value *numEmptyCases,
-                                       Address addr) const override;
+  llvm::Value *
+  getEnumTagSinglePayload(IRGenFunction &IGF, llvm::Value *numEmptyCases,
+                          Address addr,
+                          SelfTypeMetadata selfType) const override;
 
   void storeEnumTagSinglePayload(IRGenFunction &IGF, llvm::Value *tag,
-                                 llvm::Value *numEmptyCases,
-                                 Address enumAddr) const override;
+                                 llvm::Value *numEmptyCases, Address enumAddr,
+                                 SelfTypeMetadata selfType) const override;
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
   void dump() const override;
@@ -284,25 +315,27 @@ public:
   llvm::Value *extraInhabitantCount(IRGenFunction &IGF) const override;
   llvm::Value *isBitwiseTakable(IRGenFunction &IGF) const override;
 
-  void destroy(IRGenFunction &IGF, Address addr) const override;
+  void destroy(IRGenFunction &IGF, Address addr,
+               SelfTypeMetadata selfType) const override;
 
-  void assignWithCopy(IRGenFunction &IGF, Address dest,
-                      Address src) const override;
-  void assignWithTake(IRGenFunction &IGF, Address dest,
-                      Address src) const override;
+  void assignWithCopy(IRGenFunction &IGF, Address dest, Address src,
+                      SelfTypeMetadata selfType) const override;
+  void assignWithTake(IRGenFunction &IGF, Address dest, Address src,
+                      SelfTypeMetadata selfType) const override;
 
-  void initWithCopy(IRGenFunction &IGF, Address dest,
-                    Address src) const override;
-  void initWithTake(IRGenFunction &IGF, Address dest,
-                    Address src) const override;
+  void initWithCopy(IRGenFunction &IGF, Address dest, Address src,
+                    SelfTypeMetadata selfType) const override;
+  void initWithTake(IRGenFunction &IGF, Address dest, Address src,
+                    SelfTypeMetadata selfType) const override;
 
-  llvm::Value *getEnumTagSinglePayload(IRGenFunction &IGF,
-                                       llvm::Value *numEmptyCases,
-                                       Address addr) const override;
+  llvm::Value *
+  getEnumTagSinglePayload(IRGenFunction &IGF, llvm::Value *numEmptyCases,
+                          Address addr,
+                          SelfTypeMetadata selfType) const override;
 
   void storeEnumTagSinglePayload(IRGenFunction &IGF, llvm::Value *tag,
-                                 llvm::Value *numEmptyCases,
-                                 Address enumAddr) const override;
+                                 llvm::Value *numEmptyCases, Address enumAddr,
+                                 SelfTypeMetadata selfType) const override;
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
   void dump() const override;
@@ -348,32 +381,36 @@ public:
   llvm::Value *extraInhabitantCount(IRGenFunction &IGF) const override;
   llvm::Value *isBitwiseTakable(IRGenFunction &IGF) const override;
 
-  void destroy(IRGenFunction &IGF, Address addr) const override;
+  void destroy(IRGenFunction &IGF, Address addr,
+               SelfTypeMetadata selfType) const override;
 
-  void assignWithCopy(IRGenFunction &IGF, Address dest,
-                      Address src) const override;
-  void assignWithTake(IRGenFunction &IGF, Address dest,
-                      Address src) const override;
+  void assignWithCopy(IRGenFunction &IGF, Address dest, Address src,
+                      SelfTypeMetadata selfType) const override;
+  void assignWithTake(IRGenFunction &IGF, Address dest, Address src,
+                      SelfTypeMetadata selfType) const override;
 
-  void initWithCopy(IRGenFunction &IGF, Address dest,
-                    Address src) const override;
-  void initWithTake(IRGenFunction &IGF, Address dest,
-                    Address src) const override;
+  void initWithCopy(IRGenFunction &IGF, Address dest, Address src,
+                    SelfTypeMetadata selfType) const override;
+  void initWithTake(IRGenFunction &IGF, Address dest, Address src,
+                    SelfTypeMetadata selfType) const override;
 
-  llvm::Value *getEnumTagSinglePayload(IRGenFunction &IGF,
-                                       llvm::Value *numEmptyCases,
-                                       Address addr) const override;
+  llvm::Value *
+  getEnumTagSinglePayload(IRGenFunction &IGF, llvm::Value *numEmptyCases,
+                          Address addr,
+                          SelfTypeMetadata selfType) const override;
 
   void storeEnumTagSinglePayload(IRGenFunction &IGF, llvm::Value *tag,
-                                 llvm::Value *numEmptyCases,
-                                 Address enumAddr) const override;
+                                 llvm::Value *numEmptyCases, Address enumAddr,
+                                 SelfTypeMetadata selfType) const override;
 
-  llvm::Value *getEnumTag(IRGenFunction &IGF, Address enumAddr) const;
+  llvm::Value *getEnumTag(IRGenFunction &IGF, Address enumAddr,
+                          SelfTypeMetadata selfType) const;
 
   void destructiveProjectEnumData(IRGenFunction &IGF, Address enumAddr) const;
 
   void destructiveInjectEnumTag(IRGenFunction &IGF, llvm::Value *tag,
-                                Address enumAddr) const;
+                                Address enumAddr,
+                                SelfTypeMetadata selfType) const;
 
   bool isMultiPayloadEnum() const;
 
@@ -383,18 +420,22 @@ public:
 
 private:
   llvm::Value *maxPayloadSize(IRGenFunction &IGF) const;
-  llvm::BasicBlock *testSinglePayloadEnumContainsPayload(IRGenFunction &IGF,
-                                                         Address addr) const;
+  llvm::BasicBlock *
+  testSinglePayloadEnumContainsPayload(IRGenFunction &IGF, Address addr,
+                                       SelfTypeMetadata selfType) const;
 
   void initializeSinglePayloadEnum(IRGenFunction &IGF, Address dest,
-                                   Address src, IsTake_t isTake) const;
+                                   Address src, IsTake_t isTake,
+                                   SelfTypeMetadata selfType) const;
   void assignSinglePayloadEnum(IRGenFunction &IGF, Address dest, Address src,
-                               IsTake_t isTake) const;
+                               IsTake_t isTake,
+                               SelfTypeMetadata selfType) const;
 
-  void initializeMultiPayloadEnum(IRGenFunction &IGF, Address dest,
-                                   Address src, IsTake_t isTake) const;
+  void initializeMultiPayloadEnum(IRGenFunction &IGF, Address dest, Address src,
+                                  IsTake_t isTake,
+                                  SelfTypeMetadata selfType) const;
   void assignMultiPayloadEnum(IRGenFunction &IGF, Address dest, Address src,
-                              IsTake_t isTake) const;
+                              IsTake_t isTake, SelfTypeMetadata selfType) const;
 
   std::pair<Address, llvm::Value *>
   getMultiPalyloadEnumTagByteAddrAndNumBytes(IRGenFunction &IGF,
@@ -402,18 +443,18 @@ private:
 
   llvm::Value *
   getEnumTagSinglePayloadForSinglePayloadEnum(IRGenFunction &IGF, Address addr,
-                                              llvm::Value *numEmptyCases) const;
-  void storeEnumTagSinglePayloadForSinglePayloadEnum(IRGenFunction &IGF,
-                                                     llvm::Value *tag,
-                                                     llvm::Value *numEmptyCases,
-                                                     Address enumAddr) const;
+                                              llvm::Value *numEmptyCases,
+                                              SelfTypeMetadata selfType) const;
+  void storeEnumTagSinglePayloadForSinglePayloadEnum(
+      IRGenFunction &IGF, llvm::Value *tag, llvm::Value *numEmptyCases,
+      Address enumAddr, SelfTypeMetadata selfType) const;
   llvm::Value *
   getEnumTagSinglePayloadForMultiPayloadEnum(IRGenFunction &IGF, Address addr,
-                                             llvm::Value *numEmptyCases) const;
-  void storeEnumTagSinglePayloadForMultiPayloadEnum(IRGenFunction &IGF,
-                                                    llvm::Value *tag,
-                                                    llvm::Value *numEmptyCases,
-                                                    Address enumAddr) const;
+                                             llvm::Value *numEmptyCases,
+                                             SelfTypeMetadata selfType) const;
+  void storeEnumTagSinglePayloadForMultiPayloadEnum(
+      IRGenFunction &IGF, llvm::Value *tag, llvm::Value *numEmptyCases,
+      Address enumAddr, SelfTypeMetadata selfType) const;
   llvm::Value *getEnumTagMultipayload(IRGenFunction &IGF,
                                       Address enumAddr) const;
 
@@ -427,8 +468,10 @@ private:
   void storeMultiPayloadValue(IRGenFunction &IGF, llvm::Value *value,
                               Address enumAddr) const;
 
-  void destroyMultiPayloadEnum(IRGenFunction &IGF, Address enumAddr) const;
-  void destroySinglePayloadEnum(IRGenFunction &IGF, Address enumAddr) const;
+  void destroyMultiPayloadEnum(IRGenFunction &IGF, Address enumAddr,
+                               SelfTypeMetadata selfType) const;
+  void destroySinglePayloadEnum(IRGenFunction &IGF, Address enumAddr,
+                                SelfTypeMetadata selfType) const;
 
   void multiPayloadEnumForPayloadAndEmptyCases(
       IRGenFunction &IGF, Address addr,

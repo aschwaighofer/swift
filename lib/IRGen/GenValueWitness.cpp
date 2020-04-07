@@ -424,11 +424,13 @@ void irgen::getArgAsLocalSelfTypeMetadata(IRGenFunction &IGF, llvm::Value *arg,
 }
 
 /// Get the next argument and use it as the 'self' type metadata.
-static void getArgAsLocalSelfTypeMetadata(IRGenFunction &IGF,
-                                          llvm::Function::arg_iterator &it,
-                                          CanType abstractType) {
+static SelfTypeMetadata
+getArgAsLocalSelfTypeMetadata(IRGenFunction &IGF,
+                              llvm::Function::arg_iterator &it,
+                              CanType abstractType) {
   llvm::Value *arg = &*it++;
   getArgAsLocalSelfTypeMetadata(IGF, arg, abstractType);
+  return SelfTypeMetadata(abstractType, arg);
 }
 
 static const TypeLayoutEntry *
@@ -477,11 +479,11 @@ static void buildValueWitnessFunction(IRGenModule &IGM,
   case ValueWitness::AssignWithCopy: {
     Address dest = getArgAs(IGF, argv, type, "dest");
     Address src = getArgAs(IGF, argv, type, "src");
-    getArgAsLocalSelfTypeMetadata(IGF, argv, abstractType);
+    auto selfType = getArgAsLocalSelfTypeMetadata(IGF, argv, abstractType);
 
     if (auto *typeLayoutEntry =
             conditionallyGetTypeLayoutEntry(IGM, concreteType)) {
-      typeLayoutEntry->assignWithCopy(IGF, dest, src);
+      typeLayoutEntry->assignWithCopy(IGF, dest, src, selfType);
     } else {
       type.assignWithCopy(IGF, dest, src, concreteType, true);
     }
@@ -493,10 +495,10 @@ static void buildValueWitnessFunction(IRGenModule &IGM,
   case ValueWitness::AssignWithTake: {
     Address dest = getArgAs(IGF, argv, type, "dest");
     Address src = getArgAs(IGF, argv, type, "src");
-    getArgAsLocalSelfTypeMetadata(IGF, argv, abstractType);
+    auto selfType = getArgAsLocalSelfTypeMetadata(IGF, argv, abstractType);
     if (auto *typeLayoutEntry =
             conditionallyGetTypeLayoutEntry(IGM, concreteType)) {
-      typeLayoutEntry->assignWithTake(IGF, dest, src);
+      typeLayoutEntry->assignWithTake(IGF, dest, src, selfType);
     } else {
       type.assignWithTake(IGF, dest, src, concreteType, true);
     }
@@ -507,10 +509,10 @@ static void buildValueWitnessFunction(IRGenModule &IGM,
 
   case ValueWitness::Destroy: {
     Address object = getArgAs(IGF, argv, type, "object");
-    getArgAsLocalSelfTypeMetadata(IGF, argv, abstractType);
+    auto selfType = getArgAsLocalSelfTypeMetadata(IGF, argv, abstractType);
     if (auto *typeLayoutEntry =
             conditionallyGetTypeLayoutEntry(IGM, concreteType)) {
-      typeLayoutEntry->destroy(IGF, object);
+      typeLayoutEntry->destroy(IGF, object, selfType);
     } else {
       type.destroy(IGF, object, concreteType, true);
     }
@@ -521,12 +523,13 @@ static void buildValueWitnessFunction(IRGenModule &IGM,
   case ValueWitness::InitializeBufferWithCopyOfBuffer: {
     Address dest = getArgAsBuffer(IGF, argv, "dest");
     Address src = getArgAsBuffer(IGF, argv, "src");
-    getArgAsLocalSelfTypeMetadata(IGF, argv, abstractType);
+    auto selfType = getArgAsLocalSelfTypeMetadata(IGF, argv, abstractType);
 
     llvm::Value *objectPtr = nullptr;
     if (auto *typeLayoutEntry =
             conditionallyGetTypeLayoutEntry(IGM, concreteType)) {
-      objectPtr = typeLayoutEntry->initBufferWithCopyOfBuffer(IGF, dest, src);
+      objectPtr =
+          typeLayoutEntry->initBufferWithCopyOfBuffer(IGF, dest, src, selfType);
     } else {
       Address result = emitInitializeBufferWithCopyOfBuffer(
           IGF, dest, src, concreteType, type, packing);
@@ -540,10 +543,10 @@ static void buildValueWitnessFunction(IRGenModule &IGM,
   case ValueWitness::InitializeWithCopy: {
     Address dest = getArgAs(IGF, argv, type, "dest");
     Address src = getArgAs(IGF, argv, type, "src");
-    getArgAsLocalSelfTypeMetadata(IGF, argv, abstractType);
+    auto selfType = getArgAsLocalSelfTypeMetadata(IGF, argv, abstractType);
     if (auto *typeLayoutEntry =
             conditionallyGetTypeLayoutEntry(IGM, concreteType)) {
-      typeLayoutEntry->initWithCopy(IGF, dest, src);
+      typeLayoutEntry->initWithCopy(IGF, dest, src, selfType);
     } else {
       type.initializeWithCopy(IGF, dest, src, concreteType, true);
     }
@@ -555,11 +558,11 @@ static void buildValueWitnessFunction(IRGenModule &IGM,
   case ValueWitness::InitializeWithTake: {
     Address dest = getArgAs(IGF, argv, type, "dest");
     Address src = getArgAs(IGF, argv, type, "src");
-    getArgAsLocalSelfTypeMetadata(IGF, argv, abstractType);
+    auto selfType = getArgAsLocalSelfTypeMetadata(IGF, argv, abstractType);
 
     if (auto *typeLayoutEntry =
             conditionallyGetTypeLayoutEntry(IGM, concreteType)) {
-      typeLayoutEntry->initWithTake(IGF, dest, src);
+      typeLayoutEntry->initWithTake(IGF, dest, src, selfType);
     } else {
       type.initializeWithTake(IGF, dest, src, concreteType, true);
     }
@@ -572,7 +575,7 @@ static void buildValueWitnessFunction(IRGenModule &IGM,
     auto &strategy = getEnumImplStrategy(IGM, concreteType);
 
     llvm::Value *value = getArg(argv, "value");
-    getArgAsLocalSelfTypeMetadata(IGF, argv, abstractType);
+    auto selfType = getArgAsLocalSelfTypeMetadata(IGF, argv, abstractType);
 
     auto enumTy = type.getStorageType()->getPointerTo();
     value = IGF.Builder.CreateBitCast(value, enumTy);
@@ -581,7 +584,7 @@ static void buildValueWitnessFunction(IRGenModule &IGM,
     llvm::Value *result;
     if (auto *enumTypeLayoutEntry =
             conditionallyGetEnumTypeLayoutEntry(IGM, concreteType)) {
-      result = enumTypeLayoutEntry->getEnumTag(IGF, enumAddr);
+      result = enumTypeLayoutEntry->getEnumTag(IGF, enumAddr, selfType);
     } else {
       result = strategy.emitGetEnumTag(IGF, concreteType, enumAddr);
     }
@@ -593,7 +596,7 @@ static void buildValueWitnessFunction(IRGenModule &IGM,
     auto &strategy = getEnumImplStrategy(IGM, concreteType);
 
     llvm::Value *value = getArg(argv, "value");
-    getArgAsLocalSelfTypeMetadata(IGF, argv, abstractType);
+    auto selfType = getArgAsLocalSelfTypeMetadata(IGF, argv, abstractType);
 
     if (!strategy.getElementsWithPayload().empty()) {
       if (auto *enumTypeLayoutEntry =
@@ -620,11 +623,11 @@ static void buildValueWitnessFunction(IRGenModule &IGM,
 
     llvm::Value *tag = getArg(argv, "tag");
 
-    getArgAsLocalSelfTypeMetadata(IGF, argv, abstractType);
+    auto selfType = getArgAsLocalSelfTypeMetadata(IGF, argv, abstractType);
     if (auto *enumTypeLayoutEntry =
             conditionallyGetEnumTypeLayoutEntry(IGM, concreteType)) {
       enumTypeLayoutEntry->destructiveInjectEnumTag(
-          IGF, tag, Address(value, type.getBestKnownAlignment()));
+          IGF, tag, Address(value, type.getBestKnownAlignment()), selfType);
     } else {
       strategy.emitStoreTag(IGF, concreteType,
                             Address(value, type.getBestKnownAlignment()), tag);
@@ -641,11 +644,12 @@ static void buildValueWitnessFunction(IRGenModule &IGM,
 
     llvm::Value *numEmptyCases = getArg(argv, "numEmptyCases");
 
-    getArgAsLocalSelfTypeMetadata(IGF, argv, abstractType);
+    auto selfType = getArgAsLocalSelfTypeMetadata(IGF, argv, abstractType);
     if (auto *typeLayoutEntry =
             conditionallyGetTypeLayoutEntry(IGM, concreteType)) {
       auto *idx = typeLayoutEntry->getEnumTagSinglePayload(
-          IGF, numEmptyCases, Address(value, type.getBestKnownAlignment()));
+          IGF, numEmptyCases, Address(value, type.getBestKnownAlignment()),
+          selfType);
       IGF.Builder.CreateRet(idx);
     } else {
       llvm::Value *idx = type.getEnumTagSinglePayload(
@@ -665,12 +669,12 @@ static void buildValueWitnessFunction(IRGenModule &IGM,
     llvm::Value *whichCase = getArg(argv, "whichCase");
     llvm::Value *numEmptyCases = getArg(argv, "numEmptyCases");
 
-    getArgAsLocalSelfTypeMetadata(IGF, argv, abstractType);
+    auto selfType = getArgAsLocalSelfTypeMetadata(IGF, argv, abstractType);
     if (auto *typeLayoutEntry =
             conditionallyGetTypeLayoutEntry(IGM, concreteType)) {
       typeLayoutEntry->storeEnumTagSinglePayload(
           IGF, whichCase, numEmptyCases,
-          Address(value, type.getBestKnownAlignment()));
+          Address(value, type.getBestKnownAlignment()), selfType);
     } else {
       type.storeEnumTagSinglePayload(
           IGF, whichCase, numEmptyCases,
