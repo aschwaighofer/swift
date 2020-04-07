@@ -128,15 +128,16 @@ public:
 protected:
   llvm::Value *getEnumTagSinglePayloadGeneric(
       IRGenFunction &IGF, Address addr, llvm::Value *numEmptyCases,
-      llvm::function_ref<llvm::Value *(Address addr, SelfTypeMetadata selfType)>
+      llvm::function_ref<llvm::Value *(IRGenFunction &IGF, Address addr,
+                                       SelfTypeMetadata selfType)>
           getExtraInhabitantIndexFun,
       SelfTypeMetadata selfType) const;
 
   void storeEnumTagSinglePayloadGeneric(
       IRGenFunction &IGF, llvm::Value *tag, llvm::Value *numEmptyCases,
       Address addr,
-      llvm::function_ref<void(Address addr, llvm::Value *tag,
-                              SelfTypeMetadata selfType)>
+      llvm::function_ref<void(IRGenFunction &IGF, Address addr,
+                              llvm::Value *tag, SelfTypeMetadata selfType)>
           storeExtraInhabitantIndexFun,
       SelfTypeMetadata selfType) const;
 

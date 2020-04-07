@@ -10,11 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 #include "TypeLayout.h"
+#include "Callee.h"
 #include "EnumPayload.h"
 #include "FixedTypeInfo.h"
 #include "GenMeta.h"
 #include "GenOpaque.h"
 #include "IRGen.h"
+#include "IRGenDebugInfo.h"
 #include "IRGenFunction.h"
 #include "IRGenModule.h"
 #include "SwitchBuilder.h"
@@ -260,268 +262,439 @@ static EnumTagInfo getEnumTagBytes(IRGenFunction &IGF, llvm::Value *size,
   return {numTagsPhi, numTagBytes};
 }
 
+static FunctionPointer createGetExtraInhabitantIndexFuntion(
+    IRGenModule &IGM,
+    llvm::function_ref<llvm::Value *(IRGenFunction &IGF, Address addr,
+                                     SelfTypeMetadata selfType)>
+        getExtraInhabitantIndexFun,
+    SelfTypeMetadata selfType) {
+
+  auto fnTy = llvm::FunctionType::get(
+      IGM.Int32Ty, {IGM.OpaquePtrTy, IGM.TypeMetadataPtrTy}, false);
+
+  auto *fun =
+      llvm::Function::Create(fnTy, llvm::Function::PrivateLinkage,
+                             "__swift_getExtraInhabitantHelper", &IGM.Module);
+  auto &ctx = IGM.getLLVMContext();
+  auto attrs = IGM.constructInitialAttributes();
+  attrs = attrs.addAttribute(ctx, llvm::AttributeList::FunctionIndex,
+                             llvm::Attribute::NoInline);
+  attrs = attrs.addAttribute(ctx, llvm::AttributeList::FunctionIndex,
+                             llvm::Attribute::NoUnwind);
+  fun->setAttributes(attrs);
+  fun->setCallingConv(IGM.DefaultCC);
+
+  IRGenFunction IGF(IGM, fun);
+  if (IGM.DebugInfo)
+    IGM.DebugInfo->emitArtificialFunction(IGF, fun);
+
+  auto argv = fun->arg_begin();
+  llvm::Value *addr = &*(argv++);
+  Address address(addr, Alignment(1));
+  llvm::Value *self = &*(argv++);
+  auto localSelfType = selfType.getSelfMetadataFromFunctionArg(self);
+  localSelfType.setAsLocalSelfTypeMetadata(IGF);
+  auto result = getExtraInhabitantIndexFun(IGF, address, localSelfType);
+  IGF.Builder.CreateRet(result);
+  return FunctionPointer(fun, Signature(fnTy, attrs, IGM.DefaultCC));
+}
+
+static llvm::Constant *getOrCreateGetEnumTagSinglePayloadGenericHelper(
+    IRGenModule &IGM, Signature getExtraInhabitantIndexFunSig) {
+  auto func = IGM.getOrCreateHelperFunction(
+      "__swift_getEnumTagSinglePayloadGenericHelper", IGM.Int32Ty,
+      {IGM.OpaquePtrTy, IGM.Int32Ty, IGM.TypeMetadataPtrTy, IGM.Int32Ty,
+       IGM.SizeTy, IGM.OpaquePtrTy},
+      [getExtraInhabitantIndexFunSig](IRGenFunction &IGF) {
+        auto argv = IGF.CurFn->arg_begin();
+        llvm::Value *address = &*(argv++);
+        Address addr(address, Alignment(1));
+        llvm::Value *numEmptyCases = &*(argv++);
+        llvm::Value *selfType = &*(argv++);
+        llvm::Value *numExtraInhabitants = &*(argv++);
+        llvm::Value *size = &*(argv++);
+        llvm::Value *getExtraInhabitantIndexFun = &*(argv++);
+
+        auto &Builder = IGF.Builder;
+        auto &IGM = IGF.IGM;
+        auto &Ctx = IGF.IGM.getLLVMContext();
+
+        auto *zero = llvm::ConstantInt::get(IGM.Int32Ty, 0U);
+        auto *one = llvm::ConstantInt::get(IGM.Int32Ty, 1U);
+        auto *four = llvm::ConstantInt::get(IGM.Int32Ty, 4U);
+        auto *eight = llvm::ConstantInt::get(IGM.Int32Ty, 8U);
+
+        auto *extraTagBitsBB = llvm::BasicBlock::Create(Ctx);
+        auto *noExtraTagBitsBB = llvm::BasicBlock::Create(Ctx);
+        auto *hasEmptyCasesBB = llvm::BasicBlock::Create(Ctx);
+        auto *singleCaseEnumBB = llvm::BasicBlock::Create(Ctx);
+
+        auto *truncSize = Builder.CreateZExtOrTrunc(size, IGM.Int32Ty);
+
+        // No empty cases so we must be the payload.
+        auto *hasNoEmptyCases = Builder.CreateICmpEQ(zero, numEmptyCases);
+        Builder.CreateCondBr(hasNoEmptyCases, singleCaseEnumBB,
+                             hasEmptyCasesBB);
+
+        // Otherwise, check whether we need extra tag bits.
+        Builder.emitBlock(hasEmptyCasesBB);
+        auto *hasExtraTagBits =
+            Builder.CreateICmpUGT(numEmptyCases, numExtraInhabitants);
+        Builder.CreateCondBr(hasExtraTagBits, extraTagBitsBB, noExtraTagBitsBB);
+
+        // There are extra tag bits to check.
+        Builder.emitBlock(extraTagBitsBB);
+
+        // Compute the number of extra tag bytes.
+        auto *emptyCases =
+            Builder.CreateSub(numEmptyCases, numExtraInhabitants);
+        auto *numExtraTagBytes =
+            getEnumTagBytes(IGF, truncSize, emptyCases, IGM.getInt32(1))
+                .numTagBytes;
+
+        // Read the value stored in the extra tag bytes.
+        auto *valueAddr =
+            Builder.CreateBitOrPointerCast(addr.getAddress(), IGM.Int8PtrTy);
+        auto *extraTagBitsAddr = Builder.CreateInBoundsGEP(valueAddr, size);
+        auto *extraTagBits = emitGetTag(
+            IGF, Address(extraTagBitsAddr, Alignment(1)), numExtraTagBytes);
+
+        extraTagBitsBB = llvm::BasicBlock::Create(Ctx);
+        Builder.CreateCondBr(Builder.CreateICmpEQ(extraTagBits, zero),
+                             noExtraTagBitsBB, extraTagBitsBB);
+
+        auto *resultBB = llvm::BasicBlock::Create(Ctx);
+
+        Builder.emitBlock(extraTagBitsBB);
+
+        auto sizeGTE4 = Builder.CreateICmpUGE(truncSize, four);
+        auto *caseIndexFromExtraTagBits = Builder.CreateSelect(
+            sizeGTE4, zero,
+            Builder.CreateShl(Builder.CreateSub(extraTagBits, one),
+                              Builder.CreateMul(eight, truncSize)));
+
+        auto caseIndexFromValue = llvm::PHINode::Create(IGM.Int32Ty, 2);
+        caseIndexFromValue->setName("case-index-from-value");
+        auto contBB = IGF.createBasicBlock("");
+        auto nonZeroSizeBB = IGF.createBasicBlock("");
+        auto isNonZero = Builder.CreateICmpNE(truncSize, zero);
+        caseIndexFromValue->addIncoming(zero, Builder.GetInsertBlock());
+        Builder.CreateCondBr(isNonZero, nonZeroSizeBB, contBB);
+        {
+          // Read up to one pointer-sized 'chunk' of the payload.
+          // The size of the chunk does not have to be a power of 2.
+          Builder.emitBlock(nonZeroSizeBB);
+          auto sizeClampedTo4 = Builder.CreateSelect(sizeGTE4, four, truncSize);
+          auto loadPayloadChunk = emitLoad1to4Bytes(IGF, addr, sizeClampedTo4);
+          caseIndexFromValue->addIncoming(loadPayloadChunk,
+                                          Builder.GetInsertBlock());
+          Builder.CreateBr(contBB);
+        }
+        Builder.emitBlock(contBB);
+        Builder.Insert(caseIndexFromValue);
+
+        auto *result1 = Builder.CreateAdd(
+            numExtraInhabitants,
+            Builder.CreateOr(caseIndexFromValue, caseIndexFromExtraTagBits));
+        result1 = Builder.CreateAdd(result1, one);
+        auto *result1BB = Builder.GetInsertBlock();
+        Builder.CreateBr(resultBB);
+
+        // Extra tag bits were considered and zero or there are not extra tag
+        // bits.
+        Builder.emitBlock(noExtraTagBitsBB);
+
+        // If there are extra inhabitants, see whether the payload is valid.
+        auto result0 = llvm::PHINode::Create(IGM.Int32Ty, 2);
+        result0->setName("get-payload-tag-phi");
+        auto contBB2 = IGF.createBasicBlock("");
+        auto hasXIBB = IGF.createBasicBlock("");
+        auto isNonZeroXI = Builder.CreateICmpNE(numExtraInhabitants, zero);
+        result0->addIncoming(zero, Builder.GetInsertBlock());
+        Builder.CreateCondBr(isNonZeroXI, hasXIBB, contBB2);
+        {
+          Builder.emitBlock(hasXIBB);
+          ConditionalDominanceScope scope(IGF);
+          // Get tag in payload.
+          //
+          auto funcPtr = FunctionPointer(
+              Builder.CreateBitCast(
+                  getExtraInhabitantIndexFun,
+                  getExtraInhabitantIndexFunSig.getType()->getPointerTo()),
+              getExtraInhabitantIndexFunSig);
+          auto *tagInPayload =
+              Builder.CreateCall(funcPtr, {addr.getAddress(), selfType});
+          result0->addIncoming(tagInPayload, Builder.GetInsertBlock());
+          Builder.CreateBr(contBB2);
+        }
+        Builder.emitBlock(contBB2);
+        Builder.Insert(result0);
+        auto result0BB = Builder.GetInsertBlock();
+        Builder.CreateBr(resultBB);
+
+        Builder.emitBlock(singleCaseEnumBB);
+        // Otherwise, we have a valid payload.
+        auto *result2 = zero;
+        Builder.CreateBr(resultBB);
+
+        Builder.emitBlock(resultBB);
+        auto *result = Builder.CreatePHI(IGM.Int32Ty, 3);
+        result->addIncoming(result0, result0BB);
+        result->addIncoming(result1, result1BB);
+        result->addIncoming(result2, singleCaseEnumBB);
+
+        Builder.CreateRet(result);
+      },
+      /*noinline*/ true);
+  return func;
+}
+
 llvm::Value *TypeLayoutEntry::getEnumTagSinglePayloadGeneric(
     IRGenFunction &IGF, Address addr, llvm::Value *numEmptyCases,
-    llvm::function_ref<llvm::Value *(Address addr, SelfTypeMetadata selfType)>
+    llvm::function_ref<llvm::Value *(IRGenFunction &SubIGF, Address addr,
+                                     SelfTypeMetadata selfType)>
         getExtraInhabitantIndexFun,
     SelfTypeMetadata selfType) const {
   auto &IGM = IGF.IGM;
   auto &Ctx = IGF.IGM.getLLVMContext();
   auto &Builder = IGF.Builder;
-
   auto numExtraInhabitants = this->extraInhabitantCount(IGF);
   auto size = this->size(IGF);
-
-  auto *zero = llvm::ConstantInt::get(IGM.Int32Ty, 0U);
-  auto *one = llvm::ConstantInt::get(IGM.Int32Ty, 1U);
-  auto *four = llvm::ConstantInt::get(IGM.Int32Ty, 4U);
-  auto *eight = llvm::ConstantInt::get(IGM.Int32Ty, 8U);
-
-  auto *extraTagBitsBB = llvm::BasicBlock::Create(Ctx);
-  auto *noExtraTagBitsBB = llvm::BasicBlock::Create(Ctx);
-  auto *hasEmptyCasesBB = llvm::BasicBlock::Create(Ctx);
-  auto *singleCaseEnumBB = llvm::BasicBlock::Create(Ctx);
-
-  auto *truncSize = Builder.CreateZExtOrTrunc(size, IGM.Int32Ty);
-
-  // No empty cases so we must be the payload.
-  auto *hasNoEmptyCases = Builder.CreateICmpEQ(zero, numEmptyCases);
-  Builder.CreateCondBr(hasNoEmptyCases, singleCaseEnumBB, hasEmptyCasesBB);
-
-  // Otherwise, check whether we need extra tag bits.
-  Builder.emitBlock(hasEmptyCasesBB);
-  auto *hasExtraTagBits =
-      Builder.CreateICmpUGT(numEmptyCases, numExtraInhabitants);
-  Builder.CreateCondBr(hasExtraTagBits, extraTagBitsBB, noExtraTagBitsBB);
-
-  // There are extra tag bits to check.
-  Builder.emitBlock(extraTagBitsBB);
-
-  // Compute the number of extra tag bytes.
-  auto *emptyCases = Builder.CreateSub(numEmptyCases, numExtraInhabitants);
-  auto *numExtraTagBytes =
-      getEnumTagBytes(IGF, truncSize, emptyCases, IGM.getInt32(1)).numTagBytes;
-
-  // Read the value stored in the extra tag bytes.
-  auto *valueAddr =
-      Builder.CreateBitOrPointerCast(addr.getAddress(), IGM.Int8PtrTy);
-  auto *extraTagBitsAddr = Builder.CreateInBoundsGEP(valueAddr, size);
-  auto *extraTagBits = emitGetTag(IGF, Address(extraTagBitsAddr, Alignment(1)),
-                                  numExtraTagBytes);
-
-  extraTagBitsBB = llvm::BasicBlock::Create(Ctx);
-  Builder.CreateCondBr(Builder.CreateICmpEQ(extraTagBits, zero),
-                       noExtraTagBitsBB, extraTagBitsBB);
-
-  auto *resultBB = llvm::BasicBlock::Create(Ctx);
-
-  Builder.emitBlock(extraTagBitsBB);
-
-  auto sizeGTE4 = Builder.CreateICmpUGE(truncSize, four);
-  auto *caseIndexFromExtraTagBits = Builder.CreateSelect(
-      sizeGTE4, zero,
-      Builder.CreateShl(Builder.CreateSub(extraTagBits, one),
-                        Builder.CreateMul(eight, truncSize)));
-
-  auto caseIndexFromValue = llvm::PHINode::Create(IGM.Int32Ty, 2);
-  caseIndexFromValue->setName("case-index-from-value");
-  auto contBB = IGF.createBasicBlock("");
-  auto nonZeroSizeBB = IGF.createBasicBlock("");
-  auto isNonZero = Builder.CreateICmpNE(truncSize, zero);
-  caseIndexFromValue->addIncoming(zero, Builder.GetInsertBlock());
-  Builder.CreateCondBr(isNonZero, nonZeroSizeBB, contBB);
-  {
-    // Read up to one pointer-sized 'chunk' of the payload.
-    // The size of the chunk does not have to be a power of 2.
-    Builder.emitBlock(nonZeroSizeBB);
-    auto sizeClampedTo4 = Builder.CreateSelect(sizeGTE4, four, truncSize);
-    auto loadPayloadChunk = emitLoad1to4Bytes(IGF, addr, sizeClampedTo4);
-    caseIndexFromValue->addIncoming(loadPayloadChunk, Builder.GetInsertBlock());
-    Builder.CreateBr(contBB);
-  }
-  Builder.emitBlock(contBB);
-  Builder.Insert(caseIndexFromValue);
-
-  auto *result1 = Builder.CreateAdd(
-      numExtraInhabitants,
-      Builder.CreateOr(caseIndexFromValue, caseIndexFromExtraTagBits));
-  result1 = Builder.CreateAdd(result1, one);
-  auto *result1BB = Builder.GetInsertBlock();
-  Builder.CreateBr(resultBB);
-
-  // Extra tag bits were considered and zero or there are not extra tag
-  // bits.
-  Builder.emitBlock(noExtraTagBitsBB);
-
-  // If there are extra inhabitants, see whether the payload is valid.
-  auto result0 = llvm::PHINode::Create(IGM.Int32Ty, 2);
-  result0->setName("get-payload-tag-phi");
-  auto contBB2 = IGF.createBasicBlock("");
-  auto hasXIBB = IGF.createBasicBlock("");
-  auto isNonZeroXI = Builder.CreateICmpNE(numExtraInhabitants, zero);
-  result0->addIncoming(zero, Builder.GetInsertBlock());
-  Builder.CreateCondBr(isNonZeroXI, hasXIBB, contBB2);
-  {
-    Builder.emitBlock(hasXIBB);
-    ConditionalDominanceScope scope(IGF);
-    // Get tag in payload.
-    auto tagInPayload = getExtraInhabitantIndexFun(addr, selfType);
-    result0->addIncoming(tagInPayload, Builder.GetInsertBlock());
-    Builder.CreateBr(contBB2);
-  }
-  Builder.emitBlock(contBB2);
-  Builder.Insert(result0);
-  auto result0BB = Builder.GetInsertBlock();
-  Builder.CreateBr(resultBB);
-
-  Builder.emitBlock(singleCaseEnumBB);
-  // Otherwise, we have a valid payload.
-  auto *result2 = zero;
-  Builder.CreateBr(resultBB);
-
-  Builder.emitBlock(resultBB);
-  auto *result = Builder.CreatePHI(IGM.Int32Ty, 3);
-  result->addIncoming(result0, result0BB);
-  result->addIncoming(result1, result1BB);
-  result->addIncoming(result2, singleCaseEnumBB);
+  auto funPtr = createGetExtraInhabitantIndexFuntion(
+      IGM, getExtraInhabitantIndexFun, selfType);
+  auto impl = getOrCreateGetEnumTagSinglePayloadGenericHelper(
+      IGM, funPtr.getSignature());
+  auto result = Builder.CreateCall(
+      impl,
+      {Builder.CreateBitOrPointerCast(addr.getAddress(), IGM.OpaquePtrTy),
+       numEmptyCases, selfType.getSelfMetadata(), numExtraInhabitants, size,
+       Builder.CreateBitOrPointerCast(funPtr.getDirectPointer(),
+                                      IGM.OpaquePtrTy)});
   return result;
+}
+
+static FunctionPointer createStoreExtraInhabitantIndexFuntion(
+    IRGenModule &IGM,
+    llvm::function_ref<void(IRGenFunction &IGF, Address addr, llvm::Value *tag,
+                            SelfTypeMetadata selfType)>
+        storeExtraInhabitantIndexFun,
+    SelfTypeMetadata selfType) {
+
+  auto fnTy = llvm::FunctionType::get(
+      IGM.VoidTy, {IGM.OpaquePtrTy, IGM.Int32Ty, IGM.TypeMetadataPtrTy}, false);
+
+  auto &ctx = IGM.getLLVMContext();
+  auto attrs = IGM.constructInitialAttributes();
+  attrs = attrs.addAttribute(ctx, llvm::AttributeList::FunctionIndex,
+                             llvm::Attribute::NoInline);
+  attrs = attrs.addAttribute(ctx, llvm::AttributeList::FunctionIndex,
+                             llvm::Attribute::NoUnwind);
+
+  auto *fun =
+      llvm::Function::Create(fnTy, llvm::Function::PrivateLinkage,
+                             "__swift_storeExtraInhabitantHelper", &IGM.Module);
+  fun->setAttributes(attrs);
+  fun->setCallingConv(IGM.DefaultCC);
+
+  IRGenFunction IGF(IGM, fun);
+  if (IGM.DebugInfo)
+    IGM.DebugInfo->emitArtificialFunction(IGF, fun);
+
+  auto argv = fun->arg_begin();
+  llvm::Value *addr = &*(argv++);
+  Address address(addr, Alignment(1));
+  llvm::Value *tag = &*(argv++);
+  llvm::Value *self = &*(argv++);
+  auto localSelfType = selfType.getSelfMetadataFromFunctionArg(self);
+  localSelfType.setAsLocalSelfTypeMetadata(IGF);
+  storeExtraInhabitantIndexFun(IGF, address, tag, localSelfType);
+  IGF.Builder.CreateRetVoid();
+
+  return FunctionPointer(fun, Signature(fnTy, attrs, IGM.DefaultCC));
+}
+
+static llvm::Constant *getOrCreateStoreEnumTagSinglePayloadGenericHelper(
+    IRGenModule &IGM, Signature storeExtraInhabitantIndexFunSig) {
+  auto func = IGM.getOrCreateHelperFunction(
+      "__swift_storeEnumTagSinglePayloadGenericHelper", IGM.VoidTy,
+      {IGM.OpaquePtrTy, IGM.Int32Ty, IGM.Int32Ty, IGM.TypeMetadataPtrTy,
+       IGM.Int32Ty, IGM.SizeTy, IGM.OpaquePtrTy},
+      [storeExtraInhabitantIndexFunSig](IRGenFunction &IGF) {
+        auto argv = IGF.CurFn->arg_begin();
+        llvm::Value *address = &*(argv++);
+        Address addr(address, Alignment(1));
+        llvm::Value *tag = &*(argv++);
+        llvm::Value *numEmptyCases = &*(argv++);
+        llvm::Value *selfType = &*(argv++);
+        llvm::Value *numExtraInhabitants = &*(argv++);
+        llvm::Value *size = &*(argv++);
+        llvm::Value *storeExtraInhabitantIndexFun = &*(argv++);
+
+        auto &IGM = IGF.IGM;
+        auto &Ctx = IGF.IGM.getLLVMContext();
+        auto &Builder = IGF.Builder;
+
+        auto *truncSize = Builder.CreateZExtOrTrunc(size, IGM.Int32Ty);
+        auto &int32Ty = IGM.Int32Ty;
+        auto *zero = llvm::ConstantInt::get(int32Ty, 0U);
+        auto *one = llvm::ConstantInt::get(int32Ty, 1U);
+        auto *four = llvm::ConstantInt::get(int32Ty, 4U);
+        auto *eight = llvm::ConstantInt::get(int32Ty, 8U);
+
+        auto *valueAddr =
+            Builder.CreateBitOrPointerCast(addr.getAddress(), IGM.Int8PtrTy);
+        auto extraTagBitsAddr =
+            Address(Builder.CreateInBoundsGEP(valueAddr, size), Alignment(1));
+
+        // Do we need extra tag bytes.
+        auto *entryBB = Builder.GetInsertBlock();
+        auto *continueBB = llvm::BasicBlock::Create(Ctx);
+        auto *computeExtraTagBytesBB = llvm::BasicBlock::Create(Ctx);
+        auto *hasExtraTagBits =
+            Builder.CreateICmpUGT(numEmptyCases, numExtraInhabitants);
+        Builder.CreateCondBr(hasExtraTagBits, computeExtraTagBytesBB,
+                             continueBB);
+
+        Builder.emitBlock(computeExtraTagBytesBB);
+        // Compute the number of extra tag bytes.
+        auto *emptyCases =
+            Builder.CreateSub(numEmptyCases, numExtraInhabitants);
+        auto *numExtraTagBytes0 =
+            getEnumTagBytes(IGF, truncSize, emptyCases, IGM.getInt32(1))
+                .numTagBytes;
+        computeExtraTagBytesBB = Builder.GetInsertBlock();
+        Builder.CreateBr(continueBB);
+
+        Builder.emitBlock(continueBB);
+        auto *numExtraTagBytes = Builder.CreatePHI(int32Ty, 2);
+        numExtraTagBytes->addIncoming(zero, entryBB);
+        numExtraTagBytes->addIncoming(numExtraTagBytes0,
+                                      computeExtraTagBytesBB);
+
+        // Check whether we need to set the extra tag bits to non zero.
+        auto *isExtraTagBitsCaseBB = llvm::BasicBlock::Create(Ctx);
+        auto *isPayloadOrInhabitantCaseBB = llvm::BasicBlock::Create(Ctx);
+        auto *isPayloadOrExtraInhabitant =
+            Builder.CreateICmpULE(tag, numExtraInhabitants);
+        Builder.CreateCondBr(isPayloadOrExtraInhabitant,
+                             isPayloadOrInhabitantCaseBB, isExtraTagBitsCaseBB);
+
+        // We are the payload or fit within the extra inhabitants.
+        Builder.emitBlock(isPayloadOrInhabitantCaseBB);
+        // Zero the tag bits.
+        emitSetTag(IGF, extraTagBitsAddr, zero, numExtraTagBytes);
+        isPayloadOrInhabitantCaseBB = Builder.GetInsertBlock();
+        auto *storeInhabitantBB = llvm::BasicBlock::Create(Ctx);
+        auto *returnBB = llvm::BasicBlock::Create(Ctx);
+        auto *isPayload = Builder.CreateICmpEQ(tag, zero);
+        Builder.CreateCondBr(isPayload, returnBB, storeInhabitantBB);
+
+        Builder.emitBlock(storeInhabitantBB);
+        auto contBB2 = IGF.createBasicBlock("");
+        auto hasXIBB = IGF.createBasicBlock("");
+        auto isNonZeroXI = Builder.CreateICmpNE(numExtraInhabitants, zero);
+        Builder.CreateCondBr(isNonZeroXI, hasXIBB, contBB2);
+        {
+          Builder.emitBlock(hasXIBB);
+          // Store the extra inhabitant.
+          FunctionPointer funPtr(
+              Builder.CreateBitCast(
+                  storeExtraInhabitantIndexFun,
+                  storeExtraInhabitantIndexFunSig.getType()->getPointerTo()),
+              storeExtraInhabitantIndexFunSig);
+          Builder.CreateCall(funPtr, {Builder.CreateBitOrPointerCast(
+                                          addr.getAddress(), IGM.OpaquePtrTy),
+                                      tag, selfType});
+          Builder.CreateBr(contBB2);
+        }
+        Builder.emitBlock(contBB2);
+        Builder.CreateBr(returnBB);
+
+        // There are extra tag bits to consider.
+        Builder.emitBlock(isExtraTagBitsCaseBB);
+
+        // Write the extra tag bytes. At this point we know we have an no
+        // payload case and therefore the index we should store is in the range
+        // [0..ElementsWithNoPayload-1].
+        auto *nonPayloadElementIndex = Builder.CreateSub(tag, one);
+        auto *caseIndex =
+            Builder.CreateSub(nonPayloadElementIndex, numExtraInhabitants);
+        auto *isFourBytesPayload = Builder.CreateICmpUGE(truncSize, four);
+        auto *payloadGE4BB = Builder.GetInsertBlock();
+        auto *payloadLT4BB = llvm::BasicBlock::Create(Ctx);
+        continueBB = llvm::BasicBlock::Create(Ctx);
+        Builder.CreateCondBr(isFourBytesPayload, continueBB, payloadLT4BB);
+
+        Builder.emitBlock(payloadLT4BB);
+        auto *payloadBits = Builder.CreateMul(truncSize, eight);
+        auto *extraTagIndex0 = Builder.CreateLShr(caseIndex, payloadBits);
+        extraTagIndex0 = Builder.CreateAdd(one, extraTagIndex0);
+        auto *payloadIndex0 = Builder.CreateShl(one, payloadBits);
+        payloadIndex0 = Builder.CreateSub(payloadIndex0, one);
+        payloadIndex0 = Builder.CreateAnd(payloadIndex0, caseIndex);
+        Builder.CreateBr(continueBB);
+
+        Builder.emitBlock(continueBB);
+        auto *extraTagIndex = Builder.CreatePHI(int32Ty, 2);
+        extraTagIndex->addIncoming(llvm::ConstantInt::get(int32Ty, 1),
+                                   payloadGE4BB);
+        extraTagIndex->addIncoming(extraTagIndex0, payloadLT4BB);
+
+        auto *payloadIndex = Builder.CreatePHI(int32Ty, 2);
+        payloadIndex->addIncoming(caseIndex, payloadGE4BB);
+        payloadIndex->addIncoming(payloadIndex0, payloadLT4BB);
+
+        auto contBB = IGF.createBasicBlock("");
+        auto nonZeroSizeBB = IGF.createBasicBlock("");
+        auto isNonZero = Builder.CreateICmpNE(truncSize, zero);
+        Builder.CreateCondBr(isNonZero, nonZeroSizeBB, contBB);
+        {
+          Builder.emitBlock(nonZeroSizeBB);
+          auto *truncSize = Builder.CreateZExtOrTrunc(size, IGM.Int32Ty);
+          auto sizeGTE4 = Builder.CreateICmpUGE(truncSize, four);
+          auto sizeClampedTo4 = Builder.CreateSelect(sizeGTE4, four, truncSize);
+          // Zero out the payload.
+          Builder.CreateMemSet(addr, llvm::ConstantInt::get(IGF.IGM.Int8Ty, 0),
+                               truncSize);
+          // Store tag into the payload.
+          emitStore1to4Bytes(IGF, addr, payloadIndex, sizeClampedTo4);
+          Builder.CreateBr(contBB);
+        }
+        Builder.emitBlock(contBB);
+
+        // Write to the extra tag bytes, if any.
+        emitSetTag(IGF, extraTagBitsAddr, extraTagIndex, numExtraTagBytes);
+        Builder.CreateBr(returnBB);
+
+        Builder.emitBlock(returnBB);
+        Builder.CreateRetVoid();
+      },
+      /*setIsNoInline*/ true);
+  return func;
 }
 
 void TypeLayoutEntry::storeEnumTagSinglePayloadGeneric(
     IRGenFunction &IGF, llvm::Value *tag, llvm::Value *numEmptyCases,
     Address addr,
-    llvm::function_ref<void(Address addr, llvm::Value *tag,
+    llvm::function_ref<void(IRGenFunction &IGF, Address addr, llvm::Value *tag,
                             SelfTypeMetadata selfType)>
         storeExtraInhabitantIndexFun,
     SelfTypeMetadata selfType) const {
   auto &IGM = IGF.IGM;
-  auto &Ctx = IGF.IGM.getLLVMContext();
   auto &Builder = IGF.Builder;
 
   auto numExtraInhabitants = this->extraInhabitantCount(IGF);
   auto size = this->size(IGF);
-
-  auto *truncSize = Builder.CreateZExtOrTrunc(size, IGM.Int32Ty);
-  auto &int32Ty = IGM.Int32Ty;
-  auto *zero = llvm::ConstantInt::get(int32Ty, 0U);
-  auto *one = llvm::ConstantInt::get(int32Ty, 1U);
-  auto *four = llvm::ConstantInt::get(int32Ty, 4U);
-  auto *eight = llvm::ConstantInt::get(int32Ty, 8U);
-
-  auto *valueAddr =
-      Builder.CreateBitOrPointerCast(addr.getAddress(), IGM.Int8PtrTy);
-  auto extraTagBitsAddr =
-      Address(Builder.CreateInBoundsGEP(valueAddr, size), Alignment(1));
-
-  // Do we need extra tag bytes.
-  auto *entryBB = Builder.GetInsertBlock();
-  auto *continueBB = llvm::BasicBlock::Create(Ctx);
-  auto *computeExtraTagBytesBB = llvm::BasicBlock::Create(Ctx);
-  auto *hasExtraTagBits =
-      Builder.CreateICmpUGT(numEmptyCases, numExtraInhabitants);
-  Builder.CreateCondBr(hasExtraTagBits, computeExtraTagBytesBB, continueBB);
-
-  Builder.emitBlock(computeExtraTagBytesBB);
-  // Compute the number of extra tag bytes.
-  auto *emptyCases = Builder.CreateSub(numEmptyCases, numExtraInhabitants);
-  auto *numExtraTagBytes0 =
-      getEnumTagBytes(IGF, truncSize, emptyCases, IGM.getInt32(1)).numTagBytes;
-  computeExtraTagBytesBB = Builder.GetInsertBlock();
-  Builder.CreateBr(continueBB);
-
-  Builder.emitBlock(continueBB);
-  auto *numExtraTagBytes = Builder.CreatePHI(int32Ty, 2);
-  numExtraTagBytes->addIncoming(zero, entryBB);
-  numExtraTagBytes->addIncoming(numExtraTagBytes0, computeExtraTagBytesBB);
-
-  // Check whether we need to set the extra tag bits to non zero.
-  auto *isExtraTagBitsCaseBB = llvm::BasicBlock::Create(Ctx);
-  auto *isPayloadOrInhabitantCaseBB = llvm::BasicBlock::Create(Ctx);
-  auto *isPayloadOrExtraInhabitant =
-      Builder.CreateICmpULE(tag, numExtraInhabitants);
-  Builder.CreateCondBr(isPayloadOrExtraInhabitant, isPayloadOrInhabitantCaseBB,
-                       isExtraTagBitsCaseBB);
-
-  // We are the payload or fit within the extra inhabitants.
-  Builder.emitBlock(isPayloadOrInhabitantCaseBB);
-  // Zero the tag bits.
-  emitSetTag(IGF, extraTagBitsAddr, zero, numExtraTagBytes);
-  isPayloadOrInhabitantCaseBB = Builder.GetInsertBlock();
-  auto *storeInhabitantBB = llvm::BasicBlock::Create(Ctx);
-  auto *returnBB = llvm::BasicBlock::Create(Ctx);
-  auto *isPayload = Builder.CreateICmpEQ(tag, zero);
-  Builder.CreateCondBr(isPayload, returnBB, storeInhabitantBB);
-
-  Builder.emitBlock(storeInhabitantBB);
-  auto contBB2 = IGF.createBasicBlock("");
-  auto hasXIBB = IGF.createBasicBlock("");
-  auto isNonZeroXI = Builder.CreateICmpNE(numExtraInhabitants, zero);
-  Builder.CreateCondBr(isNonZeroXI, hasXIBB, contBB2);
-  {
-    Builder.emitBlock(hasXIBB);
-    // Store the extra inhabitant.
-    storeExtraInhabitantIndexFun(addr, tag, selfType);
-    Builder.CreateBr(contBB2);
-  }
-  Builder.emitBlock(contBB2);
-  Builder.CreateBr(returnBB);
-
-  // There are extra tag bits to consider.
-  Builder.emitBlock(isExtraTagBitsCaseBB);
-
-  // Write the extra tag bytes. At this point we know we have an no payload case
-  // and therefore the index we should store is in the range
-  // [0..ElementsWithNoPayload-1].
-  auto *nonPayloadElementIndex = Builder.CreateSub(tag, one);
-  auto *caseIndex =
-      Builder.CreateSub(nonPayloadElementIndex, numExtraInhabitants);
-  auto *isFourBytesPayload = Builder.CreateICmpUGE(truncSize, four);
-  auto *payloadGE4BB = Builder.GetInsertBlock();
-  auto *payloadLT4BB = llvm::BasicBlock::Create(Ctx);
-  continueBB = llvm::BasicBlock::Create(Ctx);
-  Builder.CreateCondBr(isFourBytesPayload, continueBB, payloadLT4BB);
-
-  Builder.emitBlock(payloadLT4BB);
-  auto *payloadBits = Builder.CreateMul(truncSize, eight);
-  auto *extraTagIndex0 = Builder.CreateLShr(caseIndex, payloadBits);
-  extraTagIndex0 = Builder.CreateAdd(one, extraTagIndex0);
-  auto *payloadIndex0 = Builder.CreateShl(one, payloadBits);
-  payloadIndex0 = Builder.CreateSub(payloadIndex0, one);
-  payloadIndex0 = Builder.CreateAnd(payloadIndex0, caseIndex);
-  Builder.CreateBr(continueBB);
-
-  Builder.emitBlock(continueBB);
-  auto *extraTagIndex = Builder.CreatePHI(int32Ty, 2);
-  extraTagIndex->addIncoming(llvm::ConstantInt::get(int32Ty, 1), payloadGE4BB);
-  extraTagIndex->addIncoming(extraTagIndex0, payloadLT4BB);
-
-  auto *payloadIndex = Builder.CreatePHI(int32Ty, 2);
-  payloadIndex->addIncoming(caseIndex, payloadGE4BB);
-  payloadIndex->addIncoming(payloadIndex0, payloadLT4BB);
-
-  auto contBB = IGF.createBasicBlock("");
-  auto nonZeroSizeBB = IGF.createBasicBlock("");
-  auto isNonZero = Builder.CreateICmpNE(truncSize, zero);
-  Builder.CreateCondBr(isNonZero, nonZeroSizeBB, contBB);
-  {
-    Builder.emitBlock(nonZeroSizeBB);
-    auto *truncSize = Builder.CreateZExtOrTrunc(size, IGM.Int32Ty);
-    auto sizeGTE4 = Builder.CreateICmpUGE(truncSize, four);
-    auto sizeClampedTo4 = Builder.CreateSelect(sizeGTE4, four, truncSize);
-    // Zero out the payload.
-    Builder.CreateMemSet(addr, llvm::ConstantInt::get(IGF.IGM.Int8Ty, 0),
-                         truncSize);
-    // Store tag into the payload.
-    emitStore1to4Bytes(IGF, addr, payloadIndex, sizeClampedTo4);
-    Builder.CreateBr(contBB);
-  }
-  Builder.emitBlock(contBB);
-
-  // Write to the extra tag bytes, if any.
-  emitSetTag(IGF, extraTagBitsAddr, extraTagIndex, numExtraTagBytes);
-  Builder.CreateBr(returnBB);
-
-  Builder.emitBlock(returnBB);
+  auto funPtr = createStoreExtraInhabitantIndexFuntion(
+      IGM, storeExtraInhabitantIndexFun, selfType);
+  auto impl = getOrCreateStoreEnumTagSinglePayloadGenericHelper(
+      IGM, funPtr.getSignature());
+  Builder.CreateCall(
+      impl,
+      {Builder.CreateBitOrPointerCast(addr.getAddress(), IGM.OpaquePtrTy), tag,
+       numEmptyCases, selfType.getSelfMetadata(), numExtraInhabitants, size,
+       Builder.CreateBitOrPointerCast(funPtr.getDirectPointer(),
+                                      IGM.OpaquePtrTy)});
 }
 
 static llvm::Value *projectOutlineBuffer(IRGenFunction &IGF, Address buffer,
@@ -1002,13 +1175,14 @@ llvm::Value *AlignedGroupEntry::getEnumTagSinglePayload(
     SelfTypeMetadata selfType) const {
   return getEnumTagSinglePayloadGeneric(
       IGF, addr, numEmptyCases,
-      [&](Address addr, SelfTypeMetadata selfType) -> llvm::Value * {
+      [this](IRGenFunction &SubIGF, Address addr,
+             SelfTypeMetadata selfType) -> llvm::Value * {
         // Get tag in payload.
         auto tagInPayload = withExtraInhabitantProvidingEntry(
-            IGF, addr, IGF.IGM.Int32Ty,
+            SubIGF, addr, SubIGF.IGM.Int32Ty,
             [&](TypeLayoutEntry *entry, Address entryAddress,
                 llvm::Value *entryXICount) -> llvm::Value * {
-              return entry->getEnumTagSinglePayload(IGF, entryXICount,
+              return entry->getEnumTagSinglePayload(SubIGF, entryXICount,
                                                     entryAddress, selfType);
             });
         return tagInPayload;
@@ -1021,13 +1195,14 @@ void AlignedGroupEntry::storeEnumTagSinglePayload(
     Address addr, SelfTypeMetadata selfType) const {
   storeEnumTagSinglePayloadGeneric(
       IGF, tag, numEmptyCases, addr,
-      [&](Address addr, llvm::Value *tag, SelfTypeMetadata selfType) {
+      [this](IRGenFunction &SubIGF, Address addr, llvm::Value *tag,
+             SelfTypeMetadata selfType) {
         // Store the extra inhabitant.
         withExtraInhabitantProvidingEntry(
-            IGF, addr, IGF.IGM.VoidTy,
+            SubIGF, addr, SubIGF.IGM.VoidTy,
             [&](TypeLayoutEntry *entry, Address entryAddress,
                 llvm::Value *entryXICount) -> llvm::Value * {
-              entry->storeEnumTagSinglePayload(IGF, tag, entryXICount,
+              entry->storeEnumTagSinglePayload(SubIGF, tag, entryXICount,
                                                entryAddress, selfType);
               return nullptr;
             });
@@ -1669,16 +1844,17 @@ llvm::Value *EnumTypeLayoutEntry::getEnumTagSinglePayloadForMultiPayloadEnum(
   // have known spare bits (enums that are always fixed size) . Therefore the
   // only place to store extra inhabitants is in available bits in the extra tag
   // bytes.
-  auto &Builder = IGF.Builder;
-  auto &IGM = IGF.IGM;
   return getEnumTagSinglePayloadGeneric(
       IGF, addr, emptyCases,
-      [&](Address addr, SelfTypeMetadata selfType) -> llvm::Value * {
+      [this](IRGenFunction &SubIGF, Address addr,
+             SelfTypeMetadata selfType) -> llvm::Value * {
+        auto &Builder = SubIGF.Builder;
+        auto &IGM = SubIGF.IGM;
         // Compute the address and number of the tag bytes.
         Address extraTagBitsAddr;
         llvm::Value *numTagBytes;
         std::tie(extraTagBitsAddr, numTagBytes) =
-            getMultiPalyloadEnumTagByteAddrAndNumBytes(IGF, addr);
+            getMultiPalyloadEnumTagByteAddrAndNumBytes(SubIGF, addr);
 
         // Compute the tag.
         // unsigned tag;
@@ -1686,13 +1862,13 @@ llvm::Value *EnumTypeLayoutEntry::getEnumTagSinglePayloadForMultiPayloadEnum(
         //   tag = loadedTag;
         // else
         //   tag = loadedTag | (~0u & (~0u << (numTagBytes * 8)));
-        auto loadedTag = emitLoad1to4Bytes(IGF, extraTagBitsAddr, numTagBytes);
+        auto loadedTag = emitLoad1to4Bytes(SubIGF, extraTagBitsAddr, numTagBytes);
         auto tag = llvm::PHINode::Create(IGM.Int32Ty, 2);
         auto four = IGM.getInt32(4);
         auto hasFourTagBytes = Builder.CreateICmpEQ(numTagBytes, four);
         tag->addIncoming(loadedTag, Builder.GetInsertBlock());
-        auto tagComputedBB = IGF.createBasicBlock("");
-        auto lessThanFourBytesBB = IGF.createBasicBlock("");
+        auto tagComputedBB = SubIGF.createBasicBlock("");
+        auto lessThanFourBytesBB = SubIGF.createBasicBlock("");
         Builder.CreateCondBr(hasFourTagBytes, tagComputedBB, lessThanFourBytesBB);
 
         Builder.emitBlock(lessThanFourBytesBB);
@@ -1715,10 +1891,10 @@ llvm::Value *EnumTypeLayoutEntry::getEnumTagSinglePayloadForMultiPayloadEnum(
         auto index = Builder.CreateNot(tag);
 
         auto result = llvm::PHINode::Create(IGM.Int32Ty, 2);
-        auto resultBB = IGF.createBasicBlock("");
-        auto addOneBB = IGF.createBasicBlock("");
+        auto resultBB = SubIGF.createBasicBlock("");
+        auto addOneBB = SubIGF.createBasicBlock("");
         auto indexGEQXICount =
-            Builder.CreateICmpUGE(index, extraInhabitantCount(IGF));
+            Builder.CreateICmpUGE(index, extraInhabitantCount(SubIGF));
         result->addIncoming(IGM.getInt32(0), Builder.GetInsertBlock());
         Builder.CreateCondBr(indexGEQXICount, resultBB, addOneBB);
 
@@ -1730,7 +1906,8 @@ llvm::Value *EnumTypeLayoutEntry::getEnumTagSinglePayloadForMultiPayloadEnum(
         Builder.emitBlock(resultBB);
         Builder.Insert(result);
         return result;
-      }, selfType);
+      },
+      selfType);
 }
 
 llvm::Value *EnumTypeLayoutEntry::getEnumTagSinglePayloadForSinglePayloadEnum(
@@ -1739,18 +1916,20 @@ llvm::Value *EnumTypeLayoutEntry::getEnumTagSinglePayloadForSinglePayloadEnum(
   assert(cases.size() == 1);
   return getEnumTagSinglePayloadGeneric(
       IGF, addr, emptyCases,
-      [&](Address addr, SelfTypeMetadata selfType) -> llvm::Value * {
+      [this](IRGenFunction &SubIGF, Address addr,
+             SelfTypeMetadata selfType) -> llvm::Value * {
+        auto &Builder = SubIGF.Builder;
         auto payloadEntry = cases[0];
-        auto maxNumXIPayload = payloadEntry->extraInhabitantCount(IGF);
+        auto maxNumXIPayload = payloadEntry->extraInhabitantCount(SubIGF);
         // Read the tag from the payload and adjust it by the number
         // cases of this enum.
-        auto tag =
-            payloadEntry->getEnumTagSinglePayload(IGF, maxNumXIPayload, addr, selfType);
-        auto numEnumCases = IGF.IGM.getInt32(numEmptyCases);
-        auto adjustedTag = IGF.Builder.CreateSub(tag, numEnumCases);
-        auto isEnumValue = IGF.Builder.CreateICmpULE(tag, numEnumCases);
-        adjustedTag = IGF.Builder.CreateSelect(isEnumValue, IGF.IGM.getInt32(0),
-                                               adjustedTag);
+        auto tag = payloadEntry->getEnumTagSinglePayload(
+            SubIGF, maxNumXIPayload, addr, selfType);
+        auto numEnumCases = SubIGF.IGM.getInt32(numEmptyCases);
+        auto adjustedTag = Builder.CreateSub(tag, numEnumCases);
+        auto isEnumValue = Builder.CreateICmpULE(tag, numEnumCases);
+        adjustedTag = Builder.CreateSelect(isEnumValue, SubIGF.IGM.getInt32(0),
+                                           adjustedTag);
         return adjustedTag;
       },
       selfType);
@@ -1774,21 +1953,22 @@ void EnumTypeLayoutEntry::storeEnumTagSinglePayloadForSinglePayloadEnum(
   assert(cases.size() == 1);
   storeEnumTagSinglePayloadGeneric(
       IGF, tag, emptyCases, addr,
-      [&](Address addr, llvm::Value *tag, SelfTypeMetadata selfType) {
+      [this](IRGenFunction &SubIGF, Address addr, llvm::Value *tag,
+             SelfTypeMetadata selfType) {
         auto payloadEntry = cases[0];
-        auto maxNumXIPayload = payloadEntry->extraInhabitantCount(IGF);
-        auto numExtraCases = IGF.IGM.getInt32(numEmptyCases);
+        auto maxNumXIPayload = payloadEntry->extraInhabitantCount(SubIGF);
+        auto numExtraCases = SubIGF.IGM.getInt32(numEmptyCases);
         // Adjust the tag.
-        llvm::Value *adjustedTag = IGF.Builder.CreateAdd(tag, numExtraCases);
+        llvm::Value *adjustedTag = SubIGF.Builder.CreateAdd(tag, numExtraCases);
 
         // Preserve the zero tag so that we don't pass down a meaningless XI
         // value that the payload will waste time installing before we
         // immediately overwrite it.
-        auto isEnumValue = IGF.Builder.CreateIsNull(tag);
-        adjustedTag = IGF.Builder.CreateSelect(isEnumValue, IGF.IGM.getInt32(0),
-                                               adjustedTag);
+        auto isEnumValue = SubIGF.Builder.CreateIsNull(tag);
+        adjustedTag = SubIGF.Builder.CreateSelect(
+            isEnumValue, SubIGF.IGM.getInt32(0), adjustedTag);
         payloadEntry->storeEnumTagSinglePayload(
-            IGF, adjustedTag, maxNumXIPayload, addr, selfType);
+            SubIGF, adjustedTag, maxNumXIPayload, addr, selfType);
       },
       selfType);
 }
@@ -1826,15 +2006,16 @@ void EnumTypeLayoutEntry::storeEnumTagSinglePayloadForMultiPayloadEnum(
   // have known spare bits (enums that are always fixed size). Therefore the
   // only place to store extra inhabitants is in available bits in the extra tag
   // bytes.
-  auto &Builder = IGF.Builder;
-  auto &IGM = IGF.IGM;
   storeEnumTagSinglePayloadGeneric(
       IGF, tag, emptyCases, addr,
-      [&](Address addr, llvm::Value *tag, SelfTypeMetadata selfType) {
-        ConditionalDominanceScope scope(IGF);
+      [this](IRGenFunction &SubIGF, Address addr, llvm::Value *tag,
+             SelfTypeMetadata selfType) {
+        auto &Builder = SubIGF.Builder;
+        auto &IGM = SubIGF.IGM;
+        ConditionalDominanceScope scope(SubIGF);
         auto invertedTag =
             Builder.CreateNot(Builder.CreateSub(tag, IGM.getInt32(1)));
-        storeMultiPayloadTag(IGF, invertedTag, addr);
+        storeMultiPayloadTag(SubIGF, invertedTag, addr);
       },
       selfType);
 }
