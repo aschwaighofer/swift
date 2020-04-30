@@ -226,6 +226,18 @@ protected:
     recordClonedInstruction(Inst, N);
   }
 
+  void visitBeginApplyInst(BeginApplyInst *inst) {
+    if (inst->getFunction()->getName().equals("$ss16IndexingIteratorVyxGStsSt4next7ElementQzSgyFTW")) {
+      llvm::dbgs() << "here\n";
+    }
+    ApplySiteCloningHelper helper(ApplySite(inst), *this);
+    BeginApplyInst *newInst = getBuilder().createBeginApply(
+        getOpLocation(inst->getLoc()), helper.getCallee(),
+        helper.getSubstitutions(), helper.getArguments(), inst->isNonThrowing(),
+        GenericSpecializationInformation::create(inst, getBuilder()));
+    recordClonedInstruction(inst, newInst);
+  }
+
   void visitTryApplyInst(TryApplyInst *Inst) {
     ApplySiteCloningHelper Helper(ApplySite(Inst), *this);
     TryApplyInst *N = getBuilder().createTryApply(

@@ -1497,8 +1497,9 @@ namespace {
             SILType::getPrimitiveAddressType(loweredSubstArgType.getASTType());
         }
         auto loweredSubstParamTy = SILType::getPrimitiveType(
-                    param.getArgumentType(SGF.SGM.M, substSetterTy),
-                    loweredSubstArgType.getCategory());
+            param.getArgumentType(SGF.SGM.M, substSetterTy,
+                                  SGF.getTypeExpansionContext()),
+            loweredSubstArgType.getCategory());
         // Handle reabstraction differences.
         if (Mval.getType() != loweredSubstParamTy) {
           Mval = SGF.emitSubstToOrigValue(loc, Mval,
