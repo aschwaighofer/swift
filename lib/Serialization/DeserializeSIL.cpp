@@ -682,6 +682,7 @@ SILDeserializer::readSILFunctionChecked(DeclID FID, SILFunction *existingFn,
   }
 
   // Read and instantiate the specialize attributes.
+  bool shouldAddAtttributes = fn->getSpecializeAttrs().empty();
   while (numSpecAttrs--) {
     llvm::Expected<llvm::BitstreamEntry> maybeNext =
         SILCursor.advance(AF_DontPopBlockAtEnd);
@@ -700,18 +701,19 @@ SILDeserializer::readSILFunctionChecked(DeclID FID, SILFunction *existingFn,
     unsigned exported;
     unsigned specializationKindVal;
     GenericSignatureID specializedSigID;
-    SILSpecializeAttrLayout::readRecord(scratch, exported,
-                                        specializationKindVal,
-                                        specializedSigID);
+    SILSpecializeAttrLayout::readRecord(
+        scratch, exported, specializationKindVal, specializedSigID);
     SILSpecializeAttr::SpecializationKind specializationKind =
         specializationKindVal ? SILSpecializeAttr::SpecializationKind::Partial
                               : SILSpecializeAttr::SpecializationKind::Full;
 
     auto specializedSig = MF->getGenericSignature(specializedSigID);
-
-    // Read the substitution list and construct a SILSpecializeAttr.
-    fn->addSpecializeAttr(SILSpecializeAttr::create(
-        SILMod, specializedSig, exported != 0, specializationKind));
+    // Only add the specialize attributes once.
+    if (shouldAddAtttributes) {
+      // Read the substitution list and construct a SILSpecializeAttr.
+      fn->addSpecializeAttr(SILSpecializeAttr::create(
+          SILMod, specializedSig, exported != 0, specializationKind));
+    }
   }
 
   GenericEnvironment *genericEnv = nullptr;

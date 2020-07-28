@@ -50,6 +50,15 @@ void SILFunction::addSpecializeAttr(SILSpecializeAttr *Attr) {
   }
 }
 
+void SILFunction::removeSpecializeAttr(SILSpecializeAttr *attr) {
+  SpecializeAttrSet.erase(std::remove_if(SpecializeAttrSet.begin(),
+                                         SpecializeAttrSet.end(),
+                                         [attr](SILSpecializeAttr *member) {
+                                           return member == attr;
+                                         }),
+                          SpecializeAttrSet.end());
+}
+
 SILFunction *
 SILFunction::create(SILModule &M, SILLinkage linkage, StringRef name,
                     CanSILFunctionType loweredType,
@@ -653,4 +662,12 @@ template<>
 const UnifiedStatsReporter::TraceFormatter*
 FrontendStatsTracer::getTraceFormatter<const SILFunction *>() {
   return &TF;
+}
+
+bool SILFunction::hasPrespecialization() const {
+  for (auto *attr : getSpecializeAttrs()) {
+    if (attr->isExported())
+      return true;
+  }
+  return false;
 }

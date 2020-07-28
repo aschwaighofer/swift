@@ -186,6 +186,7 @@ extension _ArrayBuffer {
   @_alwaysEmitIntoClient
   @inline(never)
   @_semantics("optimize.sil.specialize.owned2guarantee.never")
+  @_specialize(exported: true, where Element == Int)
   internal __consuming func _consumeAndCreateNew(
     bufferIsUnique: Bool, minimumCapacity: Int, growForAppend: Bool
   ) -> _ArrayBuffer {

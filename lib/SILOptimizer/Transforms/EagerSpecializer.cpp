@@ -739,8 +739,10 @@ namespace {
 // FIXME: This should be a function transform that pushes cloned functions on
 // the pass manager worklist.
 class EagerSpecializerTransform : public SILFunctionTransform {
+  bool onlyCreatePrespecializations;
 public:
-  EagerSpecializerTransform() {}
+  EagerSpecializerTransform(bool onlyPrespecialize)
+      : onlyCreatePrespecializations(onlyPrespecialize) {}
 
   void run() override;
 
@@ -772,13 +774,18 @@ static SILFunction *eagerSpecialize(SILOptFunctionBuilder &FuncBuilder,
 
   SILFunction *NewFunc = FuncSpecializer.lookupSpecialization();
   if (!NewFunc) {
-    NewFunc = FuncSpecializer.tryCreateSpecialization();
+    NewFunc = FuncSpecializer.tryCreateSpecialization(
+        true /*forcePrespecialization*/);
     if (NewFunc)
       newFunctions.push_back(NewFunc);
   }
 
-  if (!NewFunc)
+  if (!NewFunc) {
     LLVM_DEBUG(llvm::dbgs() << "  Failed. Cannot specialize function.\n");
+  } else if (SA.isExported()) {
+    NewFunc->setLinkage(SILLinkage::Public);
+  }
+
   return NewFunc;
 }
 
@@ -791,7 +798,7 @@ void EagerSpecializerTransform::run() {
   auto &F = *getFunction();
 
   // Process functions in any order.
-  if (!F.shouldOptimize()) {
+  if (!F.shouldOptimize() && !onlyCreatePrespecializations) {
     LLVM_DEBUG(llvm::dbgs() << "  Cannot specialize function " << F.getName()
                             << " because it is marked to be "
                                "excluded from optimizations.\n");
@@ -816,28 +823,38 @@ void EagerSpecializerTransform::run() {
 
   // TODO: Use a decision-tree to reduce the amount of dynamic checks being
   // performed.
+  SmallVector<SILSpecializeAttr *, 8> attrsToRemove;
+
   for (auto *SA : F.getSpecializeAttrs()) {
+    if (onlyCreatePrespecializations && !SA->isExported()) {
+      attrsToRemove.push_back(SA);
+      continue;
+    }
+
     ReInfoVec.emplace_back(FuncBuilder.getModule().getSwiftModule(),
                            FuncBuilder.getModule().isWholeModule(), &F,
-                           SA->getSpecializedSignature());
+                           SA->getSpecializedSignature(), SA->isExported());
     auto *NewFunc =
         eagerSpecialize(FuncBuilder, &F, *SA, ReInfoVec.back(), newFunctions);
-
-    SpecializedFuncs.push_back(NewFunc);
+    SpecializedFuncs.push_back(onlyCreatePrespecializations ? nullptr
+                                                            : NewFunc);
+    if (!SA->isExported())
+      attrsToRemove.push_back(SA);
   }
 
   // TODO: Optimize the dispatch code to minimize the amount
   // of checks. Use decision trees for this purpose.
   bool Changed = false;
-  for_each3(F.getSpecializeAttrs(), SpecializedFuncs, ReInfoVec,
-            [&](const SILSpecializeAttr *SA, SILFunction *NewFunc,
-                const ReabstractionInfo &ReInfo) {
-              if (NewFunc) {
-                NewFunc->verify();
-                Changed = true;
-                EagerDispatch(&F, ReInfo).emitDispatchTo(NewFunc);
-              }
-            });
+  if (!onlyCreatePrespecializations)
+    for_each3(F.getSpecializeAttrs(), SpecializedFuncs, ReInfoVec,
+              [&](const SILSpecializeAttr *SA, SILFunction *NewFunc,
+                  const ReabstractionInfo &ReInfo) {
+                if (NewFunc) {
+                  NewFunc->verify();
+                  Changed = true;
+                  EagerDispatch(&F, ReInfo).emitDispatchTo(NewFunc);
+                }
+              });
 
   // Invalidate everything since we delete calls as well as add new
   // calls and branches.
@@ -845,8 +862,10 @@ void EagerSpecializerTransform::run() {
     invalidateAnalysis(SILAnalysis::InvalidationKind::Everything);
   }
 
-  // As specializations are created, the attributes should be removed.
-  F.clearSpecializeAttrs();
+  // As specializations are created, the non-exported attributes should be
+  // removed.
+  for (auto *SA : attrsToRemove)
+    F.removeSpecializeAttr(SA);
   F.verify();
 
   for (SILFunction *newF : newFunctions) {
@@ -855,5 +874,9 @@ void EagerSpecializerTransform::run() {
 }
 
 SILTransform *swift::createEagerSpecializer() {
-  return new EagerSpecializerTransform();
+  return new EagerSpecializerTransform(false/*onlyCreatePrespecializations*/);
+}
+
+SILTransform *swift::createOnonePrespecializations() {
+  return new EagerSpecializerTransform(true /*onlyCreatePrespecializations*/);
 }

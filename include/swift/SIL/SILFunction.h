@@ -582,6 +582,9 @@ public:
   /// Returns true if this is a definition of a function defined in this module.
   bool isDefinition() const { return !isExternalDeclaration(); }
 
+  /// Returns true if there exist pre-specializations.
+  bool hasPrespecialization() const;
+
   /// Get this function's linkage attribute.
   SILLinkage getLinkage() const { return SILLinkage(Linkage); }
 
@@ -715,6 +718,7 @@ public:
 
   void addSpecializeAttr(SILSpecializeAttr *Attr);
 
+  void removeSpecializeAttr(SILSpecializeAttr *attr);
 
   /// Get this function's optimization mode or OptimizationMode::NotSet if it is
   /// not set for this specific function.
