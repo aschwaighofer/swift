@@ -279,3 +279,9 @@ public struct MyStruct4 : P2 {
 @_specialize(where T==MyStruct4)
 public func foo<T: P2>(_ t: T) where T.DP2.DP11 == H<T.DP2.DP1> {
 }
+
+public func targetFun<T>(_ t: T) {}
+
+@_specialize(exported: true, target: targetFun(_:), where T == Int)
+public func specifyTargetFunc<T>(_ t: T) {
+}

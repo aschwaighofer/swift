@@ -1014,7 +1014,7 @@ public:
   bool parseSpecializeAttributeArguments(
       swift::tok ClosingBrace, bool &DiscardAttribute, Optional<bool> &Exported,
       Optional<SpecializeAttr::SpecializationKind> &Kind,
-      TrailingWhereClause *&TrailingWhereClause);
+      TrailingWhereClause *&TrailingWhereClause, DeclNameRef &targetFunction);
 
   /// Parse the @_implements attribute.
   /// \p Attr is where to store the parsed attribute
