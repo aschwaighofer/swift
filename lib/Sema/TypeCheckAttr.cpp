@@ -3390,6 +3390,25 @@ DynamicallyReplacedDeclRequest::evaluate(Evaluator &evaluator,
   return nullptr;
 }
 
+ValueDecl *
+SpecializeAttrTargetDeclRequest::evaluate(Evaluator &evaluator,
+                                          const ValueDecl *vd,
+                                          SpecializeAttr *attr) const {
+  if (auto *lazyResolver = attr->resolver) {
+    auto *decl =
+        lazyResolver->loadTargetFunctionDecl(attr, attr->resolverContextData);
+    attr->resolver = nullptr;
+    return decl;
+  }
+/*
+  if (auto *AFD = dyn_cast<AbstractFunctionDecl>(vd)) {
+    return findReplacedFunction(attr->getTargetFunctionName(), AFD,
+                                attr, &Ctx.Diags);
+  }
+*/
+  return nullptr;
+
+}
 /// Returns true if the given type conforms to `Differentiable` in the given
 /// context. If `tangentVectorEqualsSelf` is true, also check whether the given
 /// type satisfies `TangentVector == Self`.

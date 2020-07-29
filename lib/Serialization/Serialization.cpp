@@ -2350,13 +2350,23 @@ class Serializer::DeclSerializer : public DeclVisitor<DeclSerializer> {
 
     case DAK_Specialize: {
       auto abbrCode = S.DeclTypeAbbrCodes[SpecializeDeclAttrLayout::Code];
-      auto SA = cast<SpecializeAttr>(DA);
+      auto attr = cast<SpecializeAttr>(DA);
+      auto targetFun = attr->getTargetFunctionName();
+      auto *targetFunDecl = attr->getTargetFunctionDecl(cast<ValueDecl>(D));
+
+      SmallVector<IdentifierID, 4> pieces;
+      if (targetFun) {
+        pieces.push_back(S.addDeclBaseNameRef(targetFun.getBaseName()));
+        for (auto argName : targetFun.getArgumentNames())
+          pieces.push_back(S.addDeclBaseNameRef(argName));
+      }
 
       SpecializeDeclAttrLayout::emitRecord(
-          S.Out, S.ScratchRecord, abbrCode,
-          (unsigned)SA->isExported(),
-          (unsigned)SA->getSpecializationKind(),
-          S.addGenericSignatureRef(SA->getSpecializedSignature()));
+          S.Out, S.ScratchRecord, abbrCode, (unsigned)attr->isExported(),
+          (unsigned)attr->getSpecializationKind(),
+          S.addGenericSignatureRef(attr->getSpecializedSignature()),
+          S.addDeclRef(targetFunDecl), pieces.size(),
+          pieces);
       return;
     }
 
