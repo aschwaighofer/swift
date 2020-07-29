@@ -285,3 +285,15 @@ public func targetFun<T>(_ t: T) {}
 @_specialize(exported: true, target: targetFun(_:), where T == Int)
 public func specifyTargetFunc<T>(_ t: T) {
 }
+
+public struct Container {
+  public func targetFun<T>(_ t: T) {}
+}
+
+extension Container {
+  @_specialize(exported: true, target: targetFun(_:), where T == Int)
+  public func specifyTargetFunc<T>(_ t: T) { }
+
+  @_specialize(exported: true, target: targetFun2(_:), where T == Int) // expected-error{{target function 'targetFun2' could not be found}}
+  public func specifyTargetFunc2<T>(_ t: T) { }
+}

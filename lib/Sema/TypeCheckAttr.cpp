@@ -2243,6 +2243,9 @@ void AttributeChecker::visitSpecializeAttr(SpecializeAttr *attr) {
       attr->getLocation(),
       /*allowConcreteGenericParams=*/true);
   attr->setSpecializedSignature(specializedSig);
+
+  // Check the target function if there is one.
+  attr->getTargetFunctionDecl(FD);
 }
 
 void AttributeChecker::visitFixedLayoutAttr(FixedLayoutAttr *attr) {
@@ -2356,7 +2359,7 @@ void AttributeChecker::visitDiscardableResultAttr(DiscardableResultAttr *attr) {
 
 /// Lookup the replaced decl in the replacments scope.
 static void lookupReplacedDecl(DeclNameRef replacedDeclName,
-                               const DynamicReplacementAttr *attr,
+                               const DeclAttribute  *attr,
                                const ValueDecl *replacement,
                                SmallVectorImpl<ValueDecl *> &results) {
   auto *declCtxt = replacement->getDeclContext();
@@ -2499,30 +2502,30 @@ static FuncDecl *findReplacedAccessor(DeclNameRef replacedVarName,
 }
 
 static AbstractFunctionDecl *
-findReplacedFunction(DeclNameRef replacedFunctionName,
-                     const AbstractFunctionDecl *replacement,
-                     DynamicReplacementAttr *attr, DiagnosticEngine *Diags) {
+findSimilarFunction(DeclNameRef replacedFunctionName,
+                    const AbstractFunctionDecl *base, DeclAttribute *attr,
+                    DiagnosticEngine *Diags, bool forDynamicReplacement) {
 
   // Note: we might pass a constant attribute when typechecker is nullptr.
   // Any modification to attr must be guarded by a null check on TC.
   //
   SmallVector<ValueDecl *, 4> results;
-  lookupReplacedDecl(replacedFunctionName, attr, replacement, results);
+  lookupReplacedDecl(replacedFunctionName, attr, base, results);
 
   for (auto *result : results) {
     // Protocol requirements are not replaceable.
     if (isa<ProtocolDecl>(result->getDeclContext()))
       continue;
     // Check for static/instance mismatch.
-    if (result->isStatic() != replacement->isStatic())
+    if (result->isStatic() != base->isStatic())
       continue;
 
     auto resultTy = result->getInterfaceType();
-    auto replaceTy = replacement->getInterfaceType();
+    auto replaceTy = base->getInterfaceType();
     TypeMatchOptions matchMode = TypeMatchFlags::AllowABICompatible;
     matchMode |= TypeMatchFlags::AllowCompatibleOpaqueTypeArchetypes;
     if (resultTy->matches(replaceTy, matchMode)) {
-      if (!result->isDynamic()) {
+      if (forDynamicReplacement && !result->isDynamic()) {
         if (Diags) {
           Diags->diagnose(attr->getLocation(),
                           diag::dynamic_replacement_function_not_dynamic,
@@ -2540,23 +2543,45 @@ findReplacedFunction(DeclNameRef replacedFunctionName,
 
   if (results.empty()) {
     Diags->diagnose(attr->getLocation(),
-                    diag::dynamic_replacement_function_not_found,
+                    forDynamicReplacement
+                        ? diag::dynamic_replacement_function_not_found
+                        : diag::specialize_target_function_not_found,
                     replacedFunctionName);
   } else {
     Diags->diagnose(attr->getLocation(),
-                    diag::dynamic_replacement_function_of_type_not_found,
+                    forDynamicReplacement
+                        ? diag::dynamic_replacement_function_of_type_not_found
+                        : diag::specialize_target_function_of_type_not_found,
                     replacedFunctionName,
-                    replacement->getInterfaceType()->getCanonicalType());
+                    base->getInterfaceType()->getCanonicalType());
 
     for (auto *result : results) {
       Diags->diagnose(SourceLoc(),
-                      diag::dynamic_replacement_found_function_of_type,
+                      forDynamicReplacement
+                          ? diag::dynamic_replacement_found_function_of_type
+                          : diag::specialize_found_function_of_type,
                       result->getName(),
                       result->getInterfaceType()->getCanonicalType());
     }
   }
   attr->setInvalid();
   return nullptr;
+}
+
+static AbstractFunctionDecl *
+findReplacedFunction(DeclNameRef replacedFunctionName,
+                     const AbstractFunctionDecl *replacement,
+                     DynamicReplacementAttr *attr, DiagnosticEngine *Diags) {
+  return findSimilarFunction(replacedFunctionName, replacement, attr, Diags,
+                             true /*forDynamicReplacement*/);
+}
+
+static AbstractFunctionDecl *
+findTargetFunction(DeclNameRef targetFunctionName,
+                   const AbstractFunctionDecl *base,
+                   SpecializeAttr * attr, DiagnosticEngine *diags) {
+  return findSimilarFunction(targetFunctionName, base, attr, diags,
+                             false /*forDynamicReplacement*/);
 }
 
 static AbstractStorageDecl *
@@ -3400,12 +3425,17 @@ SpecializeAttrTargetDeclRequest::evaluate(Evaluator &evaluator,
     attr->resolver = nullptr;
     return decl;
   }
-/*
-  if (auto *AFD = dyn_cast<AbstractFunctionDecl>(vd)) {
-    return findReplacedFunction(attr->getTargetFunctionName(), AFD,
-                                attr, &Ctx.Diags);
+
+  auto &ctx = vd->getASTContext();
+
+  auto targetFunctionName = attr->getTargetFunctionName();
+  if (!targetFunctionName)
+    return nullptr;
+
+  if (auto *afd = dyn_cast<AbstractFunctionDecl>(vd)) {
+    return findTargetFunction(targetFunctionName, afd, attr, &ctx.Diags);
   }
-*/
+
   return nullptr;
 
 }
