@@ -104,6 +104,7 @@ private:
   bool exported;
   GenericSignature specializedSignature;
   SILFunction *F = nullptr;
+  SILFunction *targetFunction = nullptr;
 
   SILSpecializeAttr(bool exported, SpecializationKind kind,
                     GenericSignature specializedSignature);

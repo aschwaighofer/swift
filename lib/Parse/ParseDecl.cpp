@@ -609,7 +609,8 @@ bool Parser::parseSpecializeAttributeArguments(
     swift::tok ClosingBrace, bool &DiscardAttribute, Optional<bool> &Exported,
     Optional<SpecializeAttr::SpecializationKind> &Kind,
     swift::TrailingWhereClause *&TrailingWhereClause,
-    DeclNameRef &targetFunction) {
+    DeclNameRef &targetFunction,
+    llvm::function_ref<bool(Parser &)> parseSILTargetName) {
   SyntaxParsingContext ContentContext(SyntaxContext,
                                       SyntaxKind::SpecializeAttributeSpecList);
   // Parse optional "exported" and "kind" labeled parameters.
@@ -686,15 +687,16 @@ bool Parser::parseSpecializeAttributeArguments(
         }
       }
       if (ParamLabel == "target") {
-        SyntaxParsingContext ContentContext(SyntaxContext,
-                                            SyntaxKind::DeclName);
-
-        DeclNameLoc loc;
-        targetFunction = parseDeclNameRef(loc,
-            diag::attr_specialize_expected_function,
-            DeclNameFlag::AllowZeroArgCompoundNames |
-            DeclNameFlag::AllowKeywordsUsingSpecialNames |
-            DeclNameFlag::AllowOperators);
+        if (!parseSILTargetName(*this)) {
+          //SyntaxParsingContext ContentContext(SyntaxContext,
+          //                                    SyntaxKind::DeclName);
+          DeclNameLoc loc;
+          targetFunction = parseDeclNameRef(
+              loc, diag::attr_specialize_expected_function,
+              DeclNameFlag::AllowZeroArgCompoundNames |
+                  DeclNameFlag::AllowKeywordsUsingSpecialNames |
+                  DeclNameFlag::AllowOperators);
+        }
       }
       if (!consumeIf(tok::comma)) {
         diagnose(Tok.getLoc(), diag::attr_specialize_missing_comma);
@@ -732,8 +734,10 @@ bool Parser::parseSpecializeAttributeArguments(
   return true;
 }
 
-bool Parser::parseSpecializeAttribute(swift::tok ClosingBrace, SourceLoc AtLoc,
-                                      SourceLoc Loc, SpecializeAttr *&Attr) {
+bool Parser::parseSpecializeAttribute(
+    swift::tok ClosingBrace, SourceLoc AtLoc, SourceLoc Loc,
+    SpecializeAttr *&Attr,
+    llvm::function_ref<bool(Parser &)> parseSILTargetName) {
   assert(ClosingBrace == tok::r_paren || ClosingBrace == tok::r_square);
 
   SourceLoc lParenLoc = consumeToken();
@@ -748,7 +752,7 @@ bool Parser::parseSpecializeAttribute(swift::tok ClosingBrace, SourceLoc AtLoc,
   DeclNameRef targetFunction;
   if (!parseSpecializeAttributeArguments(ClosingBrace, DiscardAttribute,
                                          exported, kind, trailingWhereClause,
-                                         targetFunction)) {
+                                         targetFunction, parseSILTargetName)) {
     return false;
   }
 
