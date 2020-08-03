@@ -615,10 +615,12 @@ bool Parser::parseSpecializeAttributeArguments(
                                       SyntaxKind::SpecializeAttributeSpecList);
   // Parse optional "exported" and "kind" labeled parameters.
   while (!Tok.is(tok::kw_where)) {
-    SyntaxParsingContext ArgumentContext(SyntaxContext,
-                                         SyntaxKind::LabeledSpecializeEntry);
     if (Tok.is(tok::identifier)) {
       auto ParamLabel = Tok.getText();
+      SyntaxParsingContext ArgumentContext(
+          SyntaxContext, ParamLabel == "target"
+                             ? SyntaxKind::TargetFunctionEntry
+                             : SyntaxKind::LabeledSpecializeEntry);
       if (ParamLabel != "exported" && ParamLabel != "kind" &&
           ParamLabel != "target") {
         diagnose(Tok.getLoc(), diag::attr_specialize_unknown_parameter_name,
@@ -688,8 +690,8 @@ bool Parser::parseSpecializeAttributeArguments(
       }
       if (ParamLabel == "target") {
         if (!parseSILTargetName(*this)) {
-          //SyntaxParsingContext ContentContext(SyntaxContext,
-          //                                    SyntaxKind::DeclName);
+          SyntaxParsingContext ContentContext(SyntaxContext,
+                                              SyntaxKind::DeclName);
           DeclNameLoc loc;
           targetFunction = parseDeclNameRef(
               loc, diag::attr_specialize_expected_function,

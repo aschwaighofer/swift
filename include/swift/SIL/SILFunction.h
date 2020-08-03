@@ -71,7 +71,8 @@ public:
 
   static SILSpecializeAttr *create(SILModule &M,
                                    GenericSignature specializedSignature,
-                                   bool exported, SpecializationKind kind);
+                                   bool exported, SpecializationKind kind,
+                                   SILFunction *target);
 
   bool isExported() const {
     return exported;
@@ -97,6 +98,10 @@ public:
     return F;
   }
 
+  SILFunction *getTargetFunction() const {
+    return targetFunction;
+  }
+
   void print(llvm::raw_ostream &OS) const;
 
 private:
@@ -107,7 +112,7 @@ private:
   SILFunction *targetFunction = nullptr;
 
   SILSpecializeAttr(bool exported, SpecializationKind kind,
-                    GenericSignature specializedSignature);
+                    GenericSignature specializedSignature, SILFunction *target);
 };
 
 /// SILFunction - A function body that has been lowered to SIL. This consists of
@@ -715,11 +720,18 @@ public:
   }
 
   /// Removes all specialize attributes from this function.
-  void clearSpecializeAttrs() { SpecializeAttrSet.clear(); }
+  void clearSpecializeAttrs() {
+    forEachSpecializeAttrTargetFunction(
+        [](SILFunction *targetFun) { targetFun->decrementRefCount(); });
+    SpecializeAttrSet.clear();
+  }
 
   void addSpecializeAttr(SILSpecializeAttr *Attr);
 
   void removeSpecializeAttr(SILSpecializeAttr *attr);
+
+  void forEachSpecializeAttrTargetFunction(
+      llvm::function_ref<void(SILFunction *)> action);
 
   /// Get this function's optimization mode or OptimizationMode::NotSet if it is
   /// not set for this specific function.

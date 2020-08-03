@@ -783,7 +783,8 @@ static SILFunction *eagerSpecialize(SILOptFunctionBuilder &FuncBuilder,
   if (!NewFunc) {
     LLVM_DEBUG(llvm::dbgs() << "  Failed. Cannot specialize function.\n");
   } else if (SA.isExported()) {
-    NewFunc->setLinkage(SILLinkage::Public);
+    NewFunc->setLinkage(NewFunc->isDefinition() ? SILLinkage::Public
+                                                : SILLinkage::PublicExternal);
   }
 
   return NewFunc;
@@ -830,12 +831,20 @@ void EagerSpecializerTransform::run() {
       attrsToRemove.push_back(SA);
       continue;
     }
-
+    auto *targetFunc = &F;
+    // If the _specialize attribute specifies another target function use it
+    // instead to specialize.
+    if (SA->getTargetFunction()) {
+      targetFunc = SA->getTargetFunction();
+      if (!targetFunc->isDefinition())
+        FuncBuilder.getModule().loadFunction(targetFunc);
+      onlyCreatePrespecializations = true;
+    }
     ReInfoVec.emplace_back(FuncBuilder.getModule().getSwiftModule(),
-                           FuncBuilder.getModule().isWholeModule(), &F,
+                           FuncBuilder.getModule().isWholeModule(), targetFunc,
                            SA->getSpecializedSignature(), SA->isExported());
-    auto *NewFunc =
-        eagerSpecialize(FuncBuilder, &F, *SA, ReInfoVec.back(), newFunctions);
+    auto *NewFunc = eagerSpecialize(FuncBuilder, targetFunc, *SA,
+                                    ReInfoVec.back(), newFunctions);
     SpecializedFuncs.push_back(onlyCreatePrespecializations ? nullptr
                                                             : NewFunc);
     if (!SA->isExported())

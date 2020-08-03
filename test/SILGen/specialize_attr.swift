@@ -188,3 +188,16 @@ public class Addressable<Element> : TestSubscriptable {
 // Addressable.subscript.modify with no attribute
 // CHECK-LABEL: sil [transparent] [serialized] [ossa] @$s15specialize_attr11AddressableCyxSiciM : $@yield_once @convention(method) <Element> (Int, @guaranteed Addressable<Element>) -> @yields @inout Element {
 
+
+public struct TestPrespecialized<T> {
+  // CHECK-LABEL: sil [_specialize exported: true, kind: full, where T == Double] [_specialize exported: true, kind: full, where T == Int] [ossa] @$s15specialize_attr18TestPrespecializedV5aFuncyyF : $@convention(method) <T> (TestPrespecialized<T>) -> () {
+  @_specialize(exported: true, where T == Int)
+  @_specialize(exported: true, where T == Double)
+  public func aFunc() {}
+}
+
+extension TestPrespecialized {
+  // CHECK-LABEL: sil [_specialize exported: true, kind: full, target: "$s15specialize_attr18TestPrespecializedV5aFuncyyF", where T == Int32] [ossa] @$s15specialize_attr18TestPrespecializedV0A6TargetyyF : $@convention(method) <T> (TestPrespecialized<T>) -> () {
+  @_specialize(exported: true, kind: full, target: aFunc(), where T == Int32)
+  public func specializeTarget() {}
+}

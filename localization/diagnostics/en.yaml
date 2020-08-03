@@ -889,6 +889,10 @@
 - id: sil_dynamically_replaced_func_not_found
   msg: "dynamically replaced function not found %0"
 
+- id: sil_specialize_target_func_not_found
+  msg: >-
+    _specialize target function not found %0
+
 - id: sil_availability_expected_version
   msg: "expected version number in 'available' attribute"
 

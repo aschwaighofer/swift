@@ -53,9 +53,17 @@ void SILFunctionBuilder::addFunctionAttributes(
         SA->getSpecializationKind() == SpecializeAttr::SpecializationKind::Full
             ? SILSpecializeAttr::SpecializationKind::Full
             : SILSpecializeAttr::SpecializationKind::Partial;
+    assert(!constant.isNull());
+    SILFunction *targetFunction = nullptr;
+    auto *attributedFuncDecl = constant.getDecl();
+    auto *targetFunctionDecl = SA->getTargetFunctionDecl(attributedFuncDecl);
+    if (targetFunctionDecl) {
+      SILDeclRef declRef(targetFunctionDecl, constant.kind, false);
+      targetFunction = getOrCreateDeclaration(targetFunctionDecl, declRef);
+    }
     F->addSpecializeAttr(
         SILSpecializeAttr::create(M, SA->getSpecializedSignature(),
-                                  SA->isExported(), kind));
+                                  SA->isExported(), kind, targetFunction));
   }
 
   if (auto *OA = Attrs.getAttribute<OptimizeAttr>()) {

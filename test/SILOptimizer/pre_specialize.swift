@@ -62,3 +62,7 @@ public func usePrespecializedEntryPoints() {
   useInternalEmitIntoClientPrespecialized(2)
   useInternalEmitIntoClientPrespecialized(2.0)
 }
+// OPT: sil [signature_optimized_thunk] [always_inline] @$s22pre_specialized_module16publicInlineableyyxlFSd_Ts5 : $@convention(thin) (Double) -> () {
+// NONE: sil @$s22pre_specialized_module16publicInlineableyyxlFSd_Ts5 : $@convention(thin) (Double) -> () {
+@_specialize(exported: true, target: publicInlineable(_:), where T == Double)
+public func specializeTarget<T>(_ t: T) {}

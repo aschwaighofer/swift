@@ -1084,7 +1084,7 @@ static bool parseDeclSILOptional(bool *isTransparent,
         targetFunction = M.lookUpFunction(targetFunctionName.str());
         if (!targetFunction) {
           Identifier Id = SP.P.Context.getIdentifier(targetFunctionName);
-          SP.P.diagnose(SP.P.Tok, diag::sil_dynamically_replaced_func_not_found,
+          SP.P.diagnose(SP.P.Tok, diag::sil_specialize_target_func_not_found,
                         Id);
           return true;
         }
@@ -5793,7 +5793,7 @@ bool SILParserState::parseDeclSIL(Parser &P) {
                 GenericSignature());
           FunctionState.F->addSpecializeAttr(SILSpecializeAttr::create(
               FunctionState.F->getModule(), genericSig, Attr.exported,
-              Attr.kind));
+              Attr.kind, Attr.target));
         }
       }
 

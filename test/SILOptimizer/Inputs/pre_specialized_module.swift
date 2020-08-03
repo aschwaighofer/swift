@@ -13,3 +13,7 @@ internal func internalEmitIntoClientPrespecialized<T>(_ t: T) {
 public func useInternalEmitIntoClientPrespecialized<T>(_ t: T) {
   internalEmitIntoClientPrespecialized(t)
 }
+
+@inlinable
+public func publicInlineable<T>(_ t: T) {
+}

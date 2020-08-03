@@ -3463,7 +3463,7 @@ void SILSpecializeAttr::print(llvm::raw_ostream &OS) const {
     }
   }
   if (targetFunction) {
-    OS << "target: " << targetFunction->getName() << ", ";
+    OS << "target: \"" << targetFunction->getName() << "\", ";
   }
   if (!requirements.empty()) {
     OS << "where ";

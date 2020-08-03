@@ -701,8 +701,16 @@ SILDeserializer::readSILFunctionChecked(DeclID FID, SILFunction *existingFn,
     unsigned exported;
     unsigned specializationKindVal;
     GenericSignatureID specializedSigID;
-    SILSpecializeAttrLayout::readRecord(
-        scratch, exported, specializationKindVal, specializedSigID);
+    IdentifierID targetFunctionID;
+    SILSpecializeAttrLayout::readRecord(scratch, exported,
+                                        specializationKindVal, specializedSigID,
+                                        targetFunctionID);
+
+    SILFunction *target = nullptr;
+    if (targetFunctionID) {
+      target = getFuncForReference(MF->getIdentifier(targetFunctionID).str());
+    }
+
     SILSpecializeAttr::SpecializationKind specializationKind =
         specializationKindVal ? SILSpecializeAttr::SpecializationKind::Partial
                               : SILSpecializeAttr::SpecializationKind::Full;
@@ -712,7 +720,7 @@ SILDeserializer::readSILFunctionChecked(DeclID FID, SILFunction *existingFn,
     if (shouldAddAtttributes) {
       // Read the substitution list and construct a SILSpecializeAttr.
       fn->addSpecializeAttr(SILSpecializeAttr::create(
-          SILMod, specializedSig, exported != 0, specializationKind));
+          SILMod, specializedSig, exported != 0, specializationKind, target));
     }
   }
 

@@ -391,6 +391,11 @@ protected:
         ensureAlive(&F);
       }
 
+      // Make sure that functions referenced by _specialize(target: targetFun())
+      // are kept alive.
+      F.forEachSpecializeAttrTargetFunction(
+          [this](SILFunction *targetFun) { ensureAlive(targetFun); });
+
       if (!F.shouldOptimize()) {
         LLVM_DEBUG(llvm::dbgs() << "  anchor a no optimization function: "
                                 << F.getName() << "\n");
