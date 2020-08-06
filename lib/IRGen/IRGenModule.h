@@ -33,6 +33,7 @@
 #include "swift/Basic/SuccessorMap.h"
 #include "swift/IRGen/ValueWitness.h"
 #include "swift/SIL/SILFunction.h"
+#include "clang/Basic/CodeGenOptions.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/Hashing.h"
@@ -832,6 +833,8 @@ public:
   bool useDllStorage();
 
   bool shouldPrespecializeGenericMetadata();
+
+  bool shouldUseRelativeMethodLists();
   
   Size getAtomicBoolSize() const { return AtomicBoolSize; }
   Alignment getAtomicBoolAlignment() const { return AtomicBoolAlign; }
@@ -914,6 +917,7 @@ public:
   }
 
   clang::CodeGen::CodeGenModule &getClangCGM() const;
+  clang::CodeGenOptions &getClangCodeGenOpts() const;
   
   CanType getRuntimeReifiedType(CanType type);
   CanType substOpaqueTypesWithUnderlyingTypes(CanType type);

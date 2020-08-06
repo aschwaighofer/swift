@@ -694,6 +694,10 @@ public:
   /// generic metadata.
   AvailabilityContext getIntermodulePrespecializedGenericMetadataAvailability();
 
+  /// Get the runtime availability of support for relative objective c method
+  /// lists.
+  AvailabilityContext getRelativeMethodListAvailability();
+
   /// Get the runtime availability of features introduced in the Swift 5.2
   /// compiler for the target platform.
   AvailabilityContext getSwift52Availability();

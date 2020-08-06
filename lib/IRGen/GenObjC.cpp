@@ -22,6 +22,7 @@
 
 #include "clang/AST/ASTContext.h"
 #include "clang/Basic/CharInfo.h"
+#include "clang/Basic/CodeGenOptions.h"
 #include "clang/CodeGen/CGFunctionInfo.h"
 
 #include "swift/AST/Decl.h"
@@ -1329,20 +1330,54 @@ irgen::emitObjCSetterDescriptorParts(IRGenModule &IGM,
   llvm_unreachable("unknown storage!");
 }
 
+/// Build an Objective-C method descriptor for the given method.
+///
+/// It may be an absolute descriptor
+///
+/// struct method_t {
+///   SEL name;
+///   const char *types;
+///   IMP imp;
+/// };
+///
+/// or a relative descriptor
+///
+/// struct rel_method_t {
+///   int32_t rr_name;
+///   int32_t rr_types;
+///   int32_t rr_imp;
+/// }
 static void buildMethodDescriptor(IRGenModule &IGM,
                                   ConstantArrayBuilder &descriptors,
                                   ObjCMethodDescriptor &parts) {
   auto descriptor = descriptors.beginStruct();
-  descriptor.add(parts.selectorRef);
-  descriptor.add(parts.typeEncoding);
-  if (parts.impl->isNullValue()) {
-    descriptor.add(parts.impl);
+
+  bool isRelative = IGM.shouldUseRelativeMethodLists();
+  if (isRelative) {
+    descriptor.addRelativeOffset(IGM.Int32Ty, parts.selectorRef);
+    descriptor.addRelativeOffset(IGM.Int32Ty, parts.typeEncoding);
+    if (parts.impl->isNullValue())
+      descriptor.addInt(IGM.Int32Ty, 0);
+    else
+      descriptor.addRelativeOffset(IGM.Int32Ty, parts.impl);
   } else {
-    descriptor.addSignedPointer(parts.impl,
-               IGM.getOptions().PointerAuth.ObjCMethodListFunctionPointers,
-                                PointerAuthEntity());
+    descriptor.add(parts.selectorRef);
+    descriptor.add(parts.typeEncoding);
+    if (parts.impl->isNullValue()) {
+      descriptor.add(parts.impl);
+    } else {
+      descriptor.addSignedPointer(parts.impl,
+                 IGM.getOptions().PointerAuth.ObjCMethodListFunctionPointers,
+                                  PointerAuthEntity());
+    }
   }
   descriptor.finishAndAddTo(descriptors);
+}
+
+Size irgen::getObjCMethodDescriptorSize(IRGenModule &IGM) {
+  if (IGM.shouldUseRelativeMethodLists())
+    return 3 * Size(4);
+  return 3 * IGM.getPointerSize();
 }
 
 static void emitObjCDescriptor(IRGenModule &IGM,
@@ -1358,12 +1393,6 @@ static void emitObjCDescriptor(IRGenModule &IGM,
   }
 }
 
-/// Emit an Objective-C method descriptor for the given method.
-/// struct method_t {
-///   SEL name;
-///   const char *types;
-///   IMP imp;
-/// };
 void irgen::emitObjCMethodDescriptor(IRGenModule &IGM,
                                      ConstantArrayBuilder &descriptors,
                                      AbstractFunctionDecl *method) {

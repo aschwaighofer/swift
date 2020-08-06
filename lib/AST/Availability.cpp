@@ -309,6 +309,10 @@ AvailabilityContext ASTContext::getPrespecializedGenericMetadataAvailability() {
   return getSwift54Availability();
 }
 
+AvailabilityContext ASTContext::getRelativeMethodListAvailability() {
+  return getSwift53Availability();
+}
+
 AvailabilityContext ASTContext::getCompareTypeContextDescriptorsAvailability() {
   return getSwift54Availability();
 }

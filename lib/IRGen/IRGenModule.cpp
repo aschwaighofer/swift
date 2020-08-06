@@ -937,6 +937,12 @@ clang::CodeGen::CodeGenModule &IRGenModule::getClangCGM() const {
   return ClangCodeGen->CGM();
 }
 
+clang::CodeGenOptions &IRGenModule::getClangCodeGenOpts() const {
+  ClangModuleLoader *importer = Context.getClangModuleLoader();
+  assert(importer && "Expected clang importer to be present!");
+  return static_cast<const ClangImporter *>(importer)->getClangCodeGenOpts();
+}
+
 llvm::Module *IRGenModule::getModule() const {
   return ClangCodeGen->GetModule();
 }
@@ -1549,6 +1555,14 @@ bool IRGenModule::shouldPrespecializeGenericMetadata() {
          deploymentAvailability.isContainedIn(
              context.getPrespecializedGenericMetadataAvailability()) &&
          canPrespecializeTarget;
+}
+
+bool IRGenModule::shouldUseRelativeMethodLists() {
+  auto &context = getSwiftModule()->getASTContext();
+  auto deploymentAvailability =
+      AvailabilityContext::forDeploymentTarget(context);
+  return deploymentAvailability.isContainedIn(
+      context.getRelativeMethodListAvailability());
 }
 
 void IRGenerator::addGenModule(SourceFile *SF, IRGenModule *IGM) {

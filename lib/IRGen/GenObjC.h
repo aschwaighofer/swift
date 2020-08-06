@@ -113,6 +113,8 @@ namespace irgen {
     SILFunction *silFunction = nullptr;
   };
 
+  Size getObjCMethodDescriptorSize(IRGenModule &IGM);
+
   /// Build the components of an Objective-C method descriptor for the given
   /// method or constructor implementation.
   ObjCMethodDescriptor

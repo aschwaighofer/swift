@@ -16,6 +16,7 @@
 
 #include "GenClass.h"
 
+#include "clang/Basic/CodeGenOptions.h"
 #include "swift/ABI/Class.h"
 #include "swift/ABI/MetadataValues.h"
 #include "swift/AST/ASTContext.h"
@@ -1691,6 +1692,7 @@ namespace {
 
     /// struct method_list_t {
     ///   uint32_t entsize; // runtime uses low bits for its own purposes
+    ///                     // top bit is set ==> this is a relative method list
     ///   uint32_t count;
     ///   method_t list[count];
     /// };
@@ -1698,12 +1700,14 @@ namespace {
     /// This method does not return a value of a predictable type.
     llvm::Constant *buildMethodList(ArrayRef<MethodDescriptor> methods,
                                     StringRef name) {
-      return buildOptionalList(methods, 3 * IGM.getPointerSize(), name,
-                               /*isConst*/ false,
-                               [&](ConstantArrayBuilder &descriptors,
-                                   MethodDescriptor descriptor) {
+      auto descriptorSize = irgen::getObjCMethodDescriptorSize(IGM);
+      auto buildFn = [&](ConstantArrayBuilder &descriptors,
+                         MethodDescriptor descriptor) {
         buildMethod(descriptors, descriptor);
-      });
+      };
+      bool useRelativeMethodList = IGM.shouldUseRelativeMethodLists();
+      return buildOptionalList(methods, descriptorSize, name, /*isConst*/ false,
+                               buildFn, useRelativeMethodList);
     }
 
     /*** Protocols *********************************************************/
@@ -1995,7 +1999,8 @@ namespace {
                                       Size optionalEltSize,
                                       StringRef nameBase,
                                       bool isConst,
-                                      Fn &&buildElement) {
+                                      Fn &&buildElement,
+                                      bool isRelativeMethodList = false) {
       if (objects.empty())
         return null();
 
@@ -2007,7 +2012,16 @@ namespace {
       //   - there's a 32-bit entry size and a 32-bit count or
       //   - there's no entry size and a uintptr_t count.
       if (!optionalEltSize.isZero()) {
-        fields.addInt32(optionalEltSize.getValue());
+        uint32_t size = optionalEltSize.getValue();
+        // A relative method list should have the top bit in the size set so
+        // that the ObjC runtime uses it correctly.
+        if (isRelativeMethodList) {
+          uint32_t relativeMethodListMask = uint32_t(1) << 31;
+          assert(!(size & relativeMethodListMask)
+                 && "Expected top bit to be unset.");
+          size |= relativeMethodListMask;
+        }
+        fields.addInt32(size);
         countType = IGM.Int32Ty;
       } else {
         countType = IGM.IntPtrTy;
@@ -2033,7 +2047,8 @@ namespace {
 
       fields.fillPlaceholderWithInt(countPosition, countType, count);
 
-      return buildGlobalVariable(fields, nameBase, isConst);
+      return buildGlobalVariable(fields, nameBase, isConst,
+                                 isRelativeMethodList);
     }
     
     /// Get the name of the class or protocol to mangle into the ObjC symbol
@@ -2052,9 +2067,15 @@ namespace {
 
     /// Build a private global variable as a structure containing the
     /// given fields.
+    ///
+    /// TODO: Ideally, we would have a proper abstraction which picks the
+    /// section based on what kind of information we are storing. Right now,
+    /// only relative method lists have special behavior so we use a flag.
     template <class B>
-    llvm::Constant *buildGlobalVariable(B &fields, StringRef nameBase,
-                                        bool isConst) {
+    llvm::Constant *
+    buildGlobalVariable(B &fields, StringRef nameBase,
+                        bool isConst,
+                        bool isRelativeMethodList = false) {
       llvm::SmallString<64> nameBuffer;
       auto var =
         fields.finishAndCreateGlobal(Twine(nameBase) 
@@ -2066,10 +2087,16 @@ namespace {
                                      /*constant*/ true,
                                      llvm::GlobalVariable::InternalLinkage);
 
+      if (isRelativeMethodList)
+        assert((IGM.TargetInfo.OutputObjectFormat == llvm::Triple::MachO)
+               && "Relative method lists are supported only on Darwin OSes.");
       switch (IGM.TargetInfo.OutputObjectFormat) {
       case llvm::Triple::MachO:
-        var->setSection(isConst ? "__DATA, __objc_const"
-                                : "__DATA, __objc_data");
+        if (isRelativeMethodList)
+          var->setSection("__TEXT, __objc_methlist");
+        else
+          var->setSection(isConst ? "__DATA, __objc_const"
+                                  : "__DATA, __objc_data");
         break;
       case llvm::Triple::XCOFF:
       case llvm::Triple::COFF:
