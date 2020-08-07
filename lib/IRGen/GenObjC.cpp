@@ -293,9 +293,9 @@ llvm::Constant *IRGenModule::getAddrOfObjCSelectorRef(StringRef selector) {
   // choose something descriptive to make the IR readable.
   auto init = getAddrOfObjCMethodName(selector);
   auto global = new llvm::GlobalVariable(Module, init->getType(), false,
-                                         llvm::GlobalValue::PrivateLinkage,
+                                         llvm::GlobalValue::InternalLinkage,
                                          init,
-                                llvm::Twine("\01L_selector(") + selector + ")");
+                                llvm::Twine("_selector(") + selector + ")");
   global->setExternallyInitialized(true);
   global->setAlignment(llvm::MaybeAlign(getPointerAlignment().getValue()));
 
@@ -1159,12 +1159,17 @@ static llvm::Constant *getObjCEncodingForMethod(IRGenModule &IGM,
 ObjCMethodDescriptor
 irgen::emitObjCMethodDescriptorParts(IRGenModule &IGM,
                                      AbstractFunctionDecl *method,
-                                     bool concrete) {
+                                     bool concrete,
+                                     bool forRelativeMethodList) {
   ObjCMethodDescriptor descriptor{};
   Selector selector(method);
   
   /// The first element is the selector.
-  descriptor.selectorRef = IGM.getAddrOfObjCMethodName(selector.str());
+  if (!forRelativeMethodList) {
+    descriptor.selectorRef = IGM.getAddrOfObjCMethodName(selector.str());
+  } else {
+    descriptor.selectorRef = IGM.getAddrOfObjCSelectorRef(selector.str());
+  }
   
   /// The second element is the method signature. A method signature is made
   /// of the return type @encoding and every parameter type @encoding, glued
@@ -1192,14 +1197,23 @@ irgen::emitObjCMethodDescriptorParts(IRGenModule &IGM,
   return descriptor;
 }
 
+static llvm::Constant *getObjCSelectorForMethodList(IRGenModule &IGM,
+                                                    StringRef selector) {
+  if (!IGM.shouldUseRelativeMethodLists()) {
+    return IGM.getAddrOfObjCMethodName(selector);
+  } else {
+    return IGM.getAddrOfObjCSelectorRef(selector);
+  }
+}
+
 /// Emit the components of an Objective-C method descriptor for a
 /// property getter method.
 ObjCMethodDescriptor
 irgen::emitObjCGetterDescriptorParts(IRGenModule &IGM, VarDecl *property) {
   Selector getterSel(property, Selector::ForGetter);
   ObjCMethodDescriptor descriptor{};
-  descriptor.selectorRef = IGM.getAddrOfObjCMethodName(getterSel.str());
-  
+  descriptor.selectorRef = getObjCSelectorForMethodList(IGM, getterSel.str());
+
   auto clangType = getObjCPropertyType(IGM, property);
   if (clangType.isNull()) {
     descriptor.typeEncoding = llvm::ConstantPointerNull::get(IGM.Int8PtrTy);
@@ -1230,7 +1244,7 @@ irgen::emitObjCGetterDescriptorParts(IRGenModule &IGM,
                                      SubscriptDecl *subscript) {
   Selector getterSel(subscript, Selector::ForGetter);
   ObjCMethodDescriptor descriptor{};
-  descriptor.selectorRef = IGM.getAddrOfObjCMethodName(getterSel.str());
+  descriptor.selectorRef = getObjCSelectorForMethodList(IGM, getterSel.str());
 
   auto methodTy =
       getObjCMethodType(IGM, subscript->getOpaqueAccessor(AccessorKind::Get));
@@ -1266,8 +1280,8 @@ irgen::emitObjCSetterDescriptorParts(IRGenModule &IGM,
 
   Selector setterSel(property, Selector::ForSetter);
   ObjCMethodDescriptor descriptor{};
-  descriptor.selectorRef = IGM.getAddrOfObjCMethodName(setterSel.str());
-  
+  descriptor.selectorRef = getObjCSelectorForMethodList(IGM, setterSel.str());
+
   auto &clangASTContext = IGM.getClangASTContext();
   std::string TypeStr;
   auto clangType = clangASTContext.VoidTy;
@@ -1306,7 +1320,7 @@ irgen::emitObjCSetterDescriptorParts(IRGenModule &IGM,
 
   Selector setterSel(subscript, Selector::ForSetter);
   ObjCMethodDescriptor descriptor{};
-  descriptor.selectorRef = IGM.getAddrOfObjCMethodName(setterSel.str());
+  descriptor.selectorRef = getObjCSelectorForMethodList(IGM, setterSel.str());
   auto methodTy = getObjCMethodType(IGM,
                               subscript->getOpaqueAccessor(AccessorKind::Set));
   descriptor.typeEncoding =
@@ -1386,9 +1400,8 @@ static void emitObjCDescriptor(IRGenModule &IGM,
   buildMethodDescriptor(IGM, descriptors, descriptor);
   auto *silFn = descriptor.silFunction;
   if (silFn && silFn->hasObjCReplacement()) {
-    auto replacedSelector =
-      IGM.getAddrOfObjCMethodName(silFn->getObjCReplacement().str());
-    descriptor.selectorRef = replacedSelector;
+    descriptor.selectorRef =
+        getObjCSelectorForMethodList(IGM, silFn->getObjCReplacement().str());
     buildMethodDescriptor(IGM, descriptors, descriptor);
   }
 }
@@ -1396,8 +1409,8 @@ static void emitObjCDescriptor(IRGenModule &IGM,
 void irgen::emitObjCMethodDescriptor(IRGenModule &IGM,
                                      ConstantArrayBuilder &descriptors,
                                      AbstractFunctionDecl *method) {
-  ObjCMethodDescriptor descriptor(
-    emitObjCMethodDescriptorParts(IGM, method, /*concrete*/ true));
+  ObjCMethodDescriptor descriptor(emitObjCMethodDescriptorParts(
+      IGM, method, /*concrete*/ true, IGM.shouldUseRelativeMethodLists()));
   emitObjCDescriptor(IGM, descriptors, descriptor);
 }
 
@@ -1413,8 +1426,8 @@ void irgen::emitObjCIVarInitDestroyDescriptor(IRGenModule &IGM,
                                   /*foreign*/ true);
   Selector selector(declRef);
   ObjCMethodDescriptor descriptor{};
-  descriptor.selectorRef = IGM.getAddrOfObjCMethodName(selector.str());
-  
+  descriptor.selectorRef = getObjCSelectorForMethodList(IGM, selector.str());
+
   /// The second element is the method signature. A method signature is made of
   /// the return type @encoding and every parameter type @encoding, glued with
   /// numbers that used to represent stack offsets for each of these elements.

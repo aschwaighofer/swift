@@ -120,7 +120,8 @@ namespace irgen {
   ObjCMethodDescriptor
   emitObjCMethodDescriptorParts(IRGenModule &IGM,
                                 AbstractFunctionDecl *method,
-                                bool concrete);
+                                bool concrete,
+                                bool forRelativeMethodList = false);
 
   /// Build the components of an Objective-C method descriptor for the given
   /// property's method implementations.

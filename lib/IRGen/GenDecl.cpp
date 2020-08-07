@@ -152,8 +152,10 @@ public:
       return;
 
     auto descriptor = emitObjCMethodDescriptorParts(IGM, method,
-                                                    /*concrete*/true);
-    
+                                                    /*concrete*/ true,
+                                                    /*forRelativeMethodList*/
+                                                    false);
+
     // When generating JIT'd code, we need to call sel_registerName() to force
     // the runtime to unique the selector.
     llvm::Value *sel = Builder.CreateCall(IGM.getObjCSelRegisterNameFn(),
@@ -175,7 +177,9 @@ public:
   void visitConstructorDecl(ConstructorDecl *constructor) {
     if (!requiresObjCMethodDescriptor(constructor)) return;
     auto descriptor = emitObjCMethodDescriptorParts(IGM, constructor,
-                                                    /*concrete*/true);
+                                                    /*concrete*/ true,
+                                                    /*forRelativeMethodList*/
+                                                    false);
 
     // When generating JIT'd code, we need to call sel_registerName() to force
     // the runtime to unique the selector.
@@ -353,8 +357,10 @@ public:
     }
 
     auto descriptor = emitObjCMethodDescriptorParts(IGM, method,
-                                                    /*concrete*/false);
-    
+                                                    /*concrete*/ false,
+                                                    /*forRelativeMethodList*/
+                                                    false);
+
     // When generating JIT'd code, we need to call sel_registerName() to force
     // the runtime to unique the selector.
     llvm::Value *sel = Builder.CreateCall(IGM.getObjCSelRegisterNameFn(),
