@@ -1969,3 +1969,40 @@ swift::performASTLowering(FileUnit &sf, Lowering::TypeConverter &tc,
   auto desc = ASTLoweringDescriptor::forFile(sf, tc, options);
   return llvm::cantFail(sf.getASTContext().evaluator(ASTLoweringRequest{desc}));
 }
+
+void SILGenModule::visitImportDecl(ImportDecl *import) {
+  auto *module = import->getModule();
+  if (module->isNonSwiftModule())
+    return;
+
+  SmallVector<Decl*, 16> topLevelDecls;
+  module->getTopLevelDecls(topLevelDecls);
+  auto numDecls = topLevelDecls.size();
+  auto transferSpecializeAttributeTargets = [&](Decl *d) {
+    if (auto *vd = dyn_cast<AbstractFunctionDecl>(d)) {
+      for (auto *A : vd->getAttrs().getAttributes<SpecializeAttr>()) {
+        auto *SA = cast<SpecializeAttr>(A);
+        if (auto *targetFunctionDecl = SA->getTargetFunctionDecl(vd)) {
+          auto target = SILDeclRef(targetFunctionDecl);
+          auto targetSILFunction = getFunction(target, NotForDefinition);
+          auto kind = SA->getSpecializationKind() ==
+                              SpecializeAttr::SpecializationKind::Full
+                          ? SILSpecializeAttr::SpecializationKind::Full
+                          : SILSpecializeAttr::SpecializationKind::Partial;
+
+          targetSILFunction->addSpecializeAttr(
+              SILSpecializeAttr::create(M, SA->getSpecializedSgnature(),
+                                        SA->isExported(), kind, nullptr));
+        }
+      }
+    }
+  };
+  for (auto *t : topLevelDecls) {
+    if (auto *vd = dyn_cast<AbstractFunctionDecl>(t)) {
+      transferSpecializeAttributeTargets(vd);
+    } else if (auto *extension = dyn_cast<ExtensionDecl>(t)) {
+      for (auto *d : extension->getMembers())
+        transferSpecializeAttributeTargets(d);
+    }
+  }
+}

@@ -16,8 +16,7 @@
 using namespace swift;
 
 SILFunction *SILFunctionBuilder::getOrCreateFunction(
-    SILLocation loc, StringRef name, SILLinkage linkage,
-    CanSILFunctionType type, IsBare_t isBareSILFunction,
+    SILLocation loc, StringRef name, SILLinkage linkage, CanSILFunctionType type, IsBare_t isBareSILFunction,
     IsTransparent_t isTransparent, IsSerialized_t isSerialized,
     IsDynamicallyReplaceable_t isDynamic, ProfileCounter entryCount,
     IsThunk_t isThunk, SubclassScope subclassScope) {
@@ -60,10 +59,13 @@ void SILFunctionBuilder::addFunctionAttributes(
     if (targetFunctionDecl) {
       SILDeclRef declRef(targetFunctionDecl, constant.kind, false);
       targetFunction = getOrCreateDeclaration(targetFunctionDecl, declRef);
+      F->addSpecializeAttr(
+          SILSpecializeAttr::create(M, SA->getSpecializedSignature(),
+                                    SA->isExported(), kind, targetFunction));
+    } else {
+      F->addSpecializeAttr(SILSpecializeAttr::create(
+          M, SA->getSpecializedSignature(), SA->isExported(), kind, nullptr));
     }
-    F->addSpecializeAttr(
-        SILSpecializeAttr::create(M, SA->getSpecializedSignature(),
-                                  SA->isExported(), kind, targetFunction));
   }
 
   if (auto *OA = Attrs.getAttribute<OptimizeAttr>()) {
