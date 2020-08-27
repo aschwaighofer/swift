@@ -859,7 +859,8 @@ ScopedImportLookupRequest::evaluate(Evaluator &evaluator,
   SmallVector<ValueDecl *, 8> decls;
   lookupInModule(topLevelModule, declPath.front().Item, decls,
                  NLKind::QualifiedLookup, ResolutionKind::Overloadable,
-                 import->getDeclContext()->getModuleScopeContext());
+                 import->getDeclContext()->getModuleScopeContext(),
+                 NL_QualifiedDefault);
 
   auto importLoc = import->getLoc();
   if (decls.empty()) {

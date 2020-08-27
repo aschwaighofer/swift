@@ -1725,7 +1725,7 @@ void AttributeChecker::checkApplicationMainAttribute(DeclAttribute *attr,
     namelookup::lookupInModule(KitModule, Id_ApplicationDelegate,
                                decls, NLKind::QualifiedLookup,
                                namelookup::ResolutionKind::TypesOnly,
-                               SF);
+                               SF, NL_QualifiedDefault);
     if (decls.size() == 1)
       ApplicationDelegateProto = dyn_cast<ProtocolDecl>(decls[0]);
   }
@@ -2388,9 +2388,13 @@ static void lookupReplacedDecl(DeclNameRef replacedDeclName,
   if (!typeCtx)
     typeCtx = cast<ExtensionDecl>(declCtxt->getAsDecl())->getExtendedNominal();
 
+  auto options = NL_QualifiedDefault;
+  if (declCtxt->isInSpecializeExtensionContext())
+    options |= NL_IncludeUsableFromInlineAndInlineable;
+
   if (typeCtx)
-    moduleScopeCtxt->lookupQualified({typeCtx}, replacedDeclName,
-                                     NL_QualifiedDefault, results);
+    moduleScopeCtxt->lookupQualified({typeCtx}, replacedDeclName, options,
+                                     results);
 }
 
 /// Remove any argument labels from the interface type of the given value that

@@ -1209,3 +1209,18 @@ void swift::simple_display(llvm::raw_ostream &out,
 SourceLoc swift::extractNearestSourceLoc(const IterableDeclContext *idc) {
   return extractNearestSourceLoc(idc->getDecl());
 }
+
+static bool isSpecializeExtensionContext(const DeclContext *dc) {
+  if (dc->isModuleScopeContext())
+    return false;
+  if (auto *extCtx = dyn_cast<ExtensionDecl>(dc)) {
+    // and has specialized attr ...
+    return true;
+  }
+  auto *parentDecl = dc->getParent();
+  return isSpecializeExtensionContext(parentDecl);
+}
+
+bool DeclContext::isInSpecializeExtensionContext() const {
+   return isSpecializeExtensionContext(this);
+}

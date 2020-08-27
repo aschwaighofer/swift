@@ -3365,13 +3365,14 @@ ValueDecl::getFormalAccessScope(const DeclContext *useDC,
 /// See ValueDecl::isAccessibleFrom for a description of \p forConformance.
 static bool checkAccessUsingAccessScopes(const DeclContext *useDC,
                                          const ValueDecl *VD,
-                                         AccessLevel access) {
+                                         AccessLevel access,
+                                         bool includeInlineable) {
   if (VD->getASTContext().isAccessControlDisabled())
     return true;
 
-  AccessScope accessScope =
-      getAccessScopeForFormalAccess(VD, access, useDC,
-                                    /*treatUsableFromInlineAsPublic*/false);
+  AccessScope accessScope = getAccessScopeForFormalAccess(
+      VD, access, useDC,
+      /*treatUsableFromInlineAsPublic*/ includeInlineable);
   if (accessScope.getDeclContext() == useDC) return true;
   if (!AccessScope(useDC).isChildOf(accessScope)) return false;
 
@@ -3394,6 +3395,7 @@ static bool checkAccessUsingAccessScopes(const DeclContext *useDC,
 /// See ValueDecl::isAccessibleFrom for a description of \p forConformance.
 static bool checkAccess(const DeclContext *useDC, const ValueDecl *VD,
                         bool forConformance,
+                        bool includeInlineable,
                         llvm::function_ref<AccessLevel()> getAccessLevel) {
   if (VD->getASTContext().isAccessControlDisabled())
     return true;
@@ -3406,7 +3408,7 @@ static bool checkAccess(const DeclContext *useDC, const ValueDecl *VD,
   // check declarations inside inaccessible members via slower
   // access scope based check, which is helpful for diagnostics.
   if (!(sourceDC->getSelfProtocolDecl() || VD->isOperator()))
-    return checkAccessUsingAccessScopes(useDC, VD, access);
+    return checkAccessUsingAccessScopes(useDC, VD, access, includeInlineable);
 
   if (!forConformance) {
     if (auto *proto = sourceDC->getSelfProtocolDecl()) {
@@ -3421,7 +3423,7 @@ static bool checkAccess(const DeclContext *useDC, const ValueDecl *VD,
       }
 
       // Skip the fast path below and just compare access scopes.
-      return checkAccessUsingAccessScopes(useDC, VD, access);
+      return checkAccessUsingAccessScopes(useDC, VD, access, includeInlineable);
     }
   }
 
@@ -3461,8 +3463,9 @@ static bool checkAccess(const DeclContext *useDC, const ValueDecl *VD,
 }
 
 bool ValueDecl::isAccessibleFrom(const DeclContext *useDC,
-                                 bool forConformance) const {
-  return checkAccess(useDC, this, forConformance,
+                                 bool forConformance,
+                                 bool includeInlineable) const {
+  return checkAccess(useDC, this, forConformance, includeInlineable,
                      [&]() { return getFormalAccess(); });
 }
 
@@ -3479,7 +3482,7 @@ bool AbstractStorageDecl::isSetterAccessibleFrom(const DeclContext *DC,
   if (isa<ParamDecl>(this))
     return true;
 
-  return checkAccess(DC, this, forConformance,
+  return checkAccess(DC, this, forConformance, /*includeInlineable*/ false,
                      [&]() { return getSetterFormalAccess(); });
 }
 

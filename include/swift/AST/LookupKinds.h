@@ -62,6 +62,8 @@ enum NLOptions : unsigned {
   /// Include synonyms declared with @_implements()
   NL_IncludeAttributeImplements = 0x100,
 
+  NL_IncludeUsableFromInlineAndInlineable = 0x200,
+
   /// This lookup is known to not add any additional dependencies to the
   /// primary source file.
   ///

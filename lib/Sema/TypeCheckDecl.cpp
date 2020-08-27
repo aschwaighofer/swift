@@ -2130,6 +2130,9 @@ static Type validateParameterType(ParamDecl *decl) {
                        TypeResolverContext::FunctionInput);
   options |= TypeResolutionFlags::Direct;
 
+  if (dc->isInSpecializeExtensionContext())
+    options |= TypeResolutionFlags::AllowInlinable;
+
   const auto resolution =
       TypeResolution::forInterface(dc, options, unboundTyOpener);
   auto Ty = resolution.resolveType(decl->getTypeRepr());
@@ -2667,9 +2670,11 @@ ExtendedTypeRequest::evaluate(Evaluator &eval, ExtensionDecl *ext) const {
     return error();
 
   // Compute the extended type.
-  const TypeResolutionOptions options(TypeResolverContext::ExtensionBinding);
+  TypeResolutionOptions options(TypeResolverContext::ExtensionBinding);
+  // if (ext->hasAttr<SpecializeAttr>())
+  options |= TypeResolutionFlags::AllowInlinable;
   const auto resolution = TypeResolution::forStructural(
-      ext->getDeclContext(), TypeResolverContext::ExtensionBinding,
+      ext->getDeclContext(), options,
       [](auto unboundTy) {
         // FIXME: Don't let unbound generic types escape type resolution.
         // For now, just return the unbound generic type.

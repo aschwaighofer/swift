@@ -1299,6 +1299,8 @@ static Type resolveTopLevelIdentTypeComponent(TypeResolution resolution,
   NameLookupOptions lookupOptions = defaultUnqualifiedLookupOptions;
   if (options.contains(TypeResolutionFlags::KnownNonCascadingDependency))
     lookupOptions |= NameLookupFlags::KnownPrivate;
+  if (options.contains(TypeResolutionFlags::AllowInlinable))
+    lookupOptions |= NameLookupFlags::AllowInlineableAndUsableFromInline;
   auto globals = TypeChecker::lookupUnqualifiedType(DC, id, comp->getLoc(),
                                                     lookupOptions);
 
@@ -1499,6 +1501,8 @@ static Type resolveNestedIdentTypeComponent(TypeResolution resolution,
   NameLookupOptions lookupOptions = defaultMemberLookupOptions;
   if (isKnownNonCascading)
     lookupOptions |= NameLookupFlags::KnownPrivate;
+  if (options.contains(TypeResolutionFlags::AllowInlinable))
+    lookupOptions |= NameLookupFlags::AllowInlineableAndUsableFromInline;
   LookupTypeResult memberTypes;
   if (parentTy->mayHaveMembers())
     memberTypes = TypeChecker::lookupMemberType(DC, parentTy,
