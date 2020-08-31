@@ -666,7 +666,7 @@ void TBDGenVisitor::visitAbstractFunctionDecl(AbstractFunctionDecl *AFD) {
   for (auto *attr : AFD->getAttrs().getAttributes<SpecializeAttr>()) {
     if (!attr->isExported())
       continue;
-    addSymbol(SILDeclRef(AFD, attr->getSpecializedSgnature()));
+    addSymbol(SILDeclRef(AFD, attr->getSpecializedSignature()));
   }
 
   addSymbol(SILDeclRef(AFD));

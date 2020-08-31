@@ -1991,7 +1991,7 @@ void SILGenModule::visitImportDecl(ImportDecl *import) {
                           : SILSpecializeAttr::SpecializationKind::Partial;
 
           targetSILFunction->addSpecializeAttr(
-              SILSpecializeAttr::create(M, SA->getSpecializedSgnature(),
+              SILSpecializeAttr::create(M, SA->getSpecializedSignature(),
                                         SA->isExported(), kind, nullptr));
         }
       }
