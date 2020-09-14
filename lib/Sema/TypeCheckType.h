@@ -65,7 +65,10 @@ enum class TypeResolutionFlags : uint16_t {
   SilenceErrors = 1 << 9,
 
   /// Whether to allow module declaration types.
-  AllowModule = 1 << 10
+  AllowModule = 1 << 10,
+
+  /// Make internal @usableFromInline and @inlinable decls visibile.
+  AllowInlinable = 1 << 11
 };
 
 /// Type resolution contexts that require special handling.

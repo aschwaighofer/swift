@@ -127,6 +127,7 @@ SILModule::~SILModule() {
   for (SILFunction &F : *this) {
     F.dropAllReferences();
     F.dropDynamicallyReplacedFunction();
+    F.clearSpecializeAttrs();
   }
 }
 
@@ -459,6 +460,8 @@ void SILModule::eraseFunction(SILFunction *F) {
   // (References are not needed anymore.)
   F->dropAllReferences();
   F->dropDynamicallyReplacedFunction();
+  // Drop references for any _specialize(target:) functions.
+  F->clearSpecializeAttrs();
 }
 
 void SILModule::invalidateFunctionInSILCache(SILFunction *F) {

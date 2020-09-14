@@ -409,8 +409,11 @@ void UnqualifiedLookupFactory::addImportedResults(DeclContext *const dc) {
   SmallVector<ValueDecl *, 8> CurModuleResults;
   auto resolutionKind = isOriginallyTypeLookup ? ResolutionKind::TypesOnly
                                                : ResolutionKind::Overloadable;
+  auto nlOptions = NL_UnqualifiedDefault;
+  if (options.contains(Flags::AllowInlineableAndUsableFromInline))
+    nlOptions |= NL_IncludeUsableFromInlineAndInlineable;
   lookupInModule(dc, Name.getFullName(), CurModuleResults, NLKind::UnqualifiedLookup,
-                 resolutionKind, dc);
+                 resolutionKind, dc, nlOptions);
 
   // Always perform name shadowing for type lookup.
   if (options.contains(Flags::TypeLookup)) {

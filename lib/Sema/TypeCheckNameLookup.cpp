@@ -213,6 +213,8 @@ convertToUnqualifiedLookupOptions(NameLookupOptions options) {
     newOptions |= UnqualifiedLookupFlags::IgnoreAccessControl;
   if (options.contains(NameLookupFlags::IncludeOuterResults))
     newOptions |= UnqualifiedLookupFlags::IncludeOuterResults;
+  if (options.contains(NameLookupFlags::AllowInlineableAndUsableFromInline))
+    newOptions |= UnqualifiedLookupFlags::AllowInlineableAndUsableFromInline;
 
   return newOptions;
 }
@@ -394,6 +396,8 @@ LookupTypeResult TypeChecker::lookupMemberType(DeclContext *dc,
     subOptions |= NL_KnownNonCascadingDependency;
   if (options.contains(NameLookupFlags::IgnoreAccessControl))
     subOptions |= NL_IgnoreAccessControl;
+  if (options.contains(NameLookupFlags::AllowInlineableAndUsableFromInline))
+    subOptions |= NL_IncludeUsableFromInlineAndInlineable;
 
   // Make sure we've resolved implicit members, if we need them.
   if (auto *current = type->getAnyNominal()) {

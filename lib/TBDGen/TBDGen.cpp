@@ -662,6 +662,13 @@ void TBDGenVisitor::visitAbstractFunctionDecl(AbstractFunctionDecl *AFD) {
     return;
   }
 
+  // Add exported prespecialized symbols.
+  for (auto *attr : AFD->getAttrs().getAttributes<SpecializeAttr>()) {
+    if (!attr->isExported())
+      continue;
+    addSymbol(SILDeclRef(AFD, attr->getSpecializedSignature()));
+  }
+
   addSymbol(SILDeclRef(AFD));
 
   // Add the global function pointer for a dynamically replaceable function.
