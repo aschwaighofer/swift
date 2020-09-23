@@ -56,6 +56,14 @@ void SILFunctionBuilder::addFunctionAttributes(
     SILFunction *targetFunction = nullptr;
     auto *attributedFuncDecl = constant.getDecl();
     auto *targetFunctionDecl = SA->getTargetFunctionDecl(attributedFuncDecl);
+    // Filter out _spi.
+    auto spiGroups = SA->getSPIGroups();
+    if (!spiGroups.empty()) {
+      if (attributedFuncDecl->getModuleContext() != M.getSwiftModule() &&
+          !M.getSwiftModule()->isImportedAsSPI(SA, attributedFuncDecl)) {
+        continue;
+      }
+    }
     if (targetFunctionDecl) {
       SILDeclRef declRef(targetFunctionDecl, constant.kind, false);
       targetFunction = getOrCreateDeclaration(targetFunctionDecl, declRef);

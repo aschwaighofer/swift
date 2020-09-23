@@ -2030,6 +2030,22 @@ bool SourceFile::isImportedAsSPI(const ValueDecl *targetDecl) const {
   return false;
 }
 
+bool ModuleDecl::isImportedAsSPI(const SpecializeAttr *attr,
+                                 const ValueDecl *targetDecl) const {
+  auto targetModule = targetDecl->getModuleContext();
+  llvm::SmallSetVector<Identifier, 4> importedSPIGroups;
+  lookupImportedSPIGroups(targetModule, importedSPIGroups);
+  if (importedSPIGroups.empty()) return false;
+
+  auto declSPIGroups = attr->getSPIGroups();
+
+  for (auto declSPI : declSPIGroups)
+    if (importedSPIGroups.count(declSPI))
+      return true;
+
+  return false;
+}
+
 bool Decl::isSPI() const {
   return !getSPIGroups().empty();
 }

@@ -581,7 +581,7 @@ bool Parser::parseSpecializeAttributeArguments(
     swift::tok ClosingBrace, bool &DiscardAttribute, Optional<bool> &Exported,
     Optional<SpecializeAttr::SpecializationKind> &Kind,
     swift::TrailingWhereClause *&TrailingWhereClause,
-    DeclNameRef &targetFunction,
+    DeclNameRef &targetFunction, SmallVectorImpl<Identifier> &spiGroups,
     llvm::function_ref<bool(Parser &)> parseSILTargetName) {
   SyntaxParsingContext ContentContext(SyntaxContext,
                                       SyntaxKind::SpecializeAttributeSpecList);
@@ -594,7 +594,7 @@ bool Parser::parseSpecializeAttributeArguments(
                              ? SyntaxKind::TargetFunctionEntry
                              : SyntaxKind::LabeledSpecializeEntry);
       if (ParamLabel != "exported" && ParamLabel != "kind" &&
-          ParamLabel != "target") {
+          ParamLabel != "target" && ParamLabel != "spi") {
         diagnose(Tok.getLoc(), diag::attr_specialize_unknown_parameter_name,
                  ParamLabel);
       }
@@ -615,7 +615,8 @@ bool Parser::parseSpecializeAttributeArguments(
         return false;
       }
       if ((ParamLabel == "exported" && Exported.hasValue()) ||
-          (ParamLabel == "kind" && Kind.hasValue())) {
+          (ParamLabel == "kind" && Kind.hasValue()) ||
+          (ParamLabel == "spi" && !spiGroups.empty())) {
         diagnose(Tok.getLoc(), diag::attr_specialize_parameter_already_defined,
                  ParamLabel);
       }
@@ -672,6 +673,16 @@ bool Parser::parseSpecializeAttributeArguments(
                   DeclNameFlag::AllowOperators);
         }
       }
+      if (ParamLabel == "spi") {
+        if (!Tok.is(tok::identifier)) {
+          diagnose(Tok.getLoc(), diag::attr_specialize_expected_spi_name);
+          consumeToken();
+          return false;
+        }
+        auto text = Tok.getText();
+        spiGroups.push_back(Context.getIdentifier(text));
+        consumeToken();
+      }
       if (!consumeIf(tok::comma)) {
         diagnose(Tok.getLoc(), diag::attr_specialize_missing_comma);
         skipUntil(tok::comma, tok::kw_where);
@@ -724,9 +735,10 @@ bool Parser::parseSpecializeAttribute(
   TrailingWhereClause *trailingWhereClause = nullptr;
 
   DeclNameRef targetFunction;
-  if (!parseSpecializeAttributeArguments(ClosingBrace, DiscardAttribute,
-                                         exported, kind, trailingWhereClause,
-                                         targetFunction, parseSILTargetName)) {
+  SmallVector<Identifier, 4> spiGroups;
+  if (!parseSpecializeAttributeArguments(
+          ClosingBrace, DiscardAttribute, exported, kind, trailingWhereClause,
+          targetFunction, spiGroups, parseSILTargetName)) {
     return false;
   }
 
@@ -755,7 +767,7 @@ bool Parser::parseSpecializeAttribute(
   // Store the attribute.
   Attr = SpecializeAttr::create(Context, AtLoc, SourceRange(Loc, rParenLoc),
                                 trailingWhereClause, exported.getValue(),
-                                kind.getValue(), targetFunction);
+                                kind.getValue(), targetFunction, spiGroups);
   return true;
 }
 

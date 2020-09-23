@@ -1841,8 +1841,9 @@ namespace decls_block {
     BCFixed<1>, // specialization kind
     GenericSignatureIDField, // specialized signature
     DeclIDField, // target function
-    BCVBR<4>,   // # of arguments (+1) or zero if no name
-    BCArray<IdentifierIDField>
+    BCVBR<4>,   // # of arguments (+1) or 1 if simple decl name, 0 if no target
+    BCVBR<4>,   // # of SPI groups
+    BCArray<IdentifierIDField> // target function pieces, spi groups
   >;
 
   using DifferentiableDeclAttrLayout = BCRecordLayout<

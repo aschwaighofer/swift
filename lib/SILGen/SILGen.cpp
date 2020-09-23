@@ -2005,6 +2005,14 @@ static void transferSpecializeAttributeTargets(SILGenModule &SGM, SILModule &M,
   } else if (auto *vd = dyn_cast<AbstractFunctionDecl>(d)) {
     for (auto *A : vd->getAttrs().getAttributes<SpecializeAttr>()) {
       auto *SA = cast<SpecializeAttr>(A);
+      // Filter _spi.
+      auto spiGroups = SA->getSPIGroups();
+      if (!spiGroups.empty()) {
+        if (vd->getModuleContext() != M.getSwiftModule() &&
+            !M.getSwiftModule()->isImportedAsSPI(SA, vd)) {
+          continue;
+        }
+      }
       if (auto *targetFunctionDecl = SA->getTargetFunctionDecl(vd)) {
         auto target = SILDeclRef(targetFunctionDecl);
         auto targetSILFunction = SGM.getFunction(target, NotForDefinition);

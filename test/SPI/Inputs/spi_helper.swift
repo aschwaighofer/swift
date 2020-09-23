@@ -63,6 +63,9 @@ public struct PublicStruct {
   @_spi(HelperSPI) public init(alt_init: Int) { print("PublicStruct.init alt_init") }
   @_spi(HelperSPI) public func spiMethod() { print("PublicStruct.spiMethod") }
   @_spi(HelperSPI) public var spiVar = "text"
+
+  @_specialize(exported: true, spi: HelperSPI, where T == Int)
+  public func prespecializedMethod<T>(_ t: T) { print(t) }
 }
 
 @_spi(OtherSPI) public func otherApiFunc() {}
