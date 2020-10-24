@@ -3120,8 +3120,7 @@ namespace {
       llvm::Constant *ptr;
       if (entry) {
         if (entry->getImplementation()->isAsync()) {
-          ptr = IGM.getAddrOfAsyncFunctionPointer(entry->getImplementation(),
-                                                  NotForDefinition);
+          ptr = IGM.getAddrOfAsyncFunctionPointer(entry->getImplementation());
         } else {
           ptr = IGM.getAddrOfSILFunction(entry->getImplementation(),
                                          NotForDefinition);
@@ -5285,4 +5284,17 @@ bool irgen::methodRequiresReifiedVTableEntry(IRGenModule &IGM,
              method.print(llvm::dbgs());
              llvm::dbgs() << " can be elided\n");
   return false;
+}
+
+llvm::GlobalValue *irgen::emitAsyncFunctionPointer(IRGenModule &IGM,
+                                                   SILFunction *silFunction,
+                                                   llvm::Function *llvmFunction,
+                                                   Size size) {
+  ConstantInitBuilder initBuilder(IGM);
+  ConstantStructBuilder builder(
+      initBuilder.beginStruct(IGM.AsyncFunctionPointerTy));
+  builder.addRelativeAddress(llvmFunction);
+  builder.addInt32(size.getValue());
+  return IGM.defineAsyncFunctionPointer(silFunction, llvmFunction,
+                                        builder.finishAndCreateFuture());
 }

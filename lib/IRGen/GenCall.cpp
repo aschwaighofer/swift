@@ -1845,7 +1845,12 @@ static void externalizeArguments(IRGenFunction &IGF, const Callee &callee,
 llvm::Value *irgen::getDynamicAsyncContextSize(IRGenFunction &IGF,
                                                AsyncContextLayout layout,
                                                CanSILFunctionType functionType,
+                                               FunctionPointer functionPointer,
                                                llvm::Value *thickContext) {
+  // TODO: If there is a thick context, the size is known to come from that
+  //       context.  Change partial_apply lowering to construct bare function
+  //       pointers rather than AsyncFunctionPointers with a size of 0.
+  //       [lowering_thick_async_functions_without_sizes]
   // TODO: This calculation should be extracted out into a standalone function
   //       emitted on-demand per-module to improve codesize.
   switch (functionType->getRepresentation()) {
@@ -1900,10 +1905,13 @@ llvm::Value *irgen::getDynamicAsyncContextSize(IRGenFunction &IGF,
     SmallVector<std::pair<llvm::BasicBlock *, llvm::Value *>, 2> phiValues;
     {
       IGF.Builder.emitBlock(staticSizeBlock);
-      auto size = getAsyncContextSize(layout);
-      auto *sizeValue =
-          llvm::ConstantInt::get(IGF.IGM.Int32Ty, size.getValue());
-      phiValues.push_back({staticSizeBlock, sizeValue});
+      auto *ptr = functionPointer.getRawPointer();
+      auto *descriptorPtr =
+          IGF.Builder.CreateBitCast(ptr, IGF.IGM.AsyncFunctionPointerPtrTy);
+      auto *sizePtr = IGF.Builder.CreateStructGEP(descriptorPtr, 1);
+      auto *size =
+          IGF.Builder.CreateLoad(sizePtr, IGF.IGM.getPointerAlignment());
+      phiValues.push_back({staticSizeBlock, size});
       IGF.Builder.CreateBr(joinBlock);
     }
 
@@ -1947,9 +1955,12 @@ llvm::Value *irgen::getDynamicAsyncContextSize(IRGenFunction &IGF,
   case SILFunctionTypeRepresentation::WitnessMethod:
   case SILFunctionTypeRepresentation::Closure:
   case SILFunctionTypeRepresentation::Block: {
-    auto size = getAsyncContextSize(layout);
-    auto *sizeValue = llvm::ConstantInt::get(IGF.IGM.Int32Ty, size.getValue());
-    return sizeValue;
+    auto *ptr = functionPointer.getRawPointer();
+    auto *descriptorPtr =
+        IGF.Builder.CreateBitCast(ptr, IGF.IGM.AsyncFunctionPointerPtrTy);
+    auto *sizePtr = IGF.Builder.CreateStructGEP(descriptorPtr, 1);
+    auto *size = IGF.Builder.CreateLoad(sizePtr, IGF.IGM.getPointerAlignment());
+    return size;
   }
   }
 }
@@ -2200,7 +2211,8 @@ public:
     auto layout = getAsyncContextLayout();
     // Allocate space for the async arguments.
     auto *dynamicContextSize32 = getDynamicAsyncContextSize(
-        IGF, layout, CurCallee.getOrigFunctionType(), thickContext);
+        IGF, layout, CurCallee.getOrigFunctionType(),
+        CurCallee.getFunctionPointer(), thickContext);
     auto *dynamicContextSize =
         IGF.Builder.CreateZExt(dynamicContextSize32, IGF.IGM.SizeTy);
     std::tie(contextBuffer, contextSize) = emitAllocAsyncContext(
@@ -2369,7 +2381,7 @@ llvm::CallInst *CallEmission::emitCallSite() {
   EmittedCall = true;
 
   // Make the call and clear the arguments array.
-  const auto &fn = getCallee().getFunctionPointer();
+  const auto &fn = getCallee().getFunctionPointer().getAsFunction(IGF);
   auto fnTy = fn.getFunctionType();
 
   // Coerce argument types for those cases where the IR type required
@@ -2427,6 +2439,7 @@ llvm::CallInst *CallEmission::emitCallSite() {
 
 llvm::CallInst *IRBuilder::CreateCall(const FunctionPointer &fn,
                                       ArrayRef<llvm::Value*> args) {
+  assert(fn.getKind() == FunctionPointer::KindTy::Function);
   SmallVector<llvm::OperandBundleDef, 1> bundles;
 
   // Add a pointer-auth bundle if necessary.
@@ -2437,11 +2450,11 @@ llvm::CallInst *IRBuilder::CreateCall(const FunctionPointer &fn,
     bundles.emplace_back("ptrauth", bundleArgs);
   }
 
-  assert(!isTrapIntrinsic(fn.getPointer()) && "Use CreateNonMergeableTrap");
+  assert(!isTrapIntrinsic(fn.getRawPointer()) && "Use CreateNonMergeableTrap");
   llvm::CallInst *call = IRBuilderBase::CreateCall(
       cast<llvm::FunctionType>(
-          fn.getPointer()->getType()->getPointerElementType()),
-      fn.getPointer(), args, bundles);
+          fn.getRawPointer()->getType()->getPointerElementType()),
+      fn.getRawPointer(), args, bundles);
   call->setAttributes(fn.getAttributes());
   call->setCallingConv(fn.getCallingConv());
   return call;
@@ -4265,7 +4278,8 @@ Callee irgen::getBlockPointerCallee(IRGenFunction &IGF,
                                         invokeFnPtrAddr.getAddress(),
                                         info.OrigFnType);
 
-  FunctionPointer fn(invokeFnPtr, authInfo, sig);
+  FunctionPointer fn(FunctionPointer::KindTy::Function, invokeFnPtr, authInfo,
+                     sig);
 
   return Callee(std::move(info), fn, blockPtr);
 }
@@ -4277,7 +4291,7 @@ Callee irgen::getSwiftFunctionPointerCallee(
   auto authInfo =
     PointerAuthInfo::forFunctionPointer(IGF.IGM, calleeInfo.OrigFnType);
 
-  FunctionPointer fn(fnPtr, authInfo, sig);
+  FunctionPointer fn(calleeInfo.OrigFnType, fnPtr, authInfo, sig);
   if (castOpaqueToRefcountedContext) {
     assert(dataPtr && dataPtr->getType() == IGF.IGM.OpaquePtrTy &&
            "Expecting trivial closure context");
@@ -4293,32 +4307,59 @@ Callee irgen::getCFunctionPointerCallee(IRGenFunction &IGF,
   auto authInfo =
     PointerAuthInfo::forFunctionPointer(IGF.IGM, calleeInfo.OrigFnType);
 
-  FunctionPointer fn(fnPtr, authInfo, sig);
+  FunctionPointer fn(FunctionPointer::KindTy::Function, fnPtr, authInfo, sig);
 
   return Callee(std::move(calleeInfo), fn);
 }
 
-FunctionPointer
-FunctionPointer::forDirect(IRGenModule &IGM, llvm::Constant *fnPtr,
-                           CanSILFunctionType fnType) {
-  return forDirect(fnPtr, IGM.getSignature(fnType));
+FunctionPointer FunctionPointer::forDirect(IRGenModule &IGM,
+                                           llvm::Constant *fnPtr,
+                                           CanSILFunctionType fnType) {
+  return forDirect(fnType, fnPtr, IGM.getSignature(fnType));
 }
 
-FunctionPointer
-FunctionPointer::forExplosionValue(IRGenFunction &IGF, llvm::Value *fnPtr,
-                                   CanSILFunctionType fnType) {
+StringRef FunctionPointer::getName(IRGenModule &IGM) const {
+  assert(isConstant());
+  switch (Kind.value) {
+  case KindTy::Value::Function:
+    return getRawPointer()->getName();
+  case KindTy::Value::AsyncFunctionPointer:
+    return IGM
+        .getSILFunctionForAsyncFunctionPointer(
+            cast<llvm::Constant>(getDirectPointer()->getOperand(0)))
+        ->getName();
+  }
+}
+
+llvm::Value *FunctionPointer::getPointer(IRGenFunction &IGF) const {
+  switch (Kind.value) {
+  case KindTy::Value::Function:
+    return Value;
+  case KindTy::Value::AsyncFunctionPointer:
+    auto *descriptorPtr =
+        IGF.Builder.CreateBitCast(Value, IGF.IGM.AsyncFunctionPointerPtrTy);
+    auto *addrPtr = IGF.Builder.CreateStructGEP(descriptorPtr, 0);
+    return IGF.emitLoadOfRelativePointer(
+        Address(addrPtr, IGF.IGM.getPointerAlignment()), /*isFar*/ false,
+        /*expectedType*/ getFunctionType()->getPointerTo(0));
+  }
+}
+
+FunctionPointer FunctionPointer::forExplosionValue(IRGenFunction &IGF,
+                                                   llvm::Value *fnPtr,
+                                                   CanSILFunctionType fnType) {
   // Bitcast out of an opaque pointer type.
   assert(fnPtr->getType() == IGF.IGM.Int8PtrTy);
   auto sig = emitCastOfFunctionPointer(IGF, fnPtr, fnType);
   auto authInfo = PointerAuthInfo::forFunctionPointer(IGF.IGM, fnType);
 
-  return FunctionPointer(fnPtr, authInfo, sig);
+  return FunctionPointer(fnType, fnPtr, authInfo, sig);
 }
 
 llvm::Value *
 FunctionPointer::getExplosionValue(IRGenFunction &IGF,
                                    CanSILFunctionType fnType) const {
-  llvm::Value *fnPtr = getPointer();
+  llvm::Value *fnPtr = getPointer(IGF);
 
   // Re-sign to the appropriate schema for this function pointer type.
   auto resultAuthInfo = PointerAuthInfo::forFunctionPointer(IGF.IGM, fnType);
@@ -4330,4 +4371,8 @@ FunctionPointer::getExplosionValue(IRGenFunction &IGF,
   fnPtr = IGF.Builder.CreateBitCast(fnPtr, IGF.IGM.Int8PtrTy);
 
   return fnPtr;
+}
+
+FunctionPointer FunctionPointer::getAsFunction(IRGenFunction &IGF) const {
+  return FunctionPointer(KindTy::Function, getPointer(IGF), AuthInfo, Sig);
 }

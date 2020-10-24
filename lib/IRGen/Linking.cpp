@@ -430,6 +430,10 @@ std::string LinkEntity::mangleAsString() const {
     return mangler.mangleSILDifferentiabilityWitnessKey(
         {getSILDifferentiabilityWitness()->getOriginalFunction()->getName(),
          getSILDifferentiabilityWitness()->getConfig()});
+  case Kind::AsyncFunctionPointer:
+    std::string Result(getFunction()->getName());
+    Result.append("AD");
+    return Result;
   }
   llvm_unreachable("bad entity kind!");
 }
@@ -663,6 +667,7 @@ SILLinkage LinkEntity::getLinkage(ForDefinition_t forDefinition) const {
   case Kind::DynamicallyReplaceableFunctionKey:
     return getSILFunction()->getLinkage();
 
+  case Kind::AsyncFunctionPointer:
   case Kind::SILFunction:
     return getSILFunction()->getEffectiveSymbolLinkage();
 
@@ -712,6 +717,7 @@ bool LinkEntity::isContextDescriptor() const {
   case Kind::ProtocolDescriptor:
   case Kind::OpaqueTypeDescriptor:
     return true;
+  case Kind::AsyncFunctionPointer:
   case Kind::PropertyDescriptor:
   case Kind::DispatchThunk:
   case Kind::DispatchThunkInitializer:
@@ -780,6 +786,8 @@ bool LinkEntity::isContextDescriptor() const {
 
 llvm::Type *LinkEntity::getDefaultDeclarationType(IRGenModule &IGM) const {
   switch (getKind()) {
+  case Kind::AsyncFunctionPointer:
+    return IGM.AsyncFunctionPointerTy;
   case Kind::ModuleDescriptor:
   case Kind::ExtensionDescriptor:
   case Kind::AnonymousDescriptor:
@@ -909,6 +917,7 @@ Alignment LinkEntity::getAlignment(IRGenModule &IGM) const {
   case Kind::MethodDescriptorAllocator:
   case Kind::OpaqueTypeDescriptor:
     return Alignment(4);
+  case Kind::AsyncFunctionPointer:
   case Kind::ObjCClassRef:
   case Kind::ObjCClass:
   case Kind::TypeMetadataLazyCacheVariable:
@@ -951,6 +960,7 @@ bool LinkEntity::isWeakImported(ModuleDecl *module) const {
       return getSILGlobalVariable()->getDecl()->isWeakImported(module);
     }
     return false;
+  case Kind::AsyncFunctionPointer:
   case Kind::DynamicallyReplaceableFunctionKey:
   case Kind::DynamicallyReplaceableFunctionVariable:
   case Kind::SILFunction: {
@@ -1095,6 +1105,7 @@ DeclContext *LinkEntity::getDeclContextForEmission() const {
   case Kind::CanonicalSpecializedGenericSwiftMetaclassStub:
     return getType()->getClassOrBoundGenericClass()->getDeclContext();
 
+  case Kind::AsyncFunctionPointer:
   case Kind::SILFunction:
   case Kind::DynamicallyReplaceableFunctionVariable:
   case Kind::DynamicallyReplaceableFunctionKey:

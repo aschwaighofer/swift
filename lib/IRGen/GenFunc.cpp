@@ -1236,7 +1236,8 @@ public:
       asyncExplosion.add(dynamicFunction->context);
     }
 
-    return subIGF.Builder.CreateCall(fnPtr, asyncExplosion.claimAll());
+    return subIGF.Builder.CreateCall(fnPtr.getAsFunction(subIGF),
+                                     asyncExplosion.claimAll());
   }
   void createReturn(llvm::CallInst *call) override {
     subIGF.Builder.CreateRetVoid();
@@ -1289,7 +1290,7 @@ static llvm::Function *emitPartialApplicationForwarder(IRGenModule &IGM,
 
   StringRef FnName;
   if (staticFnPtr)
-    FnName = staticFnPtr->getPointer()->getName();
+    FnName = staticFnPtr->getName(IGM);
 
   IRGenMangler Mangler;
   std::string thunkName = Mangler.manglePartialApplyForwarder(FnName);
@@ -1683,10 +1684,10 @@ static llvm::Function *emitPartialApplicationForwarder(IRGenModule &IGM,
   FunctionPointer fnPtr = [&]() -> FunctionPointer {
     // If we found a function pointer statically, great.
     if (staticFnPtr) {
-      if (staticFnPtr->getPointer()->getType() != fnTy) {
-        auto fnPtr = staticFnPtr->getPointer();
+      if (staticFnPtr->getPointer(subIGF)->getType() != fnTy) {
+        auto fnPtr = staticFnPtr->getPointer(subIGF);
         fnPtr = subIGF.Builder.CreateBitCast(fnPtr, fnTy);
-        return FunctionPointer(fnPtr, origSig);
+        return FunctionPointer(origType, fnPtr, origSig);
       }
       return *staticFnPtr;
     }
@@ -1706,7 +1707,7 @@ static llvm::Function *emitPartialApplicationForwarder(IRGenModule &IGM,
                             lastCapturedFieldPtr,
                             PointerAuthEntity::Special::PartialApplyCapture);
 
-    return FunctionPointer(fnPtr, authInfo, origSig);
+    return FunctionPointer(origType, fnPtr, authInfo, origSig);
   }();
 
   // Derive the context argument if needed.  This is either:
@@ -1993,7 +1994,7 @@ Optional<StackAddress> irgen::emitFunctionPartialApplication(
       hasSingleSwiftRefcountedContext == Yes &&
       outType->getCalleeConvention() == *singleRefcountedConvention) {
     assert(args.size() == 1);
-    auto fnPtr = emitPointerAuthResign(IGF, fn, outAuthInfo).getPointer();
+    auto fnPtr = emitPointerAuthResign(IGF, fn, outAuthInfo).getPointer(IGF);
     fnPtr = IGF.Builder.CreateBitCast(fnPtr, IGF.IGM.Int8PtrTy);
     out.add(fnPtr);
     llvm::Value *ctx = args.claimNext();
@@ -2032,8 +2033,13 @@ Optional<StackAddress> irgen::emitFunctionPartialApplication(
       emitPartialApplicationForwarder(IGF.IGM, staticFn, fnContext != nullptr,
                                       origSig, origType, substType,
                                       outType, subs, nullptr, argConventions);
-    forwarder = emitPointerAuthSign(IGF, forwarder, outAuthInfo);
-    forwarder = IGF.Builder.CreateBitCast(forwarder, IGF.IGM.Int8PtrTy);
+    if (origType->isAsync()) {
+      llvm_unreachable(
+          "async functions never have a single refcounted context");
+    } else {
+      forwarder = emitPointerAuthSign(IGF, forwarder, outAuthInfo);
+      forwarder = IGF.Builder.CreateBitCast(forwarder, IGF.IGM.Int8PtrTy);
+    }
     out.add(forwarder);
 
     llvm::Value *ctx = args.claimNext();
@@ -2121,9 +2127,10 @@ Optional<StackAddress> irgen::emitFunctionPartialApplication(
           auto schemaAuthInfo =
             PointerAuthInfo::emit(IGF, schema, fieldAddr.getAddress(),
                            PointerAuthEntity::Special::PartialApplyCapture);
-          fnPtr = emitPointerAuthResign(IGF, fn, schemaAuthInfo).getPointer();
+          fnPtr =
+              emitPointerAuthResign(IGF, fn, schemaAuthInfo).getRawPointer();
         } else {
-          fnPtr = fn.getPointer();
+          fnPtr = fn.getRawPointer();
         }
         fnPtr = IGF.Builder.CreateBitCast(fnPtr, IGF.IGM.Int8PtrTy);
         IGF.Builder.CreateStore(fnPtr, fieldAddr);
@@ -2163,7 +2170,7 @@ Optional<StackAddress> irgen::emitFunctionPartialApplication(
   // Create the forwarding stub.
   auto origSig = IGF.IGM.getSignature(origType);
 
-  llvm::Value *forwarder = emitPartialApplicationForwarder(IGF.IGM,
+  llvm::Function *forwarderFn = emitPartialApplicationForwarder(IGF.IGM,
                                                               staticFn,
                                                           fnContext != nullptr,
                                                               origSig,
@@ -2173,8 +2180,19 @@ Optional<StackAddress> irgen::emitFunctionPartialApplication(
                                                               subs,
                                                               &layout,
                                                               argConventions);
-  forwarder = emitPointerAuthSign(IGF, forwarder, outAuthInfo);
-  forwarder = IGF.Builder.CreateBitCast(forwarder, IGF.IGM.Int8PtrTy);
+  llvm::Value *forwarder;
+  if (origType->isAsync()) {
+    // TODO: Rather than creating an AsyncFunctionPointer in this case, use a
+    //       bare function pointer and teach apply/partial_apply lowering to
+    //       handle thick async functions differently. 
+    //       [lowering_thick_async_functions_without_sizes]
+    forwarder = emitAsyncFunctionPointer(IGF.IGM, /*silFunction*/ &SILFn,
+                                         forwarderFn, Size(0));
+    forwarder = IGF.Builder.CreateBitCast(forwarder, IGF.IGM.Int8PtrTy);
+  } else {
+    forwarder = emitPointerAuthSign(IGF, forwarderFn, outAuthInfo);
+    forwarder = IGF.Builder.CreateBitCast(forwarder, IGF.IGM.Int8PtrTy);
+  }
   out.add(forwarder);
   out.add(data);
   return stackAddr;

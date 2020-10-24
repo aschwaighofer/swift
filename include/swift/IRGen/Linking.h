@@ -410,6 +410,12 @@ class LinkEntity {
     /// passed to swift_getCanonicalSpecializedMetadata.
     /// The pointer is a canonical TypeBase*.
     NoncanonicalSpecializedGenericTypeMetadataCacheVariable,
+
+    /// Provides the data required to invoke an async function using the async
+    /// calling convention in the form of the size of the context to allocate
+    /// and the relative address of the function to call with that allocated
+    /// context.
+    AsyncFunctionPointer,
   };
   friend struct llvm::DenseMapInfo<LinkEntity>;
 
@@ -1088,6 +1094,16 @@ public:
     return entity;
   }
 
+  static LinkEntity forAsyncFunctionPointer(SILFunction *silFunction,
+                                            llvm::Function *irFunction) {
+    LinkEntity entity;
+    entity.Pointer = irFunction;
+    entity.SecondaryPointer = silFunction;
+    entity.Data = LINKENTITY_SET_FIELD(
+        Kind, unsigned(LinkEntity::Kind::AsyncFunctionPointer));
+    return entity;
+  }
+
   void mangle(llvm::raw_ostream &out) const;
   void mangle(SmallVectorImpl<char> &buffer) const;
   std::string mangleAsString() const;
@@ -1109,15 +1125,36 @@ public:
       ::getFromOpaqueValue(reinterpret_cast<void*>(Pointer));
   }
 
+  bool hasFunction() const { return getKind() == Kind::AsyncFunctionPointer; }
+
+  llvm::Function *getFunction() const {
+    assert(hasFunction());
+    return reinterpret_cast<llvm::Function *>(Pointer);
+  }
+
   bool hasSILFunction() const {
-    return getKind() == Kind::SILFunction ||
+    return getKind() == Kind::AsyncFunctionPointer ||
            getKind() == Kind::DynamicallyReplaceableFunctionVariable ||
-           getKind() == Kind::DynamicallyReplaceableFunctionKey;
+           getKind() == Kind::DynamicallyReplaceableFunctionKey ||
+           getKind() == Kind::SILFunction;
   }
 
   SILFunction *getSILFunction() const {
     assert(hasSILFunction());
-    return reinterpret_cast<SILFunction*>(Pointer);
+    void *rawPointer;
+    switch (getKind()) {
+    case Kind::AsyncFunctionPointer:
+      rawPointer = SecondaryPointer;
+      break;
+    case Kind::DynamicallyReplaceableFunctionVariable:
+    case Kind::DynamicallyReplaceableFunctionKey:
+    case Kind::SILFunction:
+      rawPointer = Pointer;
+      break;
+    default:
+      rawPointer = nullptr;
+    }
+    return reinterpret_cast<SILFunction *>(rawPointer);
   }
 
   SILGlobalVariable *getSILGlobalVariable() const {
