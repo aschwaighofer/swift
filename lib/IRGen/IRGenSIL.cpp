@@ -1751,6 +1751,10 @@ static void emitEntryPointArgumentsNativeCC(IRGenSILFunction &IGF,
     break;
   }
 
+  if (funcTy->isAsync()) {
+    emitAsyncFunctionEntry(IGF, IGF.CurSILFn);
+  }
+
   SILFunctionConventions conv(funcTy, IGF.getSILModule());
 
   // The 'self' argument might be in the context position, which is
@@ -3182,7 +3186,7 @@ void IRGenSILFunction::visitUnreachableInst(swift::UnreachableInst *i) {
   Builder.CreateUnreachable();
 }
 
-static void emitCoroutineExit(IRGenSILFunction &IGF) {
+static void emitCoroutineOrAsyncExit(IRGenSILFunction &IGF) {
   // The LLVM coroutine representation demands that there be a
   // unique call to llvm.coro.end.
 
@@ -3208,12 +3212,13 @@ static void emitCoroutineExit(IRGenSILFunction &IGF) {
 
 static void emitReturnInst(IRGenSILFunction &IGF,
                            SILType resultTy,
-                           Explosion &result) {
+                           Explosion &result,
+                           CanSILFunctionType fnType) {
   // If we're generating a coroutine, just call coro.end.
-  if (IGF.isCoroutine()) {
+  if (IGF.isCoroutine() && !IGF.isAsync()) {
     assert(result.empty() &&
            "coroutines do not currently support non-void returns");
-    emitCoroutineExit(IGF);
+    emitCoroutineOrAsyncExit(IGF);
     return;
   }
 
@@ -3249,7 +3254,9 @@ static void emitReturnInst(IRGenSILFunction &IGF,
       cast<LoadableTypeInfo>(fieldLayout.getType())
           .initialize(IGF, result, fieldAddr, /*isOutlined*/ false);
     }
-    IGF.Builder.CreateRetVoid();
+    // TODO: call swift_asyncReturn or inline it's semantics.
+    emitAsyncReturn(IGF, layout, fnType);
+    emitCoroutineOrAsyncExit(IGF);
   } else {
     auto funcLang = IGF.CurSILFn->getLoweredFunctionType()->getLanguage();
     auto swiftCCReturn = funcLang == SILFunctionLanguage::Swift;
@@ -3278,7 +3285,8 @@ void IRGenSILFunction::visitReturnInst(swift::ReturnInst *i) {
     result = std::move(temp);
   }
 
-  emitReturnInst(*this, i->getOperand()->getType(), result);
+  emitReturnInst(*this, i->getOperand()->getType(), result,
+                 i->getFunction()->getLoweredFunctionType());
 }
 
 void IRGenSILFunction::visitThrowInst(swift::ThrowInst *i) {
@@ -3300,7 +3308,7 @@ void IRGenSILFunction::visitThrowInst(swift::ThrowInst *i) {
 void IRGenSILFunction::visitUnwindInst(swift::UnwindInst *i) {
   // Just call coro.end; there's no need to distinguish 'unwind'
   // and 'return' at the LLVM level.
-  emitCoroutineExit(*this);
+  emitCoroutineOrAsyncExit(*this);
 }
 
 void IRGenSILFunction::visitYieldInst(swift::YieldInst *i) {
