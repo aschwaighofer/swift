@@ -305,6 +305,7 @@ namespace irgen {
   llvm::Value *getDynamicAsyncContextSize(IRGenFunction &IGF,
                                           AsyncContextLayout layout,
                                           CanSILFunctionType functionType,
+                                          FunctionPointer functionPointer,
                                           llvm::Value *thickContext);
   llvm::CallingConv::ID expandCallingConv(IRGenModule &IGM,
                                      SILFunctionTypeRepresentation convention);

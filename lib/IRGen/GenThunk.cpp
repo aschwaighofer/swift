@@ -19,8 +19,8 @@
 #include "Callee.h"
 #include "ClassMetadataVisitor.h"
 #include "Explosion.h"
-#include "GenDecl.h"
 #include "GenClass.h"
+#include "GenDecl.h"
 #include "GenHeap.h"
 #include "GenOpaque.h"
 #include "GenPointerAuth.h"
@@ -31,6 +31,7 @@
 #include "ProtocolInfo.h"
 #include "Signature.h"
 #include "swift/IRGen/Linking.h"
+#include "swift/SIL/SILDeclRef.h"
 #include "llvm/IR/Function.h"
 
 using namespace swift;
@@ -120,6 +121,38 @@ void IRGenModule::emitDispatchThunk(SILDeclRef declRef) {
     IGF.Builder.CreateRetVoid();
   else
     IGF.Builder.CreateRet(result);
+}
+
+llvm::GlobalValue *IRGenModule::defineAsyncFunctionPointer(
+    SILFunction *silFunction, llvm::Function *llvmFunction, ConstantInit init) {
+  auto entity = LinkEntity::forAsyncFunctionPointer(silFunction, llvmFunction);
+  auto *var = cast<llvm::GlobalVariable>(
+      getAddrOfLLVMVariable(entity, init, DebugTypeInfo()));
+  setTrueConstGlobal(var);
+  return var;
+}
+
+llvm::Constant *
+IRGenModule::getAddrOfAsyncFunctionPointer(SILFunction *function) {
+  return getAddrOfAsyncFunctionPointer(
+      function, getAddrOfSILFunction(function, NotForDefinition));
+}
+llvm::Constant *
+IRGenModule::getAddrOfAsyncFunctionPointer(SILFunction *silFunction,
+                                           llvm::Function *llvmFunction) {
+  auto entity = LinkEntity::forAsyncFunctionPointer(silFunction, llvmFunction);
+  return getAddrOfLLVMVariable(entity, NotForDefinition, DebugTypeInfo());
+}
+
+SILFunction *
+IRGenModule::getSILFunctionForAsyncFunctionPointer(llvm::Constant *afp) {
+  for (auto &entry : GlobalVars) {
+    if (entry.getSecond() == afp) {
+      auto entity = entry.getFirst();
+      return entity.getSILFunction();
+    }
+  }
+  return nullptr;
 }
 
 llvm::GlobalValue *IRGenModule::defineMethodDescriptor(SILDeclRef declRef,

@@ -723,9 +723,11 @@ public:
       *DynamicReplacementLinkEntryPtrTy; // %link_entry*
   llvm::StructType *DynamicReplacementKeyTy; // { i32, i32}
 
+  llvm::StructType *AsyncFunctionPointerTy; // { i32, i32 }
   llvm::StructType *SwiftContextTy;
   llvm::StructType *SwiftTaskTy;
   llvm::StructType *SwiftExecutorTy;
+  llvm::PointerType *AsyncFunctionPointerPtrTy;
   llvm::PointerType *SwiftContextPtrTy;
   llvm::PointerType *SwiftTaskPtrTy;
   llvm::PointerType *SwiftExecutorPtrTy;
@@ -1390,6 +1392,14 @@ public:
 
   /// Cast the given constant to i8*.
   llvm::Constant *getOpaquePtr(llvm::Constant *pointer);
+
+  llvm::GlobalValue *defineAsyncFunctionPointer(SILFunction *silFunction,
+                                                llvm::Function *llvmFunction,
+                                                ConstantInit init);
+  llvm::Constant *getAddrOfAsyncFunctionPointer(SILFunction *silFunction,
+                                                llvm::Function *llvmFunction);
+  llvm::Constant *getAddrOfAsyncFunctionPointer(SILFunction *function);
+  SILFunction *getSILFunctionForAsyncFunctionPointer(llvm::Constant *afp);
 
   llvm::Function *getAddrOfDispatchThunk(SILDeclRef declRef,
                                          ForDefinition_t forDefinition);
