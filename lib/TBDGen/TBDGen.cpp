@@ -718,6 +718,16 @@ void TBDGenVisitor::visitAbstractFunctionDecl(AbstractFunctionDecl *AFD) {
                        AFD->getGenericSignature()));
 
   visitDefaultArguments(AFD, AFD->getParameters());
+
+  if (AFD->isAsyncContext()) {
+    // TODO: Replace manual symbol naming with LinkEntity construction of the
+    //       following form:
+    //
+    //           addSymbol(LinkEntity::forAsyncFunctionPointer(...));
+    auto declRef = SILDeclRef(AFD);
+    addSymbol(SILDeclRef(AFD).mangle().append("AD"),
+              SymbolSource::forSILDeclRef(declRef));
+  }
 }
 
 void TBDGenVisitor::visitFuncDecl(FuncDecl *FD) {
