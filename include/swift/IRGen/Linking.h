@@ -410,6 +410,18 @@ class LinkEntity {
     /// passed to swift_getCanonicalSpecializedMetadata.
     /// The pointer is a canonical TypeBase*.
     NoncanonicalSpecializedGenericTypeMetadataCacheVariable,
+
+    /// Provides the data required to invoke an async function using the async
+    /// calling convention in the form of the size of the context to allocate
+    /// and the relative address of the function to call with that allocated
+    /// context.
+    /// The pointer is a SILFunction*.
+    AsyncFunctionPointer,
+
+    /// The same as AsyncFunctionPointer but with a different stored value, for
+    /// use by TBDGen.
+    /// The pointer is a AbstractStorageDecl*.
+    AsyncFunctionPointerAST,
   };
   friend struct llvm::DenseMapInfo<LinkEntity>;
 
@@ -1088,6 +1100,21 @@ public:
     return entity;
   }
 
+  static LinkEntity forAsyncFunctionPointer(SILFunction *silFunction) {
+    LinkEntity entity;
+    entity.Pointer = silFunction;
+    entity.SecondaryPointer = nullptr;
+    entity.Data = LINKENTITY_SET_FIELD(
+        Kind, unsigned(LinkEntity::Kind::AsyncFunctionPointer));
+    return entity;
+  }
+
+  static LinkEntity forAsyncFunctionPointer(AbstractFunctionDecl *decl) {
+    LinkEntity entity;
+    entity.setForDecl(Kind::AsyncFunctionPointerAST, decl);
+    return entity;
+  }
+
   void mangle(llvm::raw_ostream &out) const;
   void mangle(SmallVectorImpl<char> &buffer) const;
   std::string mangleAsString() const;
@@ -1110,14 +1137,15 @@ public:
   }
 
   bool hasSILFunction() const {
-    return getKind() == Kind::SILFunction ||
+    return getKind() == Kind::AsyncFunctionPointer ||
            getKind() == Kind::DynamicallyReplaceableFunctionVariable ||
-           getKind() == Kind::DynamicallyReplaceableFunctionKey;
+           getKind() == Kind::DynamicallyReplaceableFunctionKey ||
+           getKind() == Kind::SILFunction;
   }
 
   SILFunction *getSILFunction() const {
     assert(hasSILFunction());
-    return reinterpret_cast<SILFunction*>(Pointer);
+    return reinterpret_cast<SILFunction *>(Pointer);
   }
 
   SILGlobalVariable *getSILGlobalVariable() const {
