@@ -669,6 +669,8 @@ SILLinkage LinkEntity::getLinkage(ForDefinition_t forDefinition) const {
 
   case Kind::AsyncFunctionPointer:
   case Kind::SILFunction:
+    if (getKind() == Kind::AsyncFunctionPointer && !getSILFunction())
+      return SILLinkage::Hidden;
     return getSILFunction()->getEffectiveSymbolLinkage();
 
   case Kind::DynamicallyReplaceableFunctionImpl:
@@ -964,6 +966,8 @@ bool LinkEntity::isWeakImported(ModuleDecl *module) const {
   case Kind::DynamicallyReplaceableFunctionKey:
   case Kind::DynamicallyReplaceableFunctionVariable:
   case Kind::SILFunction: {
+    if (getKind() == Kind::AsyncFunctionPointer && getSILFunction() == nullptr)
+      return false;
     return getSILFunction()->isWeakImported();
   }
 
@@ -1109,8 +1113,11 @@ DeclContext *LinkEntity::getDeclContextForEmission() const {
   case Kind::SILFunction:
   case Kind::DynamicallyReplaceableFunctionVariable:
   case Kind::DynamicallyReplaceableFunctionKey:
-    return getSILFunction()->getDeclContext();
-  
+    if (auto fn = getSILFunction())
+      return fn->getDeclContext();
+    assert(getKind() == Kind::AsyncFunctionPointer);
+    return nullptr;
+
   case Kind::SILGlobalVariable:
     if (auto decl = getSILGlobalVariable()->getDecl())
       return decl->getDeclContext();

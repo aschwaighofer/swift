@@ -2186,7 +2186,7 @@ Optional<StackAddress> irgen::emitFunctionPartialApplication(
     //       bare function pointer and teach apply/partial_apply lowering to
     //       handle thick async functions differently. 
     //       [lowering_thick_async_functions_without_sizes]
-    forwarder = emitAsyncFunctionPointer(IGF.IGM, /*silFunction*/ &SILFn,
+    forwarder = emitAsyncFunctionPointer(IGF.IGM, /*silFunction*/ nullptr,
                                          forwarderFn, Size(0));
     forwarder = IGF.Builder.CreateBitCast(forwarder, IGF.IGM.Int8PtrTy);
   } else {
