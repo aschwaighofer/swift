@@ -32,6 +32,7 @@ sil_witness_table <T> BaseProducer<T> : Q module main {
 public class WeakBox<T> {}
 sil_vtable WeakBox {}
 
+// CHECK-LL: @takingQAD = hidden global %swift.async_func_pointer { i32 trunc (i64 sub (i64 ptrtoint (void (%swift.task*, %swift.executor*, %swift.context*)* @takingQ to i64), i64 ptrtoint (%swift.async_func_pointer* @takingQAD to i64)) to i32), i32 {{[0-9]+}} }, section "__TEXT,__const", align 8
 // CHECK-LL: define hidden swiftcc void @takingQ(%swift.task* {{%[0-9]+}}, %swift.executor* {{%[0-9]+}}, %swift.context* {{%[0-9]+}}) {{#[0-9]*}} {
 sil hidden @takingQ : $@async @convention(thin) <τ_0_0 where  τ_0_0 : Q> (@owned WeakBox<τ_0_0>) -> () {
 entry(%box : $WeakBox<τ_0_0>):

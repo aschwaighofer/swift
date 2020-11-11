@@ -101,6 +101,7 @@ bb0(%0 : $@thin Big.Type):
   return %62 : $Big
 }
 
+// CHECK-LL: @getBigAD = hidden global %swift.async_func_pointer { i32 trunc (i64 sub (i64 ptrtoint (void (%swift.task*, %swift.executor*, %swift.context*)* @getBig to i64), i64 ptrtoint (%swift.async_func_pointer* @getBigAD to i64)) to i32), i32 {{[0-9]+}} }, section "__TEXT,__const", align 8
 // CHECK-LL: define hidden swiftcc void @getBig(%swift.task* {{%[0-9]+}}, %swift.executor* {{%[0-9]+}}, %swift.context* {{%[0-9]+}}) {{#[0-9]*}} {
 sil hidden @getBig : $@async @convention(thin) () -> Big {
 bb0:

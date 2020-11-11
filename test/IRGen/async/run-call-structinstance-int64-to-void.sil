@@ -25,6 +25,7 @@ struct S {
   init(storage: Int64)
 }
 
+// CHECK-LL: @structinstanceSInt64ToVoidAD = hidden global %swift.async_func_pointer { i32 trunc (i64 sub (i64 ptrtoint (void (%swift.task*, %swift.executor*, %swift.context*)* @structinstanceSInt64ToVoid to i64), i64 ptrtoint (%swift.async_func_pointer* @structinstanceSInt64ToVoidAD to i64)) to i32), i32 {{[0-9]+}} }, section "__TEXT,__const", align 8
 // CHECK-LL: define hidden swiftcc void @structinstanceSInt64ToVoid(%swift.task* {{%[0-9]+}}, %swift.executor* {{%[0-9]+}}, %swift.context* {{%[0-9]+}}) {{#[0-9]*}} {
 sil hidden @structinstanceSInt64ToVoid : $@async @convention(method) (Int64, S) -> () {
 bb0(%int : $Int64, %self : $S):
