@@ -286,6 +286,11 @@ class LinkEntity {
     /// The pointer is a AbstractStorageDecl*.
     DynamicallyReplaceableFunctionImpl,
 
+    /// The same as AsyncFunctionPointer but with a different stored value, for
+    /// use by TBDGen.
+    /// The pointer is a AbstractStorageDecl*.
+    AsyncFunctionPointerAST,
+
     /// The once token used by cacheCanonicalSpecializedMetadata, by way of
     /// swift_getCanonicalSpecializedMetadata and
     /// swift_getCanonicalPrespecializedGenericMetadata, to
@@ -417,11 +422,6 @@ class LinkEntity {
     /// context.
     /// The pointer is a SILFunction*.
     AsyncFunctionPointer,
-
-    /// The same as AsyncFunctionPointer but with a different stored value, for
-    /// use by TBDGen.
-    /// The pointer is a AbstractStorageDecl*.
-    AsyncFunctionPointerAST,
   };
   friend struct llvm::DenseMapInfo<LinkEntity>;
 
