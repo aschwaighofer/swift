@@ -57,6 +57,7 @@ sil_vtable S {
   #S.deinit!deallocator: @S_deallocating_deinit
 }
 
+// CHECK-LL: @classinstanceSToVoidAD = global %swift.async_func_pointer { i32 trunc (i64 sub (i64 ptrtoint (void (%swift.task*, %swift.executor*, %swift.context*)* @classinstanceSToVoid to i64), i64 ptrtoint (%swift.async_func_pointer* @classinstanceSToVoidAD to i64)) to i32), i32 {{[0-9]+}} }, section "__TEXT,__const", align 8
 // CHECK-LL: define{{( dllexport)?}}{{( protected)?}} swiftcc void @classinstanceSToVoid(%swift.task* {{%[0-9]+}}, %swift.executor* {{%[0-9]+}}, %swift.context* {{%[0-9]+}}) {{#[0-9]*}} {
 sil @classinstanceSToVoid : $@async @convention(thin) (@owned S) -> () {
 entry(%c : $S):

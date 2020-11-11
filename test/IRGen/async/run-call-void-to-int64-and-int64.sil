@@ -19,6 +19,7 @@ import _Concurrency
 
 sil public_external @printInt64 : $@convention(thin) (Int64) -> ()
 
+// CHECK-LL: @voidToInt64AndInt64AD = global %swift.async_func_pointer { i32 trunc (i64 sub (i64 ptrtoint (void (%swift.task*, %swift.executor*, %swift.context*)* @voidToInt64AndInt64 to i64), i64 ptrtoint (%swift.async_func_pointer* @voidToInt64AndInt64AD to i64)) to i32), i32 {{[0-9]+}} }, section "__TEXT,__const", align 8
 // CHECK-LL: define{{( dllexport)?}}{{( protected)?}} swiftcc void @voidToInt64AndInt64(%swift.task* {{%[0-9]+}}, %swift.executor* {{%[0-9]+}}, %swift.context* {{%[0-9]+}}) {{#[0-9]*}} {
 sil @voidToInt64AndInt64 : $@async @convention(thin) () -> (Int64, Int64) {
   %int_literal1 = integer_literal $Builtin.Int64, 42

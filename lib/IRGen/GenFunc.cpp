@@ -1128,7 +1128,68 @@ public:
   llvm::Value *getContext() override { return heapContextBuffer; }
   llvm::Value *getDynamicFunctionPointer() override {
     assert(dynamicFunction && dynamicFunction->pointer);
-    return dynamicFunction->pointer;
+    auto *context = dynamicFunction->context;
+    if (!context) {
+      return dynamicFunction->pointer;
+    }
+    // FIXME: FIXME_NOW: DETERMINE: Can the following be replaced with a call to
+    //                              getAsyncFunctionAndSize.
+
+    // If the context is a ref counted pointer, then the dynamic function is
+    // thick.
+    if (context->getType() != IGM.RefCountedPtrTy) {
+      // Otherwise, the dynamic function is a witness function.
+      assert(context->getType() == IGM.Int8PtrTy);
+      auto sig =
+          emitCastOfFunctionPointer(subIGF, dynamicFunction->pointer, origType);
+      auto authInfo = PointerAuthInfo::forFunctionPointer(IGM, origType);
+      auto functionPointer =
+          FunctionPointer(FunctionPointer::KindTy::AsyncFunctionPointer,
+                          dynamicFunction->pointer, authInfo, sig);
+      auto *value = functionPointer.getPointer(subIGF);
+      return value;
+    }
+    // If the context is dynamically null, then dynamicFunction is the result of
+    // a thin_to_thick_function and is an AsyncFunctionPointer.  Otherwise, the
+    // dynamicFunction is the result of a partial_apply and is a bare function
+    // pointer.
+    auto *thinBlock = llvm::BasicBlock::Create(IGM.getLLVMContext());
+    auto *thickBlock = llvm::BasicBlock::Create(IGM.getLLVMContext());
+    auto *joinBlock = llvm::BasicBlock::Create(IGM.getLLVMContext());
+    auto *hasDynamicContext =
+        subIGF.Builder.CreateICmpNE(context, IGM.RefCountedNull);
+    subIGF.Builder.CreateCondBr(hasDynamicContext, thinBlock, thickBlock);
+    SmallVector<std::pair<llvm::BasicBlock *, llvm::Value *>, 2> fnPhiValues;
+
+    { // thin block
+      subIGF.Builder.emitBlock(thinBlock);
+      auto *fn = dynamicFunction->pointer;
+      fnPhiValues.push_back({thinBlock, fn});
+      subIGF.Builder.CreateBr(joinBlock);
+    }
+
+    { // thick block
+      subIGF.Builder.emitBlock(thickBlock);
+      auto sig =
+          emitCastOfFunctionPointer(subIGF, dynamicFunction->pointer, origType);
+      auto authInfo = PointerAuthInfo::forFunctionPointer(IGM, origType);
+      auto functionPointer =
+          FunctionPointer(FunctionPointer::KindTy::AsyncFunctionPointer,
+                          dynamicFunction->pointer, authInfo, sig);
+      auto *value = functionPointer.getPointer(subIGF);
+      auto *erasedValue = subIGF.Builder.CreateBitCast(value, IGM.Int8PtrTy);
+      fnPhiValues.push_back({thickBlock, erasedValue});
+      subIGF.Builder.CreateBr(joinBlock);
+    }
+
+    { // join block
+      subIGF.Builder.emitBlock(joinBlock);
+      auto *fn = subIGF.Builder.CreatePHI(IGM.Int8PtrTy, fnPhiValues.size());
+      for (auto &entry : fnPhiValues) {
+        fn->addIncoming(entry.second, entry.first);
+      }
+      return fn;
+    }
   }
   llvm::Value *getDynamicFunctionContext() override {
     assert((dynamicFunction && dynamicFunction->context) ||
@@ -1236,7 +1297,8 @@ public:
       asyncExplosion.add(dynamicFunction->context);
     }
 
-    return subIGF.Builder.CreateCall(fnPtr, asyncExplosion.claimAll());
+    return subIGF.Builder.CreateCall(fnPtr.getAsFunction(subIGF),
+                                     asyncExplosion.claimAll());
   }
   void createReturn(llvm::CallInst *call) override {
     subIGF.Builder.CreateRetVoid();
@@ -1289,7 +1351,7 @@ static llvm::Function *emitPartialApplicationForwarder(IRGenModule &IGM,
 
   StringRef FnName;
   if (staticFnPtr)
-    FnName = staticFnPtr->getPointer()->getName();
+    FnName = staticFnPtr->getName(IGM);
 
   IRGenMangler Mangler;
   std::string thunkName = Mangler.manglePartialApplyForwarder(FnName);
@@ -1683,10 +1745,10 @@ static llvm::Function *emitPartialApplicationForwarder(IRGenModule &IGM,
   FunctionPointer fnPtr = [&]() -> FunctionPointer {
     // If we found a function pointer statically, great.
     if (staticFnPtr) {
-      if (staticFnPtr->getPointer()->getType() != fnTy) {
-        auto fnPtr = staticFnPtr->getPointer();
+      if (staticFnPtr->getPointer(subIGF)->getType() != fnTy) {
+        auto fnPtr = staticFnPtr->getPointer(subIGF);
         fnPtr = subIGF.Builder.CreateBitCast(fnPtr, fnTy);
-        return FunctionPointer(fnPtr, origSig);
+        return FunctionPointer(origType, fnPtr, origSig);
       }
       return *staticFnPtr;
     }
@@ -1706,7 +1768,8 @@ static llvm::Function *emitPartialApplicationForwarder(IRGenModule &IGM,
                             lastCapturedFieldPtr,
                             PointerAuthEntity::Special::PartialApplyCapture);
 
-    return FunctionPointer(fnPtr, authInfo, origSig);
+    return FunctionPointer(FunctionPointer::KindTy::Function, fnPtr, authInfo,
+                           origSig);
   }();
 
   // Derive the context argument if needed.  This is either:
@@ -1993,7 +2056,7 @@ Optional<StackAddress> irgen::emitFunctionPartialApplication(
       hasSingleSwiftRefcountedContext == Yes &&
       outType->getCalleeConvention() == *singleRefcountedConvention) {
     assert(args.size() == 1);
-    auto fnPtr = emitPointerAuthResign(IGF, fn, outAuthInfo).getPointer();
+    auto fnPtr = emitPointerAuthResign(IGF, fn, outAuthInfo).getPointer(IGF);
     fnPtr = IGF.Builder.CreateBitCast(fnPtr, IGF.IGM.Int8PtrTy);
     out.add(fnPtr);
     llvm::Value *ctx = args.claimNext();
@@ -2032,8 +2095,13 @@ Optional<StackAddress> irgen::emitFunctionPartialApplication(
       emitPartialApplicationForwarder(IGF.IGM, staticFn, fnContext != nullptr,
                                       origSig, origType, substType,
                                       outType, subs, nullptr, argConventions);
-    forwarder = emitPointerAuthSign(IGF, forwarder, outAuthInfo);
-    forwarder = IGF.Builder.CreateBitCast(forwarder, IGF.IGM.Int8PtrTy);
+    if (origType->isAsync()) {
+      llvm_unreachable(
+          "async functions never have a single refcounted context");
+    } else {
+      forwarder = emitPointerAuthSign(IGF, forwarder, outAuthInfo);
+      forwarder = IGF.Builder.CreateBitCast(forwarder, IGF.IGM.Int8PtrTy);
+    }
     out.add(forwarder);
 
     llvm::Value *ctx = args.claimNext();
@@ -2121,9 +2189,10 @@ Optional<StackAddress> irgen::emitFunctionPartialApplication(
           auto schemaAuthInfo =
             PointerAuthInfo::emit(IGF, schema, fieldAddr.getAddress(),
                            PointerAuthEntity::Special::PartialApplyCapture);
-          fnPtr = emitPointerAuthResign(IGF, fn, schemaAuthInfo).getPointer();
+          fnPtr =
+              emitPointerAuthResign(IGF, fn, schemaAuthInfo).getRawPointer();
         } else {
-          fnPtr = fn.getPointer();
+          fnPtr = fn.getRawPointer();
         }
         fnPtr = IGF.Builder.CreateBitCast(fnPtr, IGF.IGM.Int8PtrTy);
         IGF.Builder.CreateStore(fnPtr, fieldAddr);
@@ -2163,16 +2232,9 @@ Optional<StackAddress> irgen::emitFunctionPartialApplication(
   // Create the forwarding stub.
   auto origSig = IGF.IGM.getSignature(origType);
 
-  llvm::Value *forwarder = emitPartialApplicationForwarder(IGF.IGM,
-                                                              staticFn,
-                                                          fnContext != nullptr,
-                                                              origSig,
-                                                              origType,
-                                                              substType,
-                                                              outType,
-                                                              subs,
-                                                              &layout,
-                                                              argConventions);
+  llvm::Value *forwarder = emitPartialApplicationForwarder(
+      IGF.IGM, staticFn, fnContext != nullptr, origSig, origType, substType,
+      outType, subs, &layout, argConventions);
   forwarder = emitPointerAuthSign(IGF, forwarder, outAuthInfo);
   forwarder = IGF.Builder.CreateBitCast(forwarder, IGF.IGM.Int8PtrTy);
   out.add(forwarder);

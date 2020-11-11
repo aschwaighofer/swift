@@ -19,6 +19,7 @@ import _Concurrency
 sil public_external @printGeneric : $@convention(thin) <T> (@in_guaranteed T) -> ()
 sil public_external @printInt64 : $@convention(thin) (Int64) -> ()
 
+// CHECK-LL: @inGenericAndInoutGenericToGenericAD = global %swift.async_func_pointer { i32 trunc (i64 sub (i64 ptrtoint (void (%swift.task*, %swift.executor*, %swift.context*)* @inGenericAndInoutGenericToGeneric to i64), i64 ptrtoint (%swift.async_func_pointer* @inGenericAndInoutGenericToGenericAD to i64)) to i32), i32 {{[0-9]+}} }, section "__TEXT,__const", align 8
 // CHECK-LL: define{{( dllexport)?}}{{( protected)?}} swiftcc void @inGenericAndInoutGenericToGeneric(%swift.task* {{%[0-9]+}}, %swift.executor* {{%[0-9]+}}, %swift.context* {{%[0-9]+}}) {{#[0-9]*}} {
 // CHECK-LL: define internal swiftcc void @"$s017inGenericAndInoutb2ToB0TA"(%swift.task* {{%[0-9]+}}, %swift.executor* {{%[0-9]+}}, %swift.context* {{%[0-9]+}}, %swift.refcounted* swiftself {{%[0-9]*}}) {{#[0-9]*}} {
 sil @inGenericAndInoutGenericToGeneric : $@async @convention(thin) <T> (@in T, @inout T) -> @out T {

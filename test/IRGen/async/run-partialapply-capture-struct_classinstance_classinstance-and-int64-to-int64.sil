@@ -61,6 +61,7 @@ sil_vtable C {
 
 struct S { var x: C, y: C }
 
+// CHECK-LL: @structClassInstanceClassInstanceAndInt64ToInt64AD = global %swift.async_func_pointer { i32 trunc (i64 sub (i64 ptrtoint (void (%swift.task*, %swift.executor*, %swift.context*)* @structClassInstanceClassInstanceAndInt64ToInt64 to i64), i64 ptrtoint (%swift.async_func_pointer* @structClassInstanceClassInstanceAndInt64ToInt64AD to i64)) to i32), i32 {{[0-9]+}} }, section "__TEXT,__const", align 8
 // CHECK-LL: define{{( dllexport)?}}{{( protected)?}} swiftcc void @structClassInstanceClassInstanceAndInt64ToInt64(%swift.task* {{%[0-9]+}}, %swift.executor* {{%[0-9]+}}, %swift.context* {{%[0-9]+}}) {{#[0-9]*}} {
 // CHECK-LL: define internal swiftcc void @"$s019structClassInstancebc10AndInt64ToE0TA"(%swift.task* {{%[0-9]+}}, %swift.executor* {{%[0-9]+}}, %swift.context* {{%[0-9]+}}, %swift.refcounted* swiftself {{%[0-9]*}}) {{#[0-9]*}} {
 sil @structClassInstanceClassInstanceAndInt64ToInt64 : $@async @convention(thin) (Int64, @guaranteed S) -> Int64 {
