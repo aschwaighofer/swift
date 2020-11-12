@@ -3603,11 +3603,9 @@ llvm::Value *irgen::emitTaskCreate(
   parentTask = IGF.Builder.CreateBitOrPointerCast(
       parentTask, IGF.IGM.SwiftTaskPtrTy);
   taskFunction = IGF.Builder.CreateBitOrPointerCast(
-      taskFunction, IGF.IGM.TaskContinuationFunctionPtrTy);
+      taskFunction, IGF.IGM.AsyncFunctionPointerPtrTy);
 
   // Determine the size of the async context for the closure.
-  // FIXME: If the task function comes in as an AsyncFunctionPointer, we might
-  // want to use swift_task_create instead of swift_task_create_f.
   ASTContext &ctx = IGF.IGM.IRGen.SIL.getASTContext();
   auto extInfo = ASTExtInfoBuilder().withAsync().withThrows().build();
   auto taskFunctionType = FunctionType::get(
@@ -3617,14 +3615,11 @@ llvm::Value *irgen::emitTaskCreate(
   auto layout = getAsyncContextLayout(
       IGF.IGM, taskFunctionCanSILType, taskFunctionCanSILType,
       SubstitutionMap());
-  auto layoutSize = getAsyncContextSize(layout);
-  auto layoutSizeVal = llvm::ConstantInt::get(
-      IGF.IGM.SizeTy, layoutSize.getValue());
 
   // Call the function.
   auto *result = IGF.Builder.CreateCall(
       IGF.IGM.getTaskCreateFuncFn(),
-      { flags, parentTask, taskFunction, layoutSizeVal });
+      { flags, parentTask, taskFunction/*, layoutSizeVal*/ });
   result->setDoesNotThrow();
   result->setCallingConv(IGF.IGM.SwiftCC);
 
