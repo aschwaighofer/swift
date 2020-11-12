@@ -306,3 +306,7 @@ extension Task {
     fatalError("\(#function) not implemented yet.")
   }
 }
+
+public func runAsync(_ asyncFun: @escaping () async -> ()) {
+  let childTask = Builtin.createAsyncTask(0, nil, asyncFun)
+}
