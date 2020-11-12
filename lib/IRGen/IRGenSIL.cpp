@@ -3045,7 +3045,10 @@ void IRGenSILFunction::visitPartialApplyInst(swift::PartialApplyInst *i) {
     // Re-sign the implementation pointer as a closure entry point.
     auto calleeFn = FunctionPointer::forExplosionValue(*this, calleeValue,
                                                        i->getOrigCalleeType());
-    function.add(calleeFn.getExplosionValue(*this, i->getFunctionType()));
+    auto resignedFunction = FunctionPointer::forExplosionValue(
+        *this, calleeFn.getExplosionValue(*this, i->getFunctionType()),
+        i->getFunctionType());
+    function.add(resignedFunction.getPointer(*this));
 
     Explosion context;
     for (auto arg : i->getArguments()) {
@@ -3087,7 +3090,7 @@ void IRGenSILFunction::visitPartialApplyInst(swift::PartialApplyInst *i) {
     llvm::Value *size;
     llvm::Value *fnPtr;
     std::tie(fnPtr, size) = getAsyncFunctionAndSize(
-        *this, layout, i->getOrigCalleeType(), std::get<0>(result),
+        *this, i->getOrigCalleeType(), std::get<0>(result),
         innerContext, {/*function*/ false, /*size*/ true});
     assert(fnPtr == nullptr);
     llArgs.add(size);

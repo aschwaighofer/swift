@@ -1843,9 +1843,9 @@ static void externalizeArguments(IRGenFunction &IGF, const Callee &callee,
                                  TemporarySet &temporaries, bool isOutlined);
 
 std::pair<llvm::Value *, llvm::Value *> irgen::getAsyncFunctionAndSize(
-    IRGenFunction &IGF, AsyncContextLayout layout,
-    CanSILFunctionType functionType, FunctionPointer functionPointer,
-    llvm::Value *thickContext, std::pair<bool, bool> values) {
+    IRGenFunction &IGF, CanSILFunctionType functionType,
+    FunctionPointer functionPointer, llvm::Value *thickContext,
+    std::pair<bool, bool> values) {
   assert(values.first || values.second);
   bool emitFunction = values.first;
   bool emitSize = values.second;
@@ -2280,7 +2280,7 @@ public:
     // Allocate space for the async arguments.
     llvm::Value *dynamicContextSize32;
     std::tie(calleeFunction, dynamicContextSize32) =
-        getAsyncFunctionAndSize(IGF, layout, CurCallee.getOrigFunctionType(),
+        getAsyncFunctionAndSize(IGF, CurCallee.getOrigFunctionType(),
                                 CurCallee.getFunctionPointer(), thickContext);
     auto *dynamicContextSize =
         IGF.Builder.CreateZExt(dynamicContextSize32, IGF.IGM.SizeTy);
@@ -4508,14 +4508,14 @@ FunctionPointer FunctionPointer::forExplosionValue(IRGenFunction &IGF,
 llvm::Value *
 FunctionPointer::getExplosionValue(IRGenFunction &IGF,
                                    CanSILFunctionType fnType) const {
-  llvm::Value *fnPtr = getPointer(IGF);
+  llvm::Value *fnPtr = getRawPointer();
 
   // Re-sign to the appropriate schema for this function pointer type.
   auto resultAuthInfo = PointerAuthInfo::forFunctionPointer(IGF.IGM, fnType);
   if (getAuthInfo() != resultAuthInfo) {
+    assert(getKind() != KindTy::AsyncFunctionPointer);
     fnPtr = emitPointerAuthResign(IGF, fnPtr, getAuthInfo(), resultAuthInfo);
   }
-
   // Bitcast to an opaque pointer type.
   fnPtr = IGF.Builder.CreateBitCast(fnPtr, IGF.IGM.Int8PtrTy);
 

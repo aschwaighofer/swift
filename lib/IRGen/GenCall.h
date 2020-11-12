@@ -311,10 +311,11 @@ namespace irgen {
   ///               be returned for it.
   ///
   /// \return {function, size}
-  std::pair<llvm::Value *, llvm::Value *> getAsyncFunctionAndSize(
-      IRGenFunction &IGF, AsyncContextLayout layout,
-      CanSILFunctionType functionType, FunctionPointer functionPointer,
-      llvm::Value *thickContext, std::pair<bool, bool> values = {true, true});
+  std::pair<llvm::Value *, llvm::Value *>
+  getAsyncFunctionAndSize(IRGenFunction &IGF, CanSILFunctionType functionType,
+                          FunctionPointer functionPointer,
+                          llvm::Value *thickContext,
+                          std::pair<bool, bool> values = {true, true});
   llvm::CallingConv::ID expandCallingConv(IRGenModule &IGM,
                                      SILFunctionTypeRepresentation convention);
 

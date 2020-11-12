@@ -201,7 +201,8 @@ namespace irgen {
     /// Return the actual function pointer.
     llvm::Value *getPointer(IRGenFunction &IGF) const;
 
-    /// Return the actual function pointer.
+    /// Return the function pointer (either the async struct or the function
+    /// pointer if not async).
     llvm::Value *getRawPointer() const { return Value; }
 
     /// Given that this value is known to have been constructed from
