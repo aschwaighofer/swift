@@ -1,8 +1,8 @@
 // RUN: %empty-directory(%t)
 // RUN: %target-build-swift-dylib(%t/%target-library-name(PrintShims)) %S/../../Inputs/print-shims.swift -module-name PrintShims -emit-module -emit-module-path %t/PrintShims.swiftmodule
 // RUN: %target-codesign %t/%target-library-name(PrintShims)
-// RUN: %target-build-swift -Xfrontend -enable-experimental-concurrency -parse-sil %s -emit-ir -I %t -L %t -lPrintShim | %FileCheck %s --check-prefix=CHECK-LL
-// RUN: %target-build-swift -Xfrontend -enable-experimental-concurrency -parse-sil %s -module-name main -o %t/main -I %t -L %t -lPrintShims %target-rpath(%t) 
+// : %target-build-swift -Xfrontend -enable-experimental-concurrency -parse-sil %s -emit-ir -I %t -L %t -lPrintShim | %FileCheck %s --check-prefix=CHECK-LL
+// RUN: %target-build-swift -Xfrontend -enable-experimental-concurrency -parse-sil %s -module-name main -o %t/main -I %t -L %t -lPrintShims %target-rpath(%t)
 // RUN: %target-codesign %t/main
 // RUN: %target-run %t/main %t/%target-library-name(PrintShims) | %FileCheck %s
 
@@ -17,9 +17,37 @@ import Swift
 import PrintShims
 import _Concurrency
 
+//    sil public_external @printInt64 : $@convention(thin) (Int64) -> ()
+//
+//    // CHECK-LL: @int64ToVoidAD = global %swift.async_func_pointer { i32 trunc (i64 sub (i64 ptrtoint (void (%swift.task*, %swift.executor*, %swift.context*)* @int64ToVoid to i64), i64 ptrtoint (%swift.async_func_pointer* @int64ToVoidAD to i64)) to i32), i32 {{[0-9]+}} }, section "__TEXT,__const", align 8
+//    // CHECK-LL: define{{( dllexport)?}}{{( protected)?}} swiftcc void @int64ToVoid(%swift.task* {{%[0-9]+}}, %swift.executor* {{%[0-9]+}}, %swift.context* {{%[0-9]+}}) {{#[0-9]*}} {
+//    sil @int64ToVoid : $@async @convention(thin) (Int64) -> () {
+//    entry(%int: $Int64):
+//      %print = function_ref @printInt64 : $@convention(thin) (Int64) -> ()
+//      %result = apply %print(%int) : $@convention(thin) (Int64) -> ()  // CHECK: 42
+//      return %result : $()
+//    }
+//
+//    sil @main : $@async @convention(c) (Int32, UnsafeMutablePointer<Optional<UnsafeMutablePointer<Int8>>>) -> Int32 {
+//    bb0(%0 : $Int32, %1 : $UnsafeMutablePointer<Optional<UnsafeMutablePointer<Int8>>>):
+//
+//      %int_literal = integer_literal $Builtin.Int64, 42
+//      %int = struct $Int64 (%int_literal : $Builtin.Int64)
+//      %int64ToVoid = function_ref @int64ToVoid : $@async @convention(thin) (Int64) -> ()
+//      %result = apply %int64ToVoid(%int) : $@async @convention(thin) (Int64) -> ()
+//
+//      %2 = integer_literal $Builtin.Int32, 0
+//      %3 = struct $Int32 (%2 : $Builtin.Int32)
+//      return %3 : $Int32                              // id: %4
+//    }
+
+import Builtin
+import Swift
+import PrintShims
+import _Concurrency
+
 sil public_external @printInt64 : $@convention(thin) (Int64) -> ()
 
-// CHECK-LL: @int64ToVoidAD = global %swift.async_func_pointer { i32 trunc (i64 sub (i64 ptrtoint (void (%swift.task*, %swift.executor*, %swift.context*)* @int64ToVoid to i64), i64 ptrtoint (%swift.async_func_pointer* @int64ToVoidAD to i64)) to i32), i32 {{[0-9]+}} }, section "__TEXT,__const", align 8
 // CHECK-LL: define{{( dllexport)?}}{{( protected)?}} swiftcc void @int64ToVoid(%swift.task* {{%[0-9]+}}, %swift.executor* {{%[0-9]+}}, %swift.context* {{%[0-9]+}}) {{#[0-9]*}} {
 sil @int64ToVoid : $@async @convention(thin) (Int64) -> () {
 entry(%int: $Int64):
@@ -28,14 +56,27 @@ entry(%int: $Int64):
   return %result : $()
 }
 
-sil @main : $@async @convention(c) (Int32, UnsafeMutablePointer<Optional<UnsafeMutablePointer<Int8>>>) -> Int32 {
-bb0(%0 : $Int32, %1 : $UnsafeMutablePointer<Optional<UnsafeMutablePointer<Int8>>>):
-
+sil @afun : $@async @convention(thin) () -> (@error Error) {
+entry:
   %int_literal = integer_literal $Builtin.Int64, 42
   %int = struct $Int64 (%int_literal : $Builtin.Int64)
   %int64ToVoid = function_ref @int64ToVoid : $@async @convention(thin) (Int64) -> ()
-  %result = apply %int64ToVoid(%int) : $@async @convention(thin) (Int64) -> ()
+  %ignore = apply %int64ToVoid(%int) : $@async @convention(thin) (Int64) -> ()
+  %result = tuple()
+  return %result : $()
+}
 
+sil @main : $@async @convention(c) (Int32, UnsafeMutablePointer<Optional<UnsafeMutablePointer<Int8>>>) -> Int32 {
+bb0(%0 : $Int32, %1 : $UnsafeMutablePointer<Optional<UnsafeMutablePointer<Int8>>>):
+  %flags = integer_literal $Builtin.Int64, 0
+  %flags2 = struct $Int (%flags : $Builtin.Int64)
+  %none = enum $Optional<Builtin.NativeObject>, #Optional.none!enumelt
+  %f = function_ref @afun : $@async @convention(thin) () -> @error Error
+  %c = thin_to_thick_function %f : $@async @convention(thin) () -> @error Error to $@async @callee_guaranteed () -> @error Error
+  %20 = builtin "createAsyncTask"(%flags2 : $Int, %none : $Optional<Builtin.NativeObject>, %c : $@async @callee_guaranteed () -> (@error Error)) : $(Builtin.NativeObject, Builtin.RawPointer)
+  // This release is not necessary while i have the hack in createAsyncTask that
+  // also runs it. since it seems to destroy self.
+  // release_value %20 : $(Builtin.NativeObject, Builtin.RawPointer)
   %2 = integer_literal $Builtin.Int32, 0
   %3 = struct $Int32 (%2 : $Builtin.Int32)
   return %3 : $Int32                              // id: %4

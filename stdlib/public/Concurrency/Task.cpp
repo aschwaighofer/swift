@@ -129,6 +129,6 @@ swift::swift_task_create_f(JobFlags flags, AsyncTask *parent,
 
   // Initialize the task-local allocator.
   _swift_task_alloc_initialize(task);
-
+  task->run(ExecutorRef::noPreference());
   return {task, initialContext};
 }
