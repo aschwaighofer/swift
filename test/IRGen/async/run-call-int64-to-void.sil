@@ -1,8 +1,9 @@
 // RUN: %empty-directory(%t)
 // RUN: %target-build-swift-dylib(%t/%target-library-name(PrintShims)) %S/../../Inputs/print-shims.swift -module-name PrintShims -emit-module -emit-module-path %t/PrintShims.swiftmodule
+// RUN: %target-build-swift-dylib(%t/%target-library-name(Async)) -Xfrontend -enable-experimental-concurrency %S/../Inputs/async.swift -module-name Async -emit-module -emit-module-path %t/Async.swiftmodule
 // RUN: %target-codesign %t/%target-library-name(PrintShims)
 // : %target-build-swift -Xfrontend -enable-experimental-concurrency -parse-sil %s -emit-ir -I %t -L %t -lPrintShim | %FileCheck %s --check-prefix=CHECK-LL
-// RUN: %target-build-swift -Xfrontend -enable-experimental-concurrency -parse-sil %s -module-name main -o %t/main -I %t -L %t -lPrintShims %target-rpath(%t)
+// RUN: %target-build-swift -Xfrontend -enable-experimental-concurrency -parse-sil %s -module-name main -o %t/main -I %t -L %t -lPrintShims -lAsync %target-rpath(%t)
 // RUN: %target-codesign %t/main
 // RUN: %target-run %t/main %t/%target-library-name(PrintShims) | %FileCheck %s
 
@@ -16,6 +17,7 @@ import Builtin
 import Swift
 import PrintShims
 import _Concurrency
+import Async
 
 //    sil public_external @printInt64 : $@convention(thin) (Int64) -> ()
 //
@@ -48,11 +50,24 @@ import _Concurrency
 
 sil public_external @printInt64 : $@convention(thin) (Int64) -> ()
 
+sil public_external @$s5Async10asyncEntryyyYF : $@convention(thin) @async () -> ()
+
 // CHECK-LL: define{{( dllexport)?}}{{( protected)?}} swiftcc void @int64ToVoid(%swift.task* {{%[0-9]+}}, %swift.executor* {{%[0-9]+}}, %swift.context* {{%[0-9]+}}) {{#[0-9]*}} {
 sil @int64ToVoid : $@async @convention(thin) (Int64) -> () {
 entry(%int: $Int64):
   %print = function_ref @printInt64 : $@convention(thin) (Int64) -> ()
   %result = apply %print(%int) : $@convention(thin) (Int64) -> ()  // CHECK: 42
+  %async_entry = function_ref @$s5Async10asyncEntryyyYF : $@convention(thin) @async () -> ()
+
+// Output from Inputs/async.swift
+// CHECK: hello5
+// CHECK: 5
+// CHECK: 6
+// CHECK: Async.SomeClass
+// CHECK: lifeAccross: 666
+// CHECK: 5
+
+  %ignore = apply %async_entry() : $@convention(thin) @async () -> ()
   return %result : $()
 }
 
