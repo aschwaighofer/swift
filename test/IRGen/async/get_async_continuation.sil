@@ -1,0 +1,25 @@
+// RUN: %target-swift-frontend -enable-experimental-concurrency -enable-objc-interop  -primary-file %s -emit-ir -sil-verify-all | %FileCheck %s
+
+// REQUIRES: concurrency
+
+import Builtin
+import Swift
+import _Concurrency
+
+sil @not_async_test : $@convention(thin) () -> () {
+bb0:
+  %0 = tuple ()
+  return %0 : $()
+}
+// CHECK-LABE: define{{.*}} @async_continuation(
+sil @async_continuation : $@async () -> () {
+entry:
+  %c = get_async_continuation $Builtin.Int32
+  %f = function_ref @not_async_test : $@convention(thin) () -> ()
+  apply %f() : $@convention(thin) () -> ()
+  await_async_continuation %c : $UnsafeContinuation<Builtin.Int32>, resume bb1
+
+bb1(%r : $Builtin.Int32):
+  %t = tuple()
+  return %t : $()
+}
