@@ -680,6 +680,9 @@ public:
       return;
 
     llvm::IRBuilder<> ZeroInitBuilder(AI->getNextNode());
+    ZeroInitBuilder.SetInsertPoint(
+        getEarliestInsertionPoint()->getParent(),
+        getEarliestInsertionPoint()->getIterator());
 
     // No debug location is how LLVM marks prologue instructions.
     ZeroInitBuilder.SetCurrentDebugLocation(nullptr);
