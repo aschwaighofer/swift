@@ -4758,6 +4758,11 @@ void irgen::emitAsyncReturn(IRGenFunction &IGF, AsyncContextLayout &asyncLayout,
   Args.push_back(IGF.getAsyncContext());
   auto call = IGF.Builder.CreateCall(fnPtr, Args);
   call->setTailCall();
+  auto handle = IGF.getCoroutineHandle();
+  IGF.Builder.CreateIntrinsicCall(llvm::Intrinsic::coro_end_async,
+                              {handle,
+                               /*is unwind*/ IGF.Builder.getFalse()});
+  IGF.Builder.CreateUnreachable();
 }
 
 FunctionPointer
