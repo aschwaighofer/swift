@@ -461,7 +461,8 @@ static llvm::CallingConv::ID getFreestandingConvention(IRGenModule &IGM) {
 /// Expand the requirements of the given abstract calling convention
 /// into a "physical" calling convention.
 llvm::CallingConv::ID irgen::expandCallingConv(IRGenModule &IGM,
-                                    SILFunctionTypeRepresentation convention) {
+                                    SILFunctionTypeRepresentation convention,
+                                    bool isAsync) {
   switch (convention) {
   case SILFunctionTypeRepresentation::CFunctionPointer:
   case SILFunctionTypeRepresentation::ObjCMethod:
@@ -473,6 +474,8 @@ llvm::CallingConv::ID irgen::expandCallingConv(IRGenModule &IGM,
   case SILFunctionTypeRepresentation::Closure:
   case SILFunctionTypeRepresentation::Thin:
   case SILFunctionTypeRepresentation::Thick:
+    if (isAsync)
+      return IGM.SwiftAsyncCC;
     return getFreestandingConvention(IGM);
   }
   llvm_unreachable("bad calling convention!");
@@ -1841,7 +1844,8 @@ Signature SignatureExpansion::getSignature() {
            (FnType->getLanguage() == SILFunctionLanguage::C) &&
          "C function type without C function info");
 
-  auto callingConv = expandCallingConv(IGM, FnType->getRepresentation());
+  auto callingConv =
+      expandCallingConv(IGM, FnType->getRepresentation(), FnType->isAsync());
 
   Signature result;
   result.Type = llvmType;
@@ -4782,7 +4786,7 @@ IRGenFunction::getFunctionPointerForResumeIntrinsic(llvm::Value *resume) {
       IGM.VoidTy, {IGM.Int8PtrTy, IGM.Int8PtrTy, IGM.Int8PtrTy},
       false /*vaargs*/);
   auto signature =
-      Signature(fnTy, IGM.constructInitialAttributes(), IGM.SwiftCC);
+      Signature(fnTy, IGM.constructInitialAttributes(), IGM.SwiftCC/*FIXME: SwiftAsyncCC?*/);
   auto fnPtr = FunctionPointer(
       FunctionPointer::KindTy::Function,
       Builder.CreateBitOrPointerCast(resume, fnTy->getPointerTo()),

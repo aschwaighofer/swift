@@ -2563,7 +2563,7 @@ llvm::Function *IRGenFunction::createAsyncSuspendFn() {
       IGM.getTaskSwitchFuncFn(),
       { task, executor, targetExecutor });
   suspendCall->setDoesNotThrow();
-  suspendCall->setCallingConv(IGM.SwiftCC);
+  suspendCall->setCallingConv(IGM.SwiftCC/*FIXME: SwiftAsyncCC!*/);
   suspendCall->setTailCall();
   Builder.CreateRetVoid();
   return suspendFn;
