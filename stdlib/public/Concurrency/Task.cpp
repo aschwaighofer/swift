@@ -179,7 +179,7 @@ const void *const swift::_swift_concurrency_debug_asyncTaskMetadata =
 
 /// The function that we put in the context of a simple task
 /// to handle the final return.
-SWIFT_CC(swift)
+SWIFT_CC(swiftasync)
 static void completeTask(AsyncTask *task, ExecutorRef executor,
                          SWIFT_ASYNC_CONTEXT AsyncContext *context) {
   // Tear down the task-local allocator immediately;
@@ -317,6 +317,7 @@ AsyncTaskAndContext swift::swift_task_create_future_f(
   return {task, initialContext};
 }
 
+SWIFT_CC(swiftasync)
 void swift::swift_task_future_wait(
     AsyncTask *waitingTask, ExecutorRef executor,
     SWIFT_ASYNC_CONTEXT AsyncContext *rawContext) {
