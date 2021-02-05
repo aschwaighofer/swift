@@ -1510,8 +1510,6 @@ IRGenSILFunction::IRGenSILFunction(IRGenModule &IGM, SILFunction *f)
     IGM.createReplaceableProlog(*this, f);
   }
 
-  if (f->getLoweredFunctionType()->isAsync())
-    setupAsync();
 }
 
 IRGenSILFunction::~IRGenSILFunction() {

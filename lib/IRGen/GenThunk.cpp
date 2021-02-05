@@ -287,7 +287,6 @@ void IRGenThunk::emit() {
   if (isAsync) {
     auto entity = LinkEntity::forDispatchThunk(declRef);
     emitAsyncFunctionEntry(IGF, *asyncLayout, entity);
-    IGF.setupAsync();
     emitAsyncFunctionPointer(IGF.IGM, IGF.CurFn, entity,
                              asyncLayout->getSize());
   }

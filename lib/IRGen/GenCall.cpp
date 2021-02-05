@@ -3676,6 +3676,7 @@ void irgen::emitAsyncFunctionEntry(IRGenFunction &IGF,
                                                      /*array size*/ nullptr,
                                                      "earliest insert point");
   IGF.setEarliestInsertionPoint(pt);
+  IGF.setupAsync();
 }
 
 void irgen::emitYieldOnceCoroutineEntry(
