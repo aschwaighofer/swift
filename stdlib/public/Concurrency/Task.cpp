@@ -633,12 +633,14 @@ static void runAndBlock_finish(AsyncTask *task, ExecutorRef executor,
 /// First half of the runAndBlock async function.
 SWIFT_CC(swiftasync)
 static void runAndBlock_start(AsyncTask *task, ExecutorRef executor,
-                              SWIFT_ASYNC_CONTEXT AsyncContext *_context) {
+                              SWIFT_ASYNC_CONTEXT AsyncContext *_context,
+                              SWIFT_CONTEXT HeapObject *closureContext) {
   auto callerContext = static_cast<RunAndBlockContext*>(_context);
 
   RunAndBlockSignature::FunctionType *function;
   size_t calleeContextSize;
   auto functionContext = callerContext->FunctionContext;
+  assert(closureContext == functionContext);
   std::tie(function, calleeContextSize)
     = getAsyncClosureEntryPointAndContextSize<
       RunAndBlockSignature,
@@ -650,7 +652,8 @@ static void runAndBlock_start(AsyncTask *task, ExecutorRef executor,
                                            calleeContextSize,
                                            &runAndBlock_finish,
                                            functionContext);
-  return function(task, executor, calleeContext);
+  return reinterpret_cast<AsyncVoidClosureEntryPoint *>(function)(
+      task, executor, calleeContext, functionContext);
 }
 
 // TODO: Remove this hack.
@@ -660,10 +663,12 @@ void swift::swift_task_runAndBlockThread(const void *function,
 
   // Set up a task that runs the runAndBlock async function above.
   auto flags = JobFlags(JobKind::Task, JobPriority::Default);
-  auto pair = swift_task_create_f(flags,
-                                  /*parent*/ nullptr,
-                                  &runAndBlock_start,
-                                  sizeof(RunAndBlockContext));
+  auto pair = swift_task_create_f(
+      flags,
+      /*parent*/ nullptr,
+      reinterpret_cast<ThinNullaryAsyncSignature::FunctionType *>(
+          &runAndBlock_start),
+      sizeof(RunAndBlockContext));
   auto context = static_cast<RunAndBlockContext*>(pair.InitialContext);
   context->Function = function;
   context->FunctionContext = functionContext;
