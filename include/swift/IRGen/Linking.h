@@ -447,6 +447,15 @@ class LinkEntity {
     /// context.
     /// The pointer is a SILFunction*.
     AsyncFunctionPointer,
+
+    // FIXME_NOW: Do all the things that are necessary for a new mangling.
+    /// The thunk provided for partially applying a function at some values 
+    /// which are captured.
+    PartialApplyForwarder,
+
+    // FIXME_NOW: Do all the things that are necessary for a new mangling.
+    /// An async function pointer to a partial apply forwarder.
+    PartialApplyForwarderAsyncFunctionPointer,
   };
   friend struct llvm::DenseMapInfo<LinkEntity>;
 
@@ -1170,6 +1179,10 @@ public:
       entity.Data = LINKENTITY_SET_FIELD(
           Kind, unsigned(LinkEntity::Kind::DispatchThunkAllocatorAsyncFunctionPointer));
       break;
+    case LinkEntity::Kind::PartialApplyForwarder:
+      entity.Data = LINKENTITY_SET_FIELD(
+          Kind, unsigned(LinkEntity::Kind::PartialApplyForwarderAsyncFunctionPointer));
+      break;
 
     default:
       llvm_unreachable("Link entity kind cannot have an async function pointer");
@@ -1210,10 +1223,24 @@ public:
           Kind, unsigned(LinkEntity::Kind::DispatchThunkAllocator));
       break;
 
+    case LinkEntity::Kind::PartialApplyForwarderAsyncFunctionPointer:
+      entity.Data = LINKENTITY_SET_FIELD(
+          Kind, unsigned(LinkEntity::Kind::PartialApplyForwarder));
+      break;
+
     default:
       llvm_unreachable("Link entity is not an async function pointer");
     }
 
+    return entity;
+  }
+
+  static LinkEntity forPartialApplyForwarder(llvm::Function *function) {
+    LinkEntity entity;
+    entity.Pointer = function;
+    entity.SecondaryPointer = nullptr;
+    entity.Data = LINKENTITY_SET_FIELD(
+        Kind, unsigned(Kind::PartialApplyForwarder));
     return entity;
   }
 
