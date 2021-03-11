@@ -132,7 +132,7 @@ void AsyncTask::completeFuture(AsyncContext *context, ExecutorRef executor) {
     if (hadErrorResult) {
       waitingContext->fillWithError(fragment);
     } else {
-      waitingContext->fillWithSuccess(fragment, waitingTask->futureResult);
+      waitingContext->fillWithSuccess(fragment);
     }
 
     // Enqueue the waiter on the global executor.
@@ -507,7 +507,7 @@ void swift::swift_task_future_wait(OpaqueValue *result, AsyncTask *waitingTask,
   assert(task->isFuture());
 
   // Stash the result pointer for when we resume later.
-  waitingTask->futureResult = result;
+  context->successResultPointer = result;
 
   switch (task->waitFuture(waitingTask)) {
   case FutureFragment::Status::Executing:
@@ -517,7 +517,7 @@ void swift::swift_task_future_wait(OpaqueValue *result, AsyncTask *waitingTask,
   case FutureFragment::Status::Success:
     // Run the task with a successful result.
     assert(task->futureFragment()->getResultType() == T);
-    context->fillWithSuccess(task->futureFragment(), result);
+    context->fillWithSuccess(task->futureFragment());
     // FIXME: force tail call
     return waitingTask->runInFullyEstablishedContext(executor);
 
@@ -541,7 +541,7 @@ void swift::swift_task_future_wait_throwing(
   assert(task->isFuture());
 
   // Stash the result pointer for when we resume later.
-  waitingTask->futureResult = result;
+  context->successResultPointer = result;
 
   switch (task->waitFuture(waitingTask)) {
   case FutureFragment::Status::Executing:
@@ -551,7 +551,7 @@ void swift::swift_task_future_wait_throwing(
   case FutureFragment::Status::Success:
     // Run the task with a successful result.
     assert(task->futureFragment()->getResultType() == T);
-    context->fillWithSuccess(task->futureFragment(), result);
+    context->fillWithSuccess(task->futureFragment());
     // FIXME: force tail call
     return waitingTask->runInFullyEstablishedContext(executor);
 
