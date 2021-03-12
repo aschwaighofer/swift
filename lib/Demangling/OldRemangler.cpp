@@ -610,7 +610,12 @@ void Remangler::mangleAsyncNonconstantPartialApplyThunk(Node *node) {
   Buffer << "Tw";
   mangleSingleChildNode(node); // global
 }
-
+void Remangler::mangleAsyncAwaitResumePartialFunction(Node *node) {
+  unreachable("unsupported");
+}
+void Remangler::mangleAsyncSuspendResumePartialFunction(Node *node) {
+  unreachable("unsupported");
+}
 void Remangler::mangleDirectness(Node *node) {
   auto getChar = [](Directness d) -> char {
     switch (d) {
