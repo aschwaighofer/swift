@@ -1386,6 +1386,11 @@ entry(%0 : $@convention(thin) (AnyObject) -> Optional<AnyObject>):
   %1 = convert_function %0 : $@convention(thin) (AnyObject) -> Optional<AnyObject> to $@convention(thin) (Optional<AnyObject>) -> AnyObject
   return %1 : $@convention(thin) (Optional<AnyObject>) -> AnyObject
 }
+sil @convert_function_async : $@convention(thin) (@convention(thin) @async (AnyObject) -> AnyObject) -> (@convention(thin) @async (AnyObject) -> (AnyObject, @error Error)) {
+entry(%0 : $@convention(thin) @async (AnyObject) -> (AnyObject)):
+  %1 = convert_function %0 : $@convention(thin) @async (AnyObject) -> (AnyObject) to $@convention(thin) @async (AnyObject) -> (AnyObject, @error Error)
+  return %1 : $@convention(thin) @async(AnyObject) -> (AnyObject, @error Error)
+}
 // CHECK-LABEL: sil @convert_function_trivial
 // CHECK:  %1 = convert_escape_to_noescape %0 : $@callee_guaranteed (AnyObject) -> Optional<AnyObject> to $@noescape @callee_guaranteed (Optional<AnyObject>) -> AnyObject
 // CHECK:  %2 = convert_escape_to_noescape [not_guaranteed] %0 : $@callee_guaranteed (AnyObject) -> Optional<AnyObject> to $@noescape @callee_guaranteed (Optional<AnyObject>) -> AnyObject
