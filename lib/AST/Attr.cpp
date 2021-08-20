@@ -1663,13 +1663,17 @@ SpecializeAttr::SpecializeAttr(SourceLoc atLoc, SourceRange range,
                                SpecializationKind kind,
                                GenericSignature specializedSignature,
                                DeclNameRef targetFunctionName,
-                               ArrayRef<Identifier> spiGroups)
+                               ArrayRef<Identifier> spiGroups,
+                               ArrayRef<AvailableAttr*> availableAttrs)
     : DeclAttribute(DAK_Specialize, atLoc, range,
                     /*Implicit=*/clause == nullptr),
       trailingWhereClause(clause), specializedSignature(specializedSignature),
       targetFunctionName(targetFunctionName), numSPIGroups(spiGroups.size()) {
   std::uninitialized_copy(spiGroups.begin(), spiGroups.end(),
                           getTrailingObjects<Identifier>());
+  std::uninitialized_copy(availableAttrs.begin(), availableAttrs.end(),
+                          getTrailingObjects<AvailableAttr*>());
+
   Bits.SpecializeAttr.exported = exported;
   Bits.SpecializeAttr.kind = unsigned(kind);
 }
@@ -1684,35 +1688,43 @@ SpecializeAttr *SpecializeAttr::create(ASTContext &Ctx, SourceLoc atLoc,
                                        bool exported, SpecializationKind kind,
                                        DeclNameRef targetFunctionName,
                                        ArrayRef<Identifier> spiGroups,
+                                       ArrayRef<AvailableAttr*> availableAttrs,
                                        GenericSignature specializedSignature) {
-  unsigned size = totalSizeToAlloc<Identifier>(spiGroups.size());
+  unsigned size = totalSizeToAlloc<Identifier, AvailableAttr*>(spiGroups.size(),
+                                                               availableAttrs.size());
   void *mem = Ctx.Allocate(size, alignof(SpecializeAttr));
   return new (mem)
       SpecializeAttr(atLoc, range, clause, exported, kind, specializedSignature,
-                     targetFunctionName, spiGroups);
+                     targetFunctionName, spiGroups, availableAttrs);
 }
 
 SpecializeAttr *SpecializeAttr::create(ASTContext &ctx, bool exported,
                                        SpecializationKind kind,
                                        ArrayRef<Identifier> spiGroups,
+                                       ArrayRef<AvailableAttr*> availableAttrs,
                                        GenericSignature specializedSignature,
                                        DeclNameRef targetFunctionName) {
-  unsigned size = totalSizeToAlloc<Identifier>(spiGroups.size());
+  unsigned size = totalSizeToAlloc<Identifier, AvailableAttr*>(spiGroups.size(),
+                                                               availableAttrs.size());
   void *mem = ctx.Allocate(size, alignof(SpecializeAttr));
   return new (mem)
       SpecializeAttr(SourceLoc(), SourceRange(), nullptr, exported, kind,
-                     specializedSignature, targetFunctionName, spiGroups);
+                     specializedSignature, targetFunctionName, spiGroups,
+                     availableAttrs);
 }
 
 SpecializeAttr *SpecializeAttr::create(
     ASTContext &ctx, bool exported, SpecializationKind kind,
-    ArrayRef<Identifier> spiGroups, GenericSignature specializedSignature,
+    ArrayRef<Identifier> spiGroups, ArrayRef<AvailableAttr*> availableAttrs,
+    GenericSignature specializedSignature,
     DeclNameRef targetFunctionName, LazyMemberLoader *resolver, uint64_t data) {
-  unsigned size = totalSizeToAlloc<Identifier>(spiGroups.size());
+  unsigned size = totalSizeToAlloc<Identifier, AvailableAttr*>(spiGroups.size(),
+                                                               availableAttrs.size());
   void *mem = ctx.Allocate(size, alignof(SpecializeAttr));
   auto *attr = new (mem)
       SpecializeAttr(SourceLoc(), SourceRange(), nullptr, exported, kind,
-                     specializedSignature, targetFunctionName, spiGroups);
+                     specializedSignature, targetFunctionName, spiGroups,
+                     availableAttrs);
   attr->resolver = resolver;
   attr->resolverContextData = data;
   return attr;

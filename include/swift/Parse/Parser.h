@@ -1061,6 +1061,7 @@ public:
       Optional<SpecializeAttr::SpecializationKind> &Kind,
       TrailingWhereClause *&TrailingWhereClause, DeclNameRef &targetFunction,
       SmallVectorImpl<Identifier> &spiGroups,
+      SmallVectorImpl<AvailableAttr*> &availableAttrs,
       llvm::function_ref<bool(Parser &)> parseSILTargetName,
       llvm::function_ref<bool(Parser &)> parseSILSIPModule);
 

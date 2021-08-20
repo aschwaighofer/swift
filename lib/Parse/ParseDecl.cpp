@@ -583,6 +583,7 @@ bool Parser::parseSpecializeAttributeArguments(
     Optional<SpecializeAttr::SpecializationKind> &Kind,
     swift::TrailingWhereClause *&TrailingWhereClause,
     DeclNameRef &targetFunction, SmallVectorImpl<Identifier> &spiGroups,
+    SmallVectorImpl<AvailableAttr*> &availableAttrs,
     llvm::function_ref<bool(Parser &)> parseSILTargetName,
     llvm::function_ref<bool(Parser &)> parseSILSIPModule) {
   SyntaxParsingContext ContentContext(SyntaxContext,
@@ -597,7 +598,7 @@ bool Parser::parseSpecializeAttributeArguments(
                              : SyntaxKind::LabeledSpecializeEntry);
       if (ParamLabel != "exported" && ParamLabel != "kind" &&
           ParamLabel != "target" && ParamLabel != "spi" &&
-          ParamLabel != "spiModule") {
+          ParamLabel != "spiModule" && ParamLabel != "availability") {
         diagnose(Tok.getLoc(), diag::attr_specialize_unknown_parameter_name,
                  ParamLabel);
       }
@@ -622,6 +623,46 @@ bool Parser::parseSpecializeAttributeArguments(
           (ParamLabel == "spi" && !spiGroups.empty())) {
         diagnose(Tok.getLoc(), diag::attr_specialize_parameter_already_defined,
                  ParamLabel);
+      }
+      if (ParamLabel == "availability") {
+        // platform:
+        //   *
+        //   identifier
+        if (!Tok.is(tok::identifier) &&
+            !(Tok.isAnyOperator() && Tok.getText() == "*")) {
+          if (Tok.is(tok::code_complete) && CodeCompletion) {
+            CodeCompletion->completeDeclAttrParam(DAK_Available, 0);
+            consumeToken(tok::code_complete);
+          }
+          diagnose(Tok.getLoc(), diag::attr_availability_platform, ParamLabel)
+            .highlight(SourceRange(Tok.getLoc()));
+          consumeIf(tok::r_paren);
+          return false;
+        }
+        // Delay processing of platform until later, after we have
+        // parsed more of the attribute.
+        StringRef Platform = Tok.getText();
+        if (Platform != "*" &&
+            (peekToken().isAny(tok::integer_literal, tok::floating_literal) ||
+             peekAvailabilityMacroName())) {
+          // We have the short form of available: @available(iOS 8.0.1, *)
+          SmallVector<AvailabilitySpec *, 5> Specs;
+          ParserStatus Status =
+            parseAvailabilitySpecList(Specs, AvailabilitySpecSource::Available);
+          if (Status.isErrorOrHasCompletion())
+            return false;
+        }
+        // Terminate the availability attribute with
+        //  ;
+        if (!Tok.is(tok::semi)) {
+          diagnose(Tok.getLoc(), diag::attr_specialize_missing_colon, ParamLabel);
+          consumeToken();
+          return false;
+        }
+        assert(false);
+
+
+
       }
       if (ParamLabel == "exported") {
         bool isTrue = consumeIf(tok::kw_true);
@@ -745,9 +786,10 @@ bool Parser::parseSpecializeAttribute(
 
   DeclNameRef targetFunction;
   SmallVector<Identifier, 4> spiGroups;
+  SmallVector<AvailableAttr*, 4> availableAttrs;
   if (!parseSpecializeAttributeArguments(
           ClosingBrace, DiscardAttribute, exported, kind, trailingWhereClause,
-          targetFunction, spiGroups, parseSILTargetName, parseSILSIPModule)) {
+          targetFunction, spiGroups, availableAttrs, parseSILTargetName, parseSILSIPModule)) {
     return false;
   }
 
@@ -776,7 +818,8 @@ bool Parser::parseSpecializeAttribute(
   // Store the attribute.
   Attr = SpecializeAttr::create(Context, AtLoc, SourceRange(Loc, rParenLoc),
                                 trailingWhereClause, exported.getValue(),
-                                kind.getValue(), targetFunction, spiGroups);
+                                kind.getValue(), targetFunction, spiGroups,
+                                availableAttrs);
   return true;
 }
 
