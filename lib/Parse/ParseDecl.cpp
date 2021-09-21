@@ -602,7 +602,7 @@ bool Parser::parseSpecializeAttributeArguments(
         diagnose(Tok.getLoc(), diag::attr_specialize_unknown_parameter_name,
                  ParamLabel);
       }
-      consumeToken();
+      auto AtLoc = consumeToken();
       if (!consumeIf(tok::colon)) {
         diagnose(Tok.getLoc(), diag::attr_specialize_missing_colon, ParamLabel);
         skipUntil(tok::comma, tok::kw_where);
@@ -651,18 +651,82 @@ bool Parser::parseSpecializeAttributeArguments(
             parseAvailabilitySpecList(Specs, AvailabilitySpecSource::Available);
           if (Status.isErrorOrHasCompletion())
             return false;
+          // Terminate the availability attribute with
+          //  ;
+          if (!Tok.is(tok::semi)) {
+            diagnose(Tok.getLoc(), diag::attr_specialize_missing_colon, ParamLabel);
+            consumeToken();
+            return false;
+          }
+          ///
+          auto AttrRange = SourceRange(AtLoc, PreviousLoc);
+          // For each platform version spec in the spec list, create an
+          // implicit AvailableAttr for the platform with the introduced
+          // version from the spec. For example, if we have
+          //   @available(iOS 8.0, OSX 10.10, *):
+          // we will synthesize:
+          //  @available(iOS, introduced: 8.0)
+          //  @available(OSX, introduced: 10.10)
+          //
+          // Similarly if we have a language version spec or PackageDescription
+          // version in the spec list, create an implicit AvailableAttr
+          // with the specified version as the introduced argument. 
+          // For example, if we have
+          //   @available(swift 3.1)
+          // we will synthesize
+          //   @available(swift, introduced: 3.1)
+          // or, if we have
+          //   @available(_PackageDescription 4.2)
+          // we will synthesize
+          //   @available(_PackageDescription, introduced: 4.2)
+
+          for (auto *Spec : Specs) {
+            PlatformKind Platform;
+            llvm::VersionTuple Version;
+            SourceRange VersionRange;
+            PlatformAgnosticAvailabilityKind PlatformAgnostic;
+
+            if (auto *PlatformVersionSpec =
+                dyn_cast<PlatformVersionConstraintAvailabilitySpec>(Spec)) {
+              Platform = PlatformVersionSpec->getPlatform();
+              Version = PlatformVersionSpec->getVersion();
+              VersionRange = PlatformVersionSpec->getVersionSrcRange();
+              PlatformAgnostic = PlatformAgnosticAvailabilityKind::None;
+
+            } else if (auto *PlatformAgnosticVersionSpec =
+                       dyn_cast<PlatformAgnosticVersionConstraintAvailabilitySpec>(Spec)) {
+              Platform = PlatformKind::none;
+              Version = PlatformAgnosticVersionSpec->getVersion();
+              VersionRange = PlatformAgnosticVersionSpec->getVersionSrcRange();
+              PlatformAgnostic = PlatformAgnosticVersionSpec->isLanguageVersionSpecific() ?
+                                   PlatformAgnosticAvailabilityKind::SwiftVersionSpecific :
+                                   PlatformAgnosticAvailabilityKind::PackageDescriptionVersionSpecific;
+
+            } else {
+              continue;
+            }
+
+            Version = canonicalizePlatformVersion(Platform, Version);
+
+            availableAttrs.push_back(new (Context)
+                           AvailableAttr(AtLoc, AttrRange,
+                                         Platform,
+                                         /*Message=*/StringRef(),
+                                         /*Rename=*/StringRef(),
+                                         /*RenameDecl=*/nullptr,
+                                         /*Introduced=*/Version,
+                                         /*IntroducedRange=*/VersionRange,
+                                         /*Deprecated=*/llvm::VersionTuple(),
+                                         /*DeprecatedRange=*/SourceRange(),
+                                         /*Obsoleted=*/llvm::VersionTuple(),
+                                         /*ObsoletedRange=*/SourceRange(),
+                                         PlatformAgnostic,
+                                         /*Implicit=*/false));
+          }
+          ///
+        } else {
+          assert(false);
         }
-        // Terminate the availability attribute with
-        //  ;
-        if (!Tok.is(tok::semi)) {
-          diagnose(Tok.getLoc(), diag::attr_specialize_missing_colon, ParamLabel);
-          consumeToken();
-          return false;
-        }
-        assert(false);
-
-
-
       }
       if (ParamLabel == "exported") {
         bool isTrue = consumeIf(tok::kw_true);
@@ -733,7 +797,7 @@ bool Parser::parseSpecializeAttributeArguments(
         spiGroups.push_back(Context.getIdentifier(text));
         consumeToken();
       }
-      if (!consumeIf(tok::comma)) {
+      if (!consumeIf(tok::comma) && !consumeIf(tok::semi) {
         diagnose(Tok.getLoc(), diag::attr_specialize_missing_comma);
         skipUntil(tok::comma, tok::kw_where);
         if (Tok.is(ClosingBrace))
