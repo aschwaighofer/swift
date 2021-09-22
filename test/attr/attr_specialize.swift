@@ -324,5 +324,7 @@ extension Container {
 public func takesSequenceAndElement<S, E>(_: S, _: E)
   where S : Sequence, E == S.Element {}
 
-@_specialize(exported: true, availability: macOS 11, *; where T == Int)
+// CHECK: @_specialize(exported: true, kind: full, availability: macOS, introduced: 11, iOS, introduced: 13; where T == Int)
+// CHECK: public func testAvailability<T>(_ t: T)
+@_specialize(exported: true, availability: macOS 11, iOS 13, *; where T == Int)
 public func testAvailability<T>(_ t: T) {}
