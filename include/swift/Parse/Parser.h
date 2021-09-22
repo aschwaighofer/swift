@@ -1851,7 +1851,13 @@ public:
   parsePlatformVersionConstraintSpec();
   ParserResult<PlatformAgnosticVersionConstraintAvailabilitySpec>
   parsePlatformAgnosticVersionConstraintSpec();
-
+  bool parseAvailability(bool parseAsPartOfSpecializeAttr,
+                         StringRef AttrName,
+                         bool &DiscardAttribute,
+                         SourceRange &attrRange,
+                         SourceLoc AtLoc,
+                         SourceLoc Loc,
+                         llvm::function_ref<void(AvailableAttr*)> addAttribute);
   //===--------------------------------------------------------------------===//
   // Code completion second pass.
 
