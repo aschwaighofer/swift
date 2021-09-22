@@ -797,7 +797,7 @@ bool Parser::parseSpecializeAttributeArguments(
         spiGroups.push_back(Context.getIdentifier(text));
         consumeToken();
       }
-      if (!consumeIf(tok::comma) && !consumeIf(tok::semi) {
+      if (!consumeIf(tok::comma) && !consumeIf(tok::semi)) {
         diagnose(Tok.getLoc(), diag::attr_specialize_missing_comma);
         skipUntil(tok::comma, tok::kw_where);
         if (Tok.is(ClosingBrace))

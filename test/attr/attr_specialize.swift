@@ -323,3 +323,6 @@ extension Container {
 @_specialize(where S == Set<String>)
 public func takesSequenceAndElement<S, E>(_: S, _: E)
   where S : Sequence, E == S.Element {}
+
+@_specialize(exported: true, availability: macOS 11, *; where T == Int)
+public func testAvailability<T>(_ t: T) {}

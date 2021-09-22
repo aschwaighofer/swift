@@ -745,6 +745,54 @@ SourceLoc DeclAttributes::getStartLoc(bool forModifiers) const {
   return lastAttr ? lastAttr->getRangeWithAt().Start : SourceLoc();
 }
 
+static void printAvailableAttr(const AvailableAttr *Attr, ASTPrinter &Printer,
+                               const PrintOptions &Options) {
+  if (Attr->isLanguageVersionSpecific())
+    Printer << "swift";
+  else if (Attr->isPackageDescriptionVersionSpecific())
+    Printer << "_PackageDescription";
+  else
+    Printer << Attr->platformString();
+
+  if (Attr->isUnconditionallyUnavailable())
+    Printer << ", unavailable";
+  else if (Attr->isUnconditionallyDeprecated())
+    Printer << ", deprecated";
+
+  if (Attr->Introduced)
+    Printer << ", introduced: " << Attr->Introduced.getValue().getAsString();
+  if (Attr->Deprecated)
+    Printer << ", deprecated: " << Attr->Deprecated.getValue().getAsString();
+  if (Attr->Obsoleted)
+    Printer << ", obsoleted: " << Attr->Obsoleted.getValue().getAsString();
+
+  if (!Attr->Rename.empty()) {
+    Printer << ", renamed: \"" << Attr->Rename << "\"";
+  } else if (Attr->RenameDecl) {
+    Printer << ", renamed: \"";
+    if (auto *Accessor = dyn_cast<AccessorDecl>(Attr->RenameDecl)) {
+      SmallString<32> Name;
+      llvm::raw_svector_ostream OS(Name);
+      Accessor->printUserFacingName(OS);
+      Printer << Name.str();
+    } else {
+      Printer << Attr->RenameDecl->getName();
+    }
+    Printer << "\"";
+  }
+
+  // If there's no message, but this is specifically an imported
+  // "unavailable in Swift" attribute, synthesize a message to look good in
+  // the generated interface.
+  if (!Attr->Message.empty()) {
+    Printer << ", message: ";
+    Printer.printEscapedStringLiteral(Attr->Message);
+  }
+  else if (Attr->getPlatformAgnosticAvailability()
+             == PlatformAgnosticAvailabilityKind::UnavailableInSwift)
+    Printer << ", message: \"Not available in Swift\"";
+}
+
 bool DeclAttribute::printImpl(ASTPrinter &Printer, const PrintOptions &Options,
                               const Decl *D) const {
 
@@ -890,51 +938,7 @@ bool DeclAttribute::printImpl(ASTPrinter &Printer, const PrintOptions &Options,
     Printer.printAttrName("@available");
     Printer << "(";
     auto Attr = cast<AvailableAttr>(this);
-    if (Attr->isLanguageVersionSpecific())
-      Printer << "swift";
-    else if (Attr->isPackageDescriptionVersionSpecific())
-      Printer << "_PackageDescription";
-    else
-      Printer << Attr->platformString();
-
-    if (Attr->isUnconditionallyUnavailable())
-      Printer << ", unavailable";
-    else if (Attr->isUnconditionallyDeprecated())
-      Printer << ", deprecated";
-
-    if (Attr->Introduced)
-      Printer << ", introduced: " << Attr->Introduced.getValue().getAsString();
-    if (Attr->Deprecated)
-      Printer << ", deprecated: " << Attr->Deprecated.getValue().getAsString();
-    if (Attr->Obsoleted)
-      Printer << ", obsoleted: " << Attr->Obsoleted.getValue().getAsString();
-
-    if (!Attr->Rename.empty()) {
-      Printer << ", renamed: \"" << Attr->Rename << "\"";
-    } else if (Attr->RenameDecl) {
-      Printer << ", renamed: \"";
-      if (auto *Accessor = dyn_cast<AccessorDecl>(Attr->RenameDecl)) {
-        SmallString<32> Name;
-        llvm::raw_svector_ostream OS(Name);
-        Accessor->printUserFacingName(OS);
-        Printer << Name.str();
-      } else {
-        Printer << Attr->RenameDecl->getName();
-      }
-      Printer << "\"";
-    }
-
-    // If there's no message, but this is specifically an imported
-    // "unavailable in Swift" attribute, synthesize a message to look good in
-    // the generated interface.
-    if (!Attr->Message.empty()) {
-      Printer << ", message: ";
-      Printer.printEscapedStringLiteral(Attr->Message);
-    }
-    else if (Attr->getPlatformAgnosticAvailability()
-               == PlatformAgnosticAvailabilityKind::UnavailableInSwift)
-      Printer << ", message: \"Not available in Swift\"";
-
+    printAvailableAttr(Attr, Printer, Options);
     Printer << ")";
     break;
   }
@@ -984,6 +988,18 @@ bool DeclAttribute::printImpl(ASTPrinter &Printer, const PrintOptions &Options,
     Printer << "kind: " << kind << ", ";
     if (target)
       Printer << "target: " << target << ", ";
+    auto availAttrs = attr->getAvailabeAttrs();
+    if (!availAttrs.empty()) {
+      Printer << "availability: ";
+      auto numAttrs = availAttrs.size();
+      for (auto *availAttr : availAttrs) {
+        printAvailableAttr(availAttr, Printer, Options);
+        if (--numAttrs)
+          Printer << ", ";
+        else
+          Printer << "; ";
+      }
+    }
     SmallVector<Requirement, 4> requirementsScratch;
     auto requirements = attr->getSpecializedSignature().getRequirements();
     auto *FnDecl = dyn_cast_or_null<AbstractFunctionDecl>(D);
@@ -1668,7 +1684,8 @@ SpecializeAttr::SpecializeAttr(SourceLoc atLoc, SourceRange range,
     : DeclAttribute(DAK_Specialize, atLoc, range,
                     /*Implicit=*/clause == nullptr),
       trailingWhereClause(clause), specializedSignature(specializedSignature),
-      targetFunctionName(targetFunctionName), numSPIGroups(spiGroups.size()) {
+      targetFunctionName(targetFunctionName), numSPIGroups(spiGroups.size()),
+      numAvailableAttrs(availableAttrs.size()) {
   std::uninitialized_copy(spiGroups.begin(), spiGroups.end(),
                           getTrailingObjects<Identifier>());
   std::uninitialized_copy(availableAttrs.begin(), availableAttrs.end(),
