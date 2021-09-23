@@ -2576,14 +2576,14 @@ class Serializer::DeclSerializer : public DeclVisitor<DeclSerializer> {
       auto numSPIGroups = attr->getSPIGroups().size();
       assert(pieces.size() == numArgs + numSPIGroups ||
              pieces.size() == (numArgs - 1 + numSPIGroups));
-      auto numAvailabilityAttrs = attr->getAvailableAttr() == nullptr ? 0 : 1;
+      auto numAvailabilityAttrs = attr->getAvailabeAttrs().size();
       SpecializeDeclAttrLayout::emitRecord(
           S.Out, S.ScratchRecord, abbrCode, (unsigned)attr->isExported(),
           (unsigned)attr->getSpecializationKind(),
           S.addGenericSignatureRef(attr->getSpecializedSignature()),
           S.addDeclRef(targetFunDecl), numArgs, numSPIGroups,
           numAvailabilityAttrs, pieces);
-      if (auto availAttr = attr->getAvailableAttr()) {
+      for (auto availAttr : attr->getAvailabeAttrs()) {
         writeDeclAttribute(D, availAttr);
       }
       return;

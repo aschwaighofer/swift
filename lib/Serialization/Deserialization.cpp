@@ -4517,12 +4517,13 @@ llvm::Error DeclDeserializer::deserializeDeclCommon() {
           for (auto id : rawPieceIDs.slice(numTargetFunctionPiecesToSkip))
             spis.push_back(MF.getIdentifier(id));
         }
-        AvailableAttr* availabilityAttr = nullptr;
-        if (numAvailabilityAttrs) {
+        SmallVector<AvailableAttr*, 4> availabilityAttrs;
+        while(numAvailabilityAttrs) {
           // Prepare to read the next record.
           restoreOffset.cancel();
           scratch.clear();
 
+          //TODO: deserialize them.
           BCOffsetRAII restoreOffset2(MF.DeclTypeCursor);
           llvm::BitstreamEntry entry =
             MF.fatalIfUnexpected(MF.DeclTypeCursor.advance());
@@ -4536,13 +4537,15 @@ llvm::Error DeclDeserializer::deserializeDeclCommon() {
             MF.fatal();
           }
 
-          availabilityAttr = readAvailable_DECL_ATTR(scratch, blobData);
+          auto attr = readAvailable_DECL_ATTR(scratch, blobData);
+          availabilityAttrs.push_back(attr);
           restoreOffset2.cancel();
+          --numAvailabilityAttrs;
         }
 
         auto specializedSig = MF.getGenericSignature(specializedSigID);
         Attr = SpecializeAttr::create(ctx, exported != 0, specializationKind,
-                                      spis, availabilityAttr, specializedSig,
+                                      spis, availabilityAttrs, specializedSig,
                                       replacedFunctionName, &MF, targetFunID);
         break;
       }

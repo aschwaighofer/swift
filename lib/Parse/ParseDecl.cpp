@@ -861,13 +861,11 @@ bool Parser::parseAvailability(bool parseAsPartOfSpecializeAttr,
 
   auto availTerminator = parseAsPartOfSpecializeAttr ? tok::semi : tok::r_paren;
   if (!consumeIf(availTerminator)) {
-    if (!DiscardAttribute) {
-      auto diagnostic = parseAsPartOfSpecializeAttr ?
-        diag::attr_expected_semi:
-        diag::attr_expected_rparen ;
-      diagnose(Tok.getLoc(), diagnostic, AttrName,
-               parseAsPartOfSpecializeAttr);
-    }
+    auto diagnostic = parseAsPartOfSpecializeAttr ?
+      diag::attr_expected_semi:
+      diag::attr_expected_rparen ;
+    diagnose(Tok.getLoc(), diagnostic, AttrName,
+             parseAsPartOfSpecializeAttr);
     return false;
   }
 
@@ -881,7 +879,7 @@ bool Parser::parseAvailability(bool parseAsPartOfSpecializeAttr,
 
 bool Parser::parseSpecializeAttribute(
     swift::tok ClosingBrace, SourceLoc AtLoc, SourceLoc Loc,
-    SmallVectorImpl<SpecializeAttr *> &Attrs,
+    SpecializeAttr *&Attr,
     llvm::function_ref<bool(Parser &)> parseSILTargetName,
     llvm::function_ref<bool(Parser &)> parseSILSIPModule) {
   assert(ClosingBrace == tok::r_paren || ClosingBrace == tok::r_square);
@@ -923,21 +921,14 @@ bool Parser::parseSpecializeAttribute(
     kind = SpecializeAttr::SpecializationKind::Full;
 
   if (DiscardAttribute) {
-    Attrs.clear();
+    Attr = nullptr;
     return false;
   }
   // Store the attribute.
-  if (availableAttrs.empty())
-    Attrs.push_back(SpecializeAttr::create(Context, AtLoc, SourceRange(Loc, rParenLoc),
-                                  trailingWhereClause, exported.getValue(),
-                                  kind.getValue(), targetFunction, spiGroups,
-                                  nullptr));
-  else for (auto *attr: availableAttrs) {
-    Attrs.push_back(SpecializeAttr::create(Context, AtLoc, SourceRange(Loc, rParenLoc),
-                                  trailingWhereClause, exported.getValue(),
-                                  kind.getValue(), targetFunction, spiGroups,
-                                  attr));
-  }
+  Attr = SpecializeAttr::create(Context, AtLoc, SourceRange(Loc, rParenLoc),
+                                trailingWhereClause, exported.getValue(),
+                                kind.getValue(), targetFunction, spiGroups,
+                                availableAttrs);
   return true;
 }
 
@@ -2600,13 +2591,13 @@ bool Parser::parseNewDeclAttribute(DeclAttributes &Attributes, SourceLoc AtLoc,
                DeclAttribute::isDeclModifier(DK));
       return false;
     }
-    SmallVector<SpecializeAttr *, 8> Attrs;
-    if (!parseSpecializeAttribute(tok::r_paren, AtLoc, Loc, Attrs))
+    SpecializeAttr *Attr;
+    if (!parseSpecializeAttribute(tok::r_paren, AtLoc, Loc, Attr))
       return false;
-    for (auto *Attr: Attrs)
-      Attributes.add(Attr);
+
+    Attributes.add(Attr);
     break;
-  }
+    }
 
   case DAK_Implements: {
     ParserResult<ImplementsAttr> Attr = parseImplementsAttribute(AtLoc, Loc);

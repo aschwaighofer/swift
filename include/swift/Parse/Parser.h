@@ -1049,7 +1049,7 @@ public:
   /// \p Attr is where to store the parsed attribute
   bool parseSpecializeAttribute(
       swift::tok ClosingBrace, SourceLoc AtLoc, SourceLoc Loc,
-      SmallVectorImpl<SpecializeAttr *> &Attrs,
+      SpecializeAttr *&Attr,
       llvm::function_ref<bool(Parser &)> parseSILTargetName =
           [](Parser &) { return false; },
       llvm::function_ref<bool(Parser &)> parseSILSIPModule =
