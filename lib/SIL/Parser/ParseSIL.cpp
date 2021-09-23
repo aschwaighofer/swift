@@ -1089,12 +1089,12 @@ static bool parseDeclSILOptional(bool *isTransparent,
       SpecAttr.requirements = {};
       SpecAttr.exported = false;
       SpecAttr.kind = SILSpecializeAttr::SpecializationKind::Full;
-      SpecializeAttr *Attr;
+      SmallVector<SpecializeAttr *> Attrs;
       StringRef targetFunctionName;
       ModuleDecl *module = nullptr;
 
       if (!SP.P.parseSpecializeAttribute(
-              tok::r_square, AtLoc, Loc, Attr,
+              tok::r_square, AtLoc, Loc, Attrs,
               [&targetFunctionName](Parser &P) -> bool {
                 if (P.Tok.getKind() != tok::string_literal) {
                   P.diagnose(P.Tok, diag::expected_in_attribute_list);
@@ -1128,6 +1128,8 @@ static bool parseDeclSILOptional(bool *isTransparent,
           return true;
         }
       }
+      assert(Attrs.size() == 1);
+      auto Attr = Attrs[0];
       // Convert SpecializeAttr into ParsedSpecAttr.
       SpecAttr.requirements = Attr->getTrailingWhereClause()->getRequirements();
       SpecAttr.kind = Attr->getSpecializationKind() ==
