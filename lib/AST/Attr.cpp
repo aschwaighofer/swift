@@ -430,10 +430,11 @@ static bool isShortFormAvailabilityImpliedByOther(const AvailableAttr *Attr,
 ///   @available(OSX 10.10, iOS 8.0, *)
 static void printShortFormAvailable(ArrayRef<const DeclAttribute *> Attrs,
                                     ASTPrinter &Printer,
-                                    const PrintOptions &Options) {
+                                    const PrintOptions &Options,
+                                    bool forAtSpecialize = false) {
   assert(!Attrs.empty());
-
-  Printer << "@available(";
+  if (!forAtSpecialize)
+    Printer << "@available(";
   auto FirstAvail = cast<AvailableAttr>(Attrs.front());
   if (Attrs.size() == 1 &&
       FirstAvail->getPlatformAgnosticAvailability() !=
@@ -445,8 +446,9 @@ static void printShortFormAvailable(ArrayRef<const DeclAttribute *> Attrs,
       assert(FirstAvail->isPackageDescriptionVersionSpecific());
       Printer << "_PackageDescription ";
     }
-    Printer << FirstAvail->Introduced.getValue().getAsString()
-            << ")";
+    Printer << FirstAvail->Introduced.getValue().getAsString();
+    if (!forAtSpecialize)
+      Printer << ")";
   } else {
     for (auto *DA : Attrs) {
       auto *AvailAttr = cast<AvailableAttr>(DA);
@@ -458,9 +460,12 @@ static void printShortFormAvailable(ArrayRef<const DeclAttribute *> Attrs,
       Printer << platformString(AvailAttr->Platform) << " "
               << AvailAttr->Introduced.getValue().getAsString() << ", ";
     }
-    Printer << "*)";
+    Printer << "*";
+    if (!forAtSpecialize)
+      Printer << ")";
   }
-  Printer.printNewline();
+  if (!forAtSpecialize)
+    Printer.printNewline();
 }
 
 /// The kind of a parameter in a `wrt:` differentiation parameters clause:
@@ -992,12 +997,14 @@ bool DeclAttribute::printImpl(ASTPrinter &Printer, const PrintOptions &Options,
     if (!availAttrs.empty()) {
       Printer << "availability: ";
       auto numAttrs = availAttrs.size();
-      for (auto *availAttr : availAttrs) {
-        printAvailableAttr(availAttr, Printer, Options);
-        if (--numAttrs)
-          Printer << ", ";
-        else
-          Printer << "; ";
+      if (numAttrs == 1) {
+        printAvailableAttr(availAttrs[0], Printer, Options);
+        Printer << "; ";
+      } else {
+        SmallVector<const DeclAttribute*, 8> tmp(availAttrs.begin(),
+                                                 availAttrs.end());
+        printShortFormAvailable(tmp, Printer, Options, true/*forAtSpecialize*/);
+        Printer << "; ";
       }
     }
     SmallVector<Requirement, 4> requirementsScratch;
