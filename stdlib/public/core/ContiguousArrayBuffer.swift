@@ -270,10 +270,15 @@ internal struct _ContiguousArrayBuffer<Element>: _ArrayBufferProtocol {
       self = _ContiguousArrayBuffer<Element>()
     }
     else {
-      _storage = Builtin.allocWithTailElems_1(
-         _ContiguousArrayStorage<Element>.self,
-         realMinimumCapacity._builtinWordValue, Element.self)
-
+      if Element.self is AnyObject.Type {
+        _storage = Builtin.allocWithTailElems_1(
+           _ContiguousArrayStorage<AnyObject>.self,
+           realMinimumCapacity._builtinWordValue, AnyObject.self)
+      } else {
+        _storage = Builtin.allocWithTailElems_1(
+           _ContiguousArrayStorage<Element>.self,
+           realMinimumCapacity._builtinWordValue, Element.self)
+      }
       let storageAddr = UnsafeMutableRawPointer(Builtin.bridgeToRawPointer(_storage))
       if let allocSize = _mallocSize(ofAllocation: storageAddr) {
         let endAddr = storageAddr + allocSize

@@ -39,13 +39,23 @@ func _allocateUninitializedArray<Element>(_  builtinCount: Builtin.Word)
     -> (Array<Element>, Builtin.RawPointer) {
   let count = Int(builtinCount)
   if count > 0 {
-    // Doing the actual buffer allocation outside of the array.uninitialized
-    // semantics function enables stack propagation of the buffer.
-    let bufferObject = Builtin.allocWithTailElems_1(
-      _ContiguousArrayStorage<Element>.self, builtinCount, Element.self)
+    if Element.self is AnyObject.Type  {
+      // Doing the actual buffer allocation outside of the array.uninitialized
+      // semantics function enables stack propagation of the buffer.
+      let bufferObject = Builtin.allocWithTailElems_1(
+        _ContiguousArrayStorage<AnyObject>.self, builtinCount, AnyObject.self)
+      let (array, ptr) = Array<Element>._adoptStorage(unsafeBitCast(bufferObject, to: _ContiguousArrayStorage<Element>.self), count: count)
+      return (array, ptr._rawValue)
+    } else {
+      // Doing the actual buffer allocation outside of the array.uninitialized
+      // semantics function enables stack propagation of the buffer.
+      let bufferObject = Builtin.allocWithTailElems_1(
+        _ContiguousArrayStorage<Element>.self, builtinCount, Element.self)
 
-    let (array, ptr) = Array<Element>._adoptStorage(bufferObject, count: count)
-    return (array, ptr._rawValue)
+      let (array, ptr) =
+      Array<Element>._adoptStorage(bufferObject, count: count)
+      return (array, ptr._rawValue)
+    }
   }
   // For an empty array no buffer allocation is needed.
   let (array, ptr) = Array<Element>._allocateUninitialized(count)
