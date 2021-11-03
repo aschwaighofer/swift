@@ -3086,6 +3086,9 @@ public:
     if (var->hasStorage())
       AddAttribute(new (ctx) HasStorageAttr(/*isImplicit:*/true));
 
+    if (var->hasIndirectStorage())
+      AddAttribute(new (ctx) HasIndirectStorageAttr(/*isImplicit*/ true));
+
     if (opaqueReturnTypeID) {
       ctx.evaluator.cacheOutput(
           OpaqueResultTypeRequest{var},

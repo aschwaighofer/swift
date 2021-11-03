@@ -1091,8 +1091,9 @@ void PrintAST::printAttributes(const Decl *D) {
         // decl is resilient.
         if (vd->isResilient() ||
             (vd->getImplInfo().isSimpleStored() &&
-             !hasLessAccessibleSetter(vd)))
+             !hasLessAccessibleSetter(vd))) {
           Options.ExcludeAttrList.push_back(DAK_HasStorage);
+        }
       }
     }
 
@@ -3288,6 +3289,10 @@ void PrintAST::visitVarDecl(VarDecl *decl) {
       isStructOrClassContext(decl->getDeclContext()) &&
       !decl->getAttrs().hasAttribute<HasStorageAttr>())
     Printer << "@_hasStorage ";
+  if (Options.PrintForSIL && decl->hasIndirectStorage() &&
+      isa<StructDecl>(decl->getDeclContext()) &&
+      !decl->getAttrs().hasAttribute<HasIndirectStorageAttr>())
+    Printer << "@_hasIndirectStorage ";
   printAttributes(decl);
   printAccess(decl);
   if (decl->isStatic() && Options.PrintStaticKeyword)

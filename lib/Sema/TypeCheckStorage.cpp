@@ -3171,6 +3171,13 @@ static void finishStorageImplInfo(AbstractStorageDecl *storage,
               : StorageImplInfo::getImmutableComputed());
     }
   }
+  if (info.hasStorage()) {
+    if (auto aStruct = dyn_cast<StructDecl>(storage->getDeclContext())) {
+      if (aStruct->isIndirect()) {
+        info = info.withIndirectStorage();
+      }
+    }
+  }
 }
 
 /// Gets the storage info of the provided storage decl if it has the
@@ -3242,13 +3249,25 @@ StorageImplInfoRequest::evaluate(Evaluator &evaluator,
       //        StorageImplInfo such that it keeps a bitset of listed accessors
       //        and dynamically determines the access strategy from that.
       auto *SF = storage->getDeclContext()->getParentSourceFile();
-      if (SF && SF->Kind == SourceFileKind::SIL)
-        return StorageImplInfo::getSimpleStored(
+      if (SF && SF->Kind == SourceFileKind::SIL) {
+        auto info = StorageImplInfo::getSimpleStored(
           var->getParsedAccessor(AccessorKind::Set)
           ? StorageIsMutable
           : StorageIsNotMutable);
+        if (var->getAttrs().hasAttribute<HasIndirectStorageAttr>()) {
+          info = info.withIndirectStorage();
+        }
+        return info;
+      }
 
-      return classifyWithHasStorageAttr(var);
+      auto info = classifyWithHasStorageAttr(var);
+      if (auto aStruct = dyn_cast<StructDecl>(storage->getDeclContext())) {
+        if (aStruct->isIndirect() ||
+            var->getAttrs().hasAttribute<HasIndirectStorageAttr>()) {
+          info = info.withIndirectStorage();
+        }
+      }
+      return info;
     }
   }
 

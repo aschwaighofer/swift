@@ -3650,6 +3650,9 @@ public:
 
   Type getTemplateInstantiationType() const { return TemplateInstantiationType; }
   void setTemplateInstantiationType(Type t) { TemplateInstantiationType = t; }
+
+  /// True if the struct is marked 'indirect'.
+  bool isIndirect() const { return getAttrs().hasAttribute<IndirectAttr>(); }
 };
 
 /// This is the base type for AncestryOptions. Each flag describes possible
@@ -4557,6 +4560,8 @@ public:
   bool hasStorage() const {
     return getImplInfo().hasStorage();
   }
+
+  bool hasIndirectStorage() const { return getImplInfo().hasIndirectStorage(); }
 
   /// Return true if this storage has the basic accessors/capability
   /// to be mutated.  This is generally constant after the accessors are

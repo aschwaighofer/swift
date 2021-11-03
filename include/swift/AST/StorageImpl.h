@@ -249,16 +249,22 @@ enum class ReadWriteImplKind {
 };
 enum { NumReadWriteImplKindBits = 4 };
 
+enum class StorageIndirectionImplKind { Direct, Indirect };
+enum { NumStorageIndirectionImplKindBits = 1 };
+
 StringRef getReadWriteImplKindName(ReadWriteImplKind kind);
 
 class StorageImplInfo {
   using IntType = uint16_t;
-  static_assert(NumReadImplKindBits + NumWriteImplKindBits
-                  + NumReadWriteImplKindBits <= 16,
+  static_assert(NumReadImplKindBits + NumWriteImplKindBits +
+                        NumReadWriteImplKindBits +
+                        NumStorageIndirectionImplKindBits <=
+                    16,
                 "bit count exceeds IntType range");
   IntType Read : NumReadImplKindBits;
   IntType Write : NumWriteImplKindBits;
   IntType ReadWrite : NumReadWriteImplKindBits;
+  IntType Indirection : NumStorageIndirectionImplKindBits;
 
 public:
   /// A convenience constructor for building immutable storage.
@@ -267,12 +273,12 @@ public:
                       ReadWriteImplKind::Immutable) {}
 
   /// The primary constructor.
-  StorageImplInfo(ReadImplKind readImpl,
-                  WriteImplKind writeImpl,
-                  ReadWriteImplKind readWriteImpl)
-    : Read(IntType(readImpl)),
-      Write(IntType(writeImpl)),
-      ReadWrite(IntType(readWriteImpl)) {
+  StorageImplInfo(ReadImplKind readImpl, WriteImplKind writeImpl,
+                  ReadWriteImplKind readWriteImpl,
+                  StorageIndirectionImplKind indirection =
+                      StorageIndirectionImplKind::Direct)
+      : Read(IntType(readImpl)), Write(IntType(writeImpl)),
+        ReadWrite(IntType(readWriteImpl)), Indirection(IntType(indirection)) {
 #ifndef NDEBUG
     assert((writeImpl == WriteImplKind::Immutable)
              == (readWriteImpl == ReadWriteImplKind::Immutable) &&
@@ -394,6 +400,17 @@ public:
   }
   ReadWriteImplKind getReadWriteImpl() const {
     return ReadWriteImplKind(ReadWrite);
+  }
+  StorageIndirectionImplKind getStorageIndirection() const {
+    return StorageIndirectionImplKind(Indirection);
+  }
+  StorageImplInfo withIndirectStorage() const {
+    assert(hasStorage());
+    return StorageImplInfo(getReadImpl(), getWriteImpl(), getReadWriteImpl(),
+                           StorageIndirectionImplKind::Indirect);
+  }
+  bool hasIndirectStorage() const {
+    return getStorageIndirection() == StorageIndirectionImplKind::Indirect;
   }
 
 private:

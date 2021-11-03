@@ -1765,6 +1765,10 @@ public:
     if (VD->hasStorage() && !VD->getAttrs().hasAttribute<HasStorageAttr>())
       VD->getAttrs().add(new (getASTContext())
                              HasStorageAttr(/*isImplicit=*/true));
+    if (VD->hasIndirectStorage() &&
+        !VD->getAttrs().hasAttribute<HasIndirectStorageAttr>())
+      VD->getAttrs().add(new (getASTContext())
+                             HasIndirectStorageAttr(/*isImplicit*/ true));
 
     // Reject cases where this is a variable that has storage but it isn't
     // allowed.

@@ -372,7 +372,7 @@ DECL_ATTR(_swift_native_objc_runtime_base, SwiftNativeObjCRuntimeBase,
   ABIBreakingToAdd | ABIBreakingToRemove | APIStableToAdd | APIStableToRemove,
   59)
 CONTEXTUAL_SIMPLE_DECL_ATTR(indirect, Indirect, DeclModifier |
-  OnEnum | OnEnumElement |
+  OnEnum | OnEnumElement | OnStruct |
   ABIBreakingToAdd | ABIBreakingToRemove | APIStableToAdd | APIStableToRemove,
   60)
 SIMPLE_DECL_ATTR(warn_unqualified_access, WarnUnqualifiedAccess,
@@ -694,6 +694,12 @@ SIMPLE_DECL_ATTR(_noAllocation, NoAllocation,
   OnAbstractFunction | OnSubscript | UserInaccessible |
   ABIStableToAdd | ABIStableToRemove | APIStableToAdd | APIStableToRemove,
   124)
+
+SIMPLE_DECL_ATTR(_hasIndirectStorage, HasIndirectStorage,
+  OnVar |
+  UserInaccessible |
+  NotSerialized |
+  ABIStableToAdd | ABIStableToRemove | APIStableToAdd | APIStableToRemove, 125)
 
 // If you're adding a new underscored attribute here, please document it in
 // docs/ReferenceGuides/UnderscoredAttributes.md.
