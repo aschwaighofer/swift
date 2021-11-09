@@ -1247,6 +1247,49 @@ namespace {
     }
   };
 
+  /// A lowering for indirect struct types.
+  class IndirectStructTypeLowering final : public NonTrivialLoadableTypeLowering {
+  public:
+    IndirectStructTypeLowering(CanType type, RecursiveProperties properties,
+                               TypeExpansionContext forExpansion)
+      : NonTrivialLoadableTypeLowering(SILType::getPrimitiveObjectType(type),
+                                       properties,
+                                       IsNotReferenceCounted,
+                                       forExpansion) {}
+
+    SILValue emitCopyValue(SILBuilder &B, SILLocation loc,
+                           SILValue value) const override {
+      if (B.getFunction().hasOwnership())
+        return B.createCopyValue(loc, value);
+      B.createRetainValue(loc, value, B.getDefaultAtomicity());
+      return value;
+    }
+
+    SILValue emitLoweredCopyValue(SILBuilder &B, SILLocation loc,
+                                  SILValue value,
+                                  TypeExpansionKind style) const override {
+      if (B.getFunction().hasOwnership())
+        return B.createCopyValue(loc, value);
+      B.createRetainValue(loc, value, B.getDefaultAtomicity());
+      return value;
+    }
+
+    void emitDestroyValue(SILBuilder &B, SILLocation loc,
+                          SILValue value) const override {
+      if (B.getFunction().hasOwnership()) {
+        B.createDestroyValue(loc, value);
+        return;
+      }
+      B.createReleaseValue(loc, value, B.getDefaultAtomicity());
+    }
+
+    void emitLoweredDestroyValue(SILBuilder &B, SILLocation loc, SILValue value,
+                                 TypeExpansionKind style) const override {
+      // Enums, we never want to expand.
+      return emitDestroyValue(B, loc, value);
+    }
+  };
+
   /// A lowering for loadable but non-trivial enum types.
   class LoadableEnumTypeLowering final : public NonTrivialLoadableTypeLowering {
   public:
@@ -1753,6 +1796,12 @@ namespace {
 
       if (handleResilience(structType, D, properties))
         return handleAddressOnly(structType, properties);
+
+      if (D->isIndirect()) {
+        properties.setNonTrivial();
+        return new (TC) IndirectStructTypeLowering(structType, properties,
+                                                 Expansion);
+      }
 
       if (D->isCxxNonTrivial()) {
         properties.setAddressOnly();
@@ -3487,6 +3536,47 @@ TypeConverter::getContextBoxTypeForCapture(ValueDecl *captured,
   return boxType;
 }
 
+CanSILBoxType
+TypeConverter::getBoxTypeForIndirectStruct(TypeExpansionContext context,
+                                           SILType structType) {
+
+  auto *structDecl = structType.getStructOrBoundGenericStruct();
+  assert(structDecl->isIndirect());
+  auto &C = M.getASTContext();
+  auto boxSignature = getCanonicalSignatureOrNull(
+      structDecl->getGenericSignature());
+  auto storedProperties = structDecl->getStoredProperties();
+  SmallVector<TupleTypeElt, 4> loweredElts;
+  loweredElts.reserve(storedProperties.size());
+
+  for (auto *varDecl : storedProperties) {
+    auto varIntfTy = varDecl->getValueInterfaceType();
+    auto tupleEltTy = boxSignature == CanGenericSignature() ?
+      getLoweredRValueType(context, varIntfTy) :
+      getLoweredRValueType(context, getAbstractionPattern(varDecl), varIntfTy);
+    loweredElts.emplace_back(loweredSubstEltType,
+                             "",
+                             ParameterTypeFlags());
+  }
+
+  auto boxVarTy = cast<TupleType>(CanType(TupleType::get(loweredElts, Context)));
+
+  if (boxSignature == CanGenericSignature()) {
+    auto layout = SILLayout::get(C, nullptr, SILField(boxVarTy, true));
+    return SILBoxType::get(C, layout, {});
+
+  }
+  auto layout = SILLayout::get(C, boxSignature, SILField(boxVarTy, true));
+
+  // Instantiate the layout with enum's substitution list.
+  auto boundStruct = structType.getASTType();
+  auto subMap = boundStruct->getContextSubstitutionMap(
+      &M, structDecl, structDecl->getGenericEnvironment());
+
+  auto boxTy = SILBoxType::get(C, layout, subMap);
+  return boxTy;
+
+}
 CanSILBoxType TypeConverter::getBoxTypeForEnumElement(
     TypeExpansionContext context, SILType enumType, EnumElementDecl *elt) {
 
