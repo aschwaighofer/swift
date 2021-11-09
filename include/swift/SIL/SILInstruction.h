@@ -6481,6 +6481,24 @@ private:
   }
 };
 
+class IndirectStructExtractBoxInst
+    : public UnaryInstructionBase<
+          SILInstructionKind::IndirectStructExtractBoxInst,
+          FirstArgOwnershipForwardingSingleValueInst> {
+  friend SILBuilder;
+
+  IndirectStructExtractBoxInst(SILDebugLocation debugLoc, SILValue Operand,
+                               SILType ResultTy,
+                               ValueOwnershipKind forwardingOwnershipKind)
+    : UnaryInstructionBase(debugLoc, Operand, ResultTy,
+                           forwardingOwnershipKind) {}
+public:
+  StructDecl *getStructDecl() const {
+    return cast<StructDecl>(getParentDecl());
+  }
+
+};
+
 /// Extract a physical, fragile field out of a value of struct type.
 class StructExtractInst
     : public UnaryInstructionBase<

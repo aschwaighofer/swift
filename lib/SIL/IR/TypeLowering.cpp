@@ -3554,8 +3554,8 @@ TypeConverter::getBoxTypeForIndirectStruct(TypeExpansionContext context,
     auto tupleEltTy = boxSignature == CanGenericSignature() ?
       getLoweredRValueType(context, varIntfTy) :
       getLoweredRValueType(context, getAbstractionPattern(varDecl), varIntfTy);
-    loweredElts.emplace_back(loweredSubstEltType,
-                             "",
+    loweredElts.emplace_back(tupleEltTy,
+                             Identifier(),
                              ParameterTypeFlags());
   }
 

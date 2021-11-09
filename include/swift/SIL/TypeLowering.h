@@ -1110,8 +1110,7 @@ public:
                                          EnumElementDecl *elt);
 
   CanSILBoxType getBoxTypeForIndirectStruct(TypeExpansionContext context,
-                                            SILType structType,
-                                            StructDecl *theStruct);
+                                            SILType structType);
 
   /// Get the preferred abstraction pattern, if any, by which to lower a
   /// declaration.

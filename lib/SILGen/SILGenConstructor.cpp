@@ -310,6 +310,11 @@ static void emitImplicitValueConstructor(SILGenFunction &SGF,
   }
 
   SILValue selfValue = SGF.B.createStruct(Loc, selfTy, eltValues);
+  if (decl->isIndirect()) {
+    auto indirectBox = SGF.SGM.Types.getBoxTypeForIndirectStruct(SGF.getTypeExpansionContext(),
+                                                                 selfTy);
+    indirectBox->dump();
+  }
   SGF.B.createReturn(ImplicitReturnLocation(Loc),
                      selfValue, std::move(functionLevelScope));
   return;

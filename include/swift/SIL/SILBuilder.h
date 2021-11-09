@@ -1591,6 +1591,13 @@ public:
         Operand->getType().getTupleElementType(FieldNo)));
   }
 
+  IndirectStructExtractBoxInst *createIndirectStructExtractBox(
+    SILLocation loc, SILValue operand, SILType resultTy) {
+    return insert(new (getModule()) IndirectStructExtractBoxInst(
+        getSILDebugLocation(loc), operand, resultTy,
+        operand.getOwnershipKind());
+  }
+
   StructExtractInst *createStructExtract(SILLocation Loc, SILValue Operand,
                                          VarDecl *Field, SILType ResultTy) {
     return createStructExtract(Loc, Operand, Field, ResultTy,
