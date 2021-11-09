@@ -1664,7 +1664,7 @@ FUNCTION(BlockRelease, _Block_release, C_CC, AlwaysAvailable,
 FUNCTION(DeletedMethodError, swift_deletedMethodError, C_CC, AlwaysAvailable,
         RETURNS(VoidTy),
         ARGS(),
-        ATTRS(NoUnwind, WillReturn),
+        ATTRS(NoUnwind),
         EFFECT(NoEffect))
 
 FUNCTION(AllocError, swift_allocError, SwiftCC, AlwaysAvailable,
