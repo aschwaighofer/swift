@@ -4827,6 +4827,9 @@ bool SILParser::parseSpecificSILInstruction(SILBuilder &B,
       }
       break;
     }
+    case SILInstructionKind::IndirectStructExtractBoxInst: {
+      break;
+    }
     case SILInstructionKind::StructElementAddrInst:
     case SILInstructionKind::StructExtractInst: {
       ValueDecl *FieldV;

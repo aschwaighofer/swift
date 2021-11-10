@@ -338,6 +338,7 @@ static bool hasOpaqueArchetype(TypeExpansionContext context,
   case SILInstructionKind::AwaitAsyncContinuationInst:
   case SILInstructionKind::HopToExecutorInst:
   case SILInstructionKind::ExtractExecutorInst:
+  case SILInstructionKind::IndirectStructExtractBoxInst:
     // Handle by operand and result check.
     break;
 

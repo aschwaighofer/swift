@@ -1185,6 +1185,7 @@ public:
   }
   void visitTupleElementAddrInst(TupleElementAddrInst *i);
   void visitStructExtractInst(StructExtractInst *i);
+  void visitIndirectStructExtractBoxInst(IndirectStructExtractBoxInst *i);
   void visitStructElementAddrInst(StructElementAddrInst *i);
   void visitRefElementAddrInst(RefElementAddrInst *i);
   void visitRefTailAddrInst(RefTailAddrInst *i);
@@ -4630,6 +4631,10 @@ void IRGenSILFunction::visitTupleElementAddrInst(swift::TupleElementAddrInst *i)
   setLoweredAddress(i, field);
 }
 
+void IRGenSILFunction::visitIndirectStructExtractBoxInst(
+  swift::IndirectStructExtractBoxInst *i) {
+  llvm_unreachable("not yet implemented");
+}
 void IRGenSILFunction::visitStructExtractInst(swift::StructExtractInst *i) {
   Explosion operand = getLoweredExplosion(i->getOperand());
   Explosion lowered;

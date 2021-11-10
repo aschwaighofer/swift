@@ -623,6 +623,7 @@ protected:
   void visitStoreInst(StoreInst *instr);
   void visitSwitchEnumInst(SwitchEnumInst *instr);
   void visitStructExtractInst(StructExtractInst *instr);
+  void visitIndirectStructExtractBoxInst(IndirectStructExtractBoxInst *i);
   void visitRetainInst(RetainValueInst *instr);
   void visitReleaseInst(ReleaseValueInst *instr);
   void visitResultTyInst(SingleValueInstruction *instr);
@@ -905,6 +906,10 @@ void LargeValueVisitor::visitSwitchEnumInst(SwitchEnumInst *instr) {
   }
 }
 
+void LargeValueVisitor::visitIndirectStructExtractBoxInst(
+  IndirectStructExtractBoxInst *instr) {
+  llvm_unreachable("not implemented");
+}
 void LargeValueVisitor::visitStructExtractInst(StructExtractInst *instr) {
   SILValue operand = instr->getOperand();
   if (std::find(pass.largeLoadableArgs.begin(), pass.largeLoadableArgs.end(),

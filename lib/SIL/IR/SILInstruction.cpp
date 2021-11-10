@@ -550,6 +550,13 @@ namespace {
       return S1 == RHS->getStructDecl();
     }
 
+    bool visitIndirectStructExtractBoxInst(const IndirectStructExtractBoxInst *RHS) {
+      auto *X = cast<IndirectStructExtractBoxInst>(LHS);
+      if (X->getStructDecl() != RHS->getStructDecl())
+        return false;
+      return true;
+    }
+
     bool visitStructExtractInst(const StructExtractInst *RHS) {
       // We have already checked that the operands of our struct_extracts
       // match. Thus we need to check the field/struct decl which are not

@@ -1595,7 +1595,7 @@ public:
     SILLocation loc, SILValue operand, SILType resultTy) {
     return insert(new (getModule()) IndirectStructExtractBoxInst(
         getSILDebugLocation(loc), operand, resultTy,
-        operand.getOwnershipKind());
+        operand.getOwnershipKind()));
   }
 
   StructExtractInst *createStructExtract(SILLocation Loc, SILValue Operand,

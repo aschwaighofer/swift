@@ -1340,6 +1340,7 @@ bool SILDeserializer::readSILInstruction(SILFunction *Fn,
   ONEOPERAND_ONETYPE_INST(ThinFunctionToPointer)
   ONEOPERAND_ONETYPE_INST(PointerToThinFunction)
   ONEOPERAND_ONETYPE_INST(ProjectBlockStorage)
+  ONEOPERAND_ONETYPE_INST(IndirectStructExtractBox)
 #undef ONEOPERAND_ONETYPE_INST
 
   case SILInstructionKind::ProjectBoxInst: {

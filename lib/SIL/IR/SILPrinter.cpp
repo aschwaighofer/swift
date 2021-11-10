@@ -1998,6 +1998,10 @@ public:
   void visitTupleElementAddrInst(TupleElementAddrInst *EI) {
     *this << getIDAndType(EI->getOperand()) << ", " << EI->getFieldIndex();
   }
+  void visitIndirectStructExtractBoxInst(IndirectStructExtractBoxInst *EI) {
+    *this << getIDAndType(EI->getOperand());
+    printForwardingOwnershipKind(EI, EI->getOperand());
+  }
   void visitStructExtractInst(StructExtractInst *EI) {
     *this << getIDAndType(EI->getOperand()) << ", #";
     printFullContext(EI->getField()->getDeclContext(), PrintState.OS);

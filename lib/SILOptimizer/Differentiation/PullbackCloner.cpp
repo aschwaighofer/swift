@@ -1099,6 +1099,10 @@ public:
     }
   }
 
+  void visitIndirectStructExtractBoxInst(IndirectStructExtractBoxInst *i) {
+    llvm_unreachable("todo");
+  }
+
   /// Handle `struct_extract` instruction.
   ///   Original: y = struct_extract x, #field
   ///    Adjoint: adj[x] += struct (0, ..., #field': adj[y], ..., 0)

@@ -268,6 +268,7 @@ OPERAND_OWNERSHIP(InteriorPointer, ExtractExecutor)
 // Instructions that propagate a value value within a borrow scope.
 OPERAND_OWNERSHIP(ForwardingBorrow, TupleExtract)
 OPERAND_OWNERSHIP(ForwardingBorrow, StructExtract)
+OPERAND_OWNERSHIP(ForwardingBorrow, IndirectStructExtractBox)
 OPERAND_OWNERSHIP(ForwardingBorrow, DifferentiableFunctionExtract)
 OPERAND_OWNERSHIP(ForwardingBorrow, LinearFunctionExtract)
 // FIXME: OpenExistential[Box]Value should be able to take owned values too by

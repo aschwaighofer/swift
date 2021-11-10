@@ -6484,7 +6484,7 @@ private:
 class IndirectStructExtractBoxInst
     : public UnaryInstructionBase<
           SILInstructionKind::IndirectStructExtractBoxInst,
-          FirstArgOwnershipForwardingSingleValueInst> {
+          GuaranteedFirstArgForwardingSingleValueInst> {
   friend SILBuilder;
 
   IndirectStructExtractBoxInst(SILDebugLocation debugLoc, SILValue Operand,
@@ -6494,9 +6494,11 @@ class IndirectStructExtractBoxInst
                            forwardingOwnershipKind) {}
 public:
   StructDecl *getStructDecl() const {
-    return cast<StructDecl>(getParentDecl());
-  }
+    auto s = getOperand()->getType().getNominalOrBoundGenericNominal();
+    assert(s);
 
+    return cast<StructDecl>(s);
+  }
 };
 
 /// Extract a physical, fragile field out of a value of struct type.

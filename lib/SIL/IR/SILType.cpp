@@ -210,6 +210,16 @@ SILType SILType::getFieldType(VarDecl *field, SILModule &M,
   return getFieldType(field, M.Types, context);
 }
 
+SILType SILType::getIndirectStructBoxType(SILType structTy,
+                                          TypeConverter &TC,
+                                          TypeExpansionContext context) const {
+  auto loweredTy = TC.getBoxTypeForIndirectStruct();
+}
+SILType SILType::getIndirectStructBoxType(SILType structTy, SILModule &M,
+                                          TypeExpansionContext context) const {
+  return getIndirectStructBoxType(structTy, M.Types, context);
+}
+
 SILType SILType::getEnumElementType(EnumElementDecl *elt, TypeConverter &TC,
                                     TypeExpansionContext context) const {
   assert(elt->getDeclContext() == getEnumOrBoundGenericEnum());

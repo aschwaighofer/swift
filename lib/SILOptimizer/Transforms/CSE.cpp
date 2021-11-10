@@ -219,6 +219,11 @@ public:
         llvm::hash_combine_range(Operands.begin(), Operands.end()));
   }
 
+  hash_code visitIndirectStructExtractBoxInst(IndirectStructExtractBoxInst *X) {
+    return llvm::hash_combine(X->getKind(), X->getStructDecl(),
+                              X->getOperand());
+  }
+
   hash_code visitStructExtractInst(StructExtractInst *X) {
     return llvm::hash_combine(X->getKind(), X->getStructDecl(), X->getField(),
                               lookThroughOwnershipInsts(X->getOperand()));
