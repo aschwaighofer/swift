@@ -804,6 +804,7 @@ SILCloner<ImplClass>::visitAllocRefDynamicInst(AllocRefDynamicInst *Inst) {
                                       getOpValue(Inst->getMetatypeOperand()),
                                       getOpType(Inst->getType()),
                                       Inst->isObjC(),
+                                      Inst->canAllocOnStack(),
                                       ElemTypes, CountArgs);
   recordClonedInstruction(Inst, NewInst);
 }

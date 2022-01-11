@@ -256,7 +256,8 @@ func myUnsafeBitCast<T, U>(_ x: T, to type: U.Type) -> U {
   return Builtin.reinterpretCast(x)
 }
 
-@inlinable
+@usableFromInline
+@_effects(readonly)
 func getContiguousArrayStorageType<Element>(for : Element.Type) -> _ContiguousArrayStorage<Element>.Type {
     if Element.self is AnyObject.Type {
         return myUnsafeBitCast(_ContiguousArrayStorage<AnyObject>.self, to: _ContiguousArrayStorage<Element>.Type.self)

@@ -49,7 +49,7 @@ private:
                       DeadEndBlocks &DEBlocks);
 
   /// Tries to promote the allocation \p ARI.
-  bool tryPromoteAlloc(AllocRefInst *ARI, EscapeAnalysis *EA,
+  bool tryPromoteAlloc(AllocRefInstBase *ARI, EscapeAnalysis *EA,
                        DeadEndBlocks &DEBlocks);
 };
 
@@ -87,7 +87,7 @@ bool StackPromotion::promoteInBlock(SILBasicBlock *BB, EscapeAnalysis *EA,
     // The allocation instruction may be moved, so increment Iter prior to
     // doing the optimization.
     SILInstruction *I = &*Iter++;
-    if (auto *ARI = dyn_cast<AllocRefInst>(I)) {
+    if (auto *ARI = dyn_cast<AllocRefInstBase>(I)) {
       // Don't stack promote any allocation inside a code region which ends up
       // in a no-return block. Such allocations may missing their final release.
       // We would insert the deallocation too early, which may result in a
@@ -101,7 +101,7 @@ bool StackPromotion::promoteInBlock(SILBasicBlock *BB, EscapeAnalysis *EA,
   return Changed;
 }
 
-bool StackPromotion::tryPromoteAlloc(AllocRefInst *ARI, EscapeAnalysis *EA,
+bool StackPromotion::tryPromoteAlloc(AllocRefInstBase *ARI, EscapeAnalysis *EA,
                                      DeadEndBlocks &DEBlocks) {
   if (ARI->isObjC() || ARI->canAllocOnStack())
     return false;

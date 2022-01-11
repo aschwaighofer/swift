@@ -5401,6 +5401,7 @@ void IRGenSILFunction::visitAllocRefInst(swift::AllocRefInst *i) {
 }
 
 void IRGenSILFunction::visitAllocRefDynamicInst(swift::AllocRefDynamicInst *i) {
+  assert(!i->canAllocOnStack()); // TODO: implement
   SmallVector<std::pair<SILType, llvm::Value *>, 4> TailArrays;
   buildTailArrays(*this, TailArrays, i);
 
@@ -5433,7 +5434,7 @@ void IRGenSILFunction::visitDeallocRefInst(swift::DeallocRefInst *i) {
   // Lower the operand.
   Explosion self = getLoweredExplosion(i->getOperand());
   auto selfValue = self.claimNext();
-  auto *ARI = dyn_cast<AllocRefInst>(i->getOperand());
+  auto *ARI = dyn_cast<AllocRefInstBase>(i->getOperand());
   if (!i->canAllocOnStack()) {
     if (ARI && StackAllocs.count(ARI)) {
       // We can ignore dealloc_refs (without [stack]) for stack allocated

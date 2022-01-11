@@ -114,7 +114,7 @@ devirtualizeReleaseOfObject(SILInstruction *ReleaseInst,
     return false;
 
   // Is the dealloc_ref paired with an alloc_ref?
-  auto *ARI = dyn_cast<AllocRefInst>(DeallocInst->getOperand());
+  auto *ARI = dyn_cast<AllocRefInstBase>(DeallocInst->getOperand());
   if (!ARI)
     return false;
 
