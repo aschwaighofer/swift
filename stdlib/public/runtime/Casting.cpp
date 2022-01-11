@@ -17,6 +17,7 @@
 
 #include "swift/Runtime/Casting.h"
 #include "../SwiftShims/RuntimeShims.h"
+#include "../SwiftShims/GlobalObjects.h"
 #include "../CompatibilityOverride/CompatibilityOverride.h"
 #include "ErrorObject.h"
 #include "ExistentialMetadataImpl.h"
@@ -1409,6 +1410,16 @@ SWIFT_CC(swift) SWIFT_RUNTIME_STDLIB_API
 bool _swift_isClassOrObjCExistentialType(const Metadata *value,
                                                     const Metadata *T) {
   return swift_isClassOrObjCExistentialTypeImpl(T);
+}
+
+SWIFT_CC(swift) SWIFT_RUNTIME_STDLIB_API
+void _swift_setClassMetadata(const HeapMetadata *newClassMetadata,
+                             HeapObject* onObject,
+                             const Metadata *T) {
+  if (onObject != reinterpret_cast<HeapObject*>(&_swiftEmptyArrayStorage)) {
+    assert(T == newClassMetadata);
+    onObject->metadata = newClassMetadata;
+  }
 }
 
 SWIFT_CC(swift) SWIFT_RUNTIME_STDLIB_INTERNAL

@@ -250,6 +250,20 @@ internal final class _ContiguousArrayStorage<
   }
 }
 
+@inlinable
+@_transparent
+func myUnsafeBitCast<T, U>(_ x: T, to type: U.Type) -> U {
+  return Builtin.reinterpretCast(x)
+}
+
+@usableFromInline
+@_effects(readonly)
+func getContiguousArrayStorageType<Element>(for : Element.Type) -> _ContiguousArrayStorage<Element>.Type {
+    if Element.self is AnyObject.Type {
+        return myUnsafeBitCast(_ContiguousArrayStorage<AnyObject>.self, to: _ContiguousArrayStorage<Element>.Type.self)
+    }
+    return _ContiguousArrayStorage<Element>.self
+}
 @usableFromInline
 @frozen
 internal struct _ContiguousArrayBuffer<Element>: _ArrayBufferProtocol {
@@ -271,7 +285,7 @@ internal struct _ContiguousArrayBuffer<Element>: _ArrayBufferProtocol {
     }
     else {
       _storage = Builtin.allocWithTailElems_1(
-         _ContiguousArrayStorage<Element>.self,
+         getContiguousArrayStorageType(for: Element.self),
          realMinimumCapacity._builtinWordValue, Element.self)
 
       let storageAddr = UnsafeMutableRawPointer(Builtin.bridgeToRawPointer(_storage))
@@ -792,6 +806,13 @@ internal struct _ContiguousArrayBuffer<Element>: _ArrayBufferProtocol {
       return _emptyArrayStorage
     }
     if _isBridgedVerbatimToObjectiveC(Element.self) {
+      // We optimize _ContiguousArrayStorage<Element> where Element is any
+      // class type to use _ContiguousArrayStorage<AnyObject> when we bridge
+      // to objective-c we need to set the correct Element type so that when
+      // we bridge back we can use O(1) bridging i.e we can adopt the storage.
+      _swift_setClassMetadata(_ContiguousArrayStorage<Element>.self,
+                              onObject: _storage)
+
       return _storage
     }
     return __SwiftDeferredNSArray(_nativeStorage: _storage)
