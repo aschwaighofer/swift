@@ -88,6 +88,13 @@ bool StackPromotion::promoteInBlock(SILBasicBlock *BB, EscapeAnalysis *EA,
     // doing the optimization.
     SILInstruction *I = &*Iter++;
     if (auto *ARI = dyn_cast<AllocRefInstBase>(I)) {
+
+      // We can only stack promote alloc_ref_dynamic instructions whose size and
+      // deinit is known to be equivalent to the base type.
+      auto *ARD = dyn_cast<AllocRefDynamicInst>(I);
+      if (ARD && !ARD->isDynamicTypeDeinitAndSizeKnownEquivalentToBaseType())
+        return false;
+
       // Don't stack promote any allocation inside a code region which ends up
       // in a no-return block. Such allocations may missing their final release.
       // We would insert the deallocation too early, which may result in a

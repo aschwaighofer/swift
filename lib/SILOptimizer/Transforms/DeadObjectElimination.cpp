@@ -79,6 +79,14 @@ enum class DestructorEffects {
 // dead. This means that the object is never passed to objc_setAssociatedObject,
 // so its destructor cannot be extended at runtime.
 static SILFunction *getDestructor(AllocRefInstBase *ARI) {
+
+  // We can't know the destructor for an alloc_ref_dynamic instruction in
+  // general.
+  auto *dynamicAllocRef = dyn_cast<AllocRefDynamicInst>(ARI);
+  if (dynamicAllocRef &&
+      !dynamicAllocRef->isDynamicTypeDeinitAndSizeKnownEquivalentToBaseType())
+    return nullptr;
+
   // We only support classes.
   ClassDecl *ClsDecl = ARI->getType().getClassOrBoundGenericClass();
   if (!ClsDecl)

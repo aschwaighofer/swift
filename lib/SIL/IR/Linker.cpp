@@ -331,6 +331,9 @@ void SILLinkerVisitor::visitAllocRefDynamicInst(AllocRefDynamicInst *ARI) {
   if (!isLinkAll())
     return;
 
+  if (!ARI->isDynamicTypeDeinitAndSizeKnownEquivalentToBaseType())
+    return;
+
   // Grab the class decl from the alloc ref inst.
   ClassDecl *D = ARI->getType().getClassOrBoundGenericClass();
   if (!D)
