@@ -36,8 +36,6 @@ public func testThreeInts(_ a: inout [Int]) {
 }
 
 // CHECK-LABEL: sil @{{.*}}testTooManyInts
-// CHECK: apply
-// CHECK: alloc_ref_dynamic
 // CHECK-NOT: apply
 // CHECK:        [[F:%[0-9]+]] = function_ref  @${{.*append.*contentsOf.*}}
 // CHECK-NOT: apply
