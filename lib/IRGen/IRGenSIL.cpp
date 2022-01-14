@@ -5401,7 +5401,14 @@ void IRGenSILFunction::visitAllocRefInst(swift::AllocRefInst *i) {
 }
 
 void IRGenSILFunction::visitAllocRefDynamicInst(swift::AllocRefDynamicInst *i) {
-  assert(!i->canAllocOnStack()); // TODO: implement
+  int StackAllocSize = -1;
+  if (i->canAllocOnStack()) {
+    assert(i->isDynamicTypeDeinitAndSizeKnownEquivalentToBaseType());
+    estimateStackSize();
+    // Is there enough space for stack allocation?
+    StackAllocSize = IGM.IRGen.Opts.StackPromotionSizeLimit - EstimatedStackSize;
+  }
+
   SmallVector<std::pair<SILType, llvm::Value *>, 4> TailArrays;
   buildTailArrays(*this, TailArrays, i);
 
@@ -5409,7 +5416,15 @@ void IRGenSILFunction::visitAllocRefDynamicInst(swift::AllocRefDynamicInst *i) {
   auto metadataValue = metadata.claimNext();
   llvm::Value *alloced = emitClassAllocationDynamic(*this, metadataValue,
                                                     i->getType(), i->isObjC(),
+                                                    StackAllocSize,
                                                     TailArrays);
+
+  if (StackAllocSize >= 0) {
+    // Remember that this alloc_ref_dynamic allocates the object on the stack.
+    StackAllocs.insert(i);
+    EstimatedStackSize += StackAllocSize;
+  }
+
   Explosion e;
   e.add(alloced);
   setLoweredExplosion(i, e);
