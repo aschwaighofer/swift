@@ -207,7 +207,7 @@ SILValue swift::getInstanceWithExactDynamicType(SILValue instance,
   while (instance) {
     instance = stripCasts(instance);
 
-    if (isa<AllocRefInstBase>(instance) || isa<MetatypeInst>(instance)) {
+    if (isa<AllocRefInst>(instance) || isa<MetatypeInst>(instance)) {
       if (instance->getType().getASTType()->hasDynamicSelfType())
         return SILValue();
       return instance;
@@ -276,7 +276,7 @@ SILType swift::getExactDynamicType(SILValue instance,
     // For the object itself, simply strip casts.
     v = forUnderlyingObject ? getUnderlyingObject(v) : stripCasts(v);
 
-    if (isa<AllocRefInstBase>(v) || isa<MetatypeInst>(v)) {
+    if (isa<AllocRefInst>(v) || isa<MetatypeInst>(v)) {
       if (resultType && resultType != v->getType())
         return SILType();
       resultType = v->getType();
