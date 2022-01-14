@@ -307,6 +307,16 @@ AllocRefDynamicInst::create(SILDebugLocation DebugLoc, SILFunction &F,
                           AllOperands);
 }
 
+bool AllocRefDynamicInst::isDynamicTypeDeinitAndSizeKnownEquivalentToBaseType() const {
+  auto baseType = this->getType();
+  auto classType = baseType.getASTType();
+  // We know that the dynamic type for _ContiguousArrayStorage is compatible
+  // with the base type in size and deinit behavior.
+  if (classType->is_ContiguousArrayStorage())
+    return true;
+  return false;
+}
+
 AllocBoxInst::AllocBoxInst(SILDebugLocation Loc, CanSILBoxType BoxType,
                            ArrayRef<SILValue> TypeDependentOperands,
                            SILFunction &F, Optional<SILDebugVariable> Var,

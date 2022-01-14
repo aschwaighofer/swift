@@ -2247,6 +2247,9 @@ public:
   MutableArrayRef<Operand> getTypeDependentOperands() {
     return getAllOperands().slice(getNumTailTypes() + 1);
   }
+  // Is the deinit and the size of the dynamic type known to be equivalent to
+  // the the base type (i.e `this->getType()`).
+  bool isDynamicTypeDeinitAndSizeKnownEquivalentToBaseType() const;
 };
 
 /// This represents the allocation of a heap box for a Swift value of some type.
