@@ -375,6 +375,11 @@ broadenSingleElementStores(StoreInst *storeInst,
   auto nextII = std::next(storeInst->getIterator());
   auto *f = storeInst->getFunction();
 
+  // Don't promote large values.
+  if (!shouldExpand(storeInst->getFunction()->getModule(),
+                    storeInst->getSrc()->getType()))
+    return nextII;
+
   ProjectionPath projections(storeInst->getDest()->getType());
   SILValue op = storeInst->getDest();
   while (isa<StructElementAddrInst>(op)) {

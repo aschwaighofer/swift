@@ -27,10 +27,13 @@
 #include "swift/SIL/SILArgument.h"
 #include "swift/SIL/SILBuilder.h"
 #include "swift/SIL/SILUndef.h"
+#include "swift/SILOptimizer/Analysis/AliasAnalysis.h"
+#include "swift/SILOptimizer/Analysis/EscapeAnalysis.h"
 #include "swift/SILOptimizer/PassManager/Transforms.h"
 #include "swift/SILOptimizer/Utils/InstOptUtils.h"
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/SetVector.h"
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 
@@ -3085,6 +3088,138 @@ void LoadableByAddress::run() {
   uncheckedEnumDataOfFunc.clear();
   modApplies.clear();
   storeToBlockStorageInstrs.clear();
+
+  getPassManager()->invalidateAllAnalysis();
+  getPassManager()->getAnalysis<EscapeAnalysis>()->invalidate();
+  // Peepholes
+  for (SILFunction &CurrF : *getModule()) {
+    if (!CurrF.isDefinition())
+      continue;
+    auto *AA = getPassManager()->getAnalysis<AliasAnalysis>(&CurrF);
+
+    GenericEnvironment *genEnv = getSubstGenericEnvironment(&CurrF);
+    auto &irgenMod = *getIRGenModule()->IRGen.getGenModule(&CurrF);
+
+    SmallVector<SILInstruction *, 64> Delete;
+    llvm::DenseSet<SILInstruction *> Ignore;
+
+    for (SILBasicBlock &BB : CurrF) {
+      for (SILInstruction &I : BB) {
+        if (Ignore.count(&I))
+          continue;
+        // %4 = load %3 : $*LargeThing
+        // retain_value %4 : $LargeThing
+        // store %4 to %0 : $*LargeThing
+        // ->
+        // copy_addr %3 to [init] %0
+        if (auto *LI = dyn_cast<LoadInst>(&I)) {
+          [&]() {
+            if (!LI->hasOneUse())
+              return;
+            auto nextIt = std::next(SILBasicBlock::iterator(LI));
+            if (nextIt == BB.end())
+              return;
+            auto *retain = dyn_cast<RetainValueInst>(&*nextIt);
+            if (!retain || retain->getOperand() != LI)
+              return;
+            auto next2It = std::next(nextIt);
+            if (next2It == BB.end())
+              return;
+            auto *store = dyn_cast<StoreInst>(&*next2It);
+            if (!store)
+              return;
+            SILBuilderWithScope builder(LI);
+            builder.createCopyAddr(store->getLoc(), LI->getOperand(),
+                                   store->getDest(), IsNotTake,
+                                   IsInitialization);
+            Ignore.insert(LI);
+            Ignore.insert(retain);
+            Ignore.insert(store);
+            Delete.push_back(store);
+            Delete.push_back(retain);
+            Delete.push_back(LI);
+          }();
+        }
+        //  %5 = load %4 : $*LargeThing
+        //  copy_addr [take] %0 to [initialization] %4 : $*LargeThing
+        //  release_value %5 : $LargeThing
+        //  ->
+        //  copy_addr [take] %0 to %4
+        if (auto *LI = dyn_cast<LoadInst>(&I)) {
+          [&]() {
+            if (!LI->hasOneUse())
+              return;
+            auto nextIt = std::next(SILBasicBlock::iterator(LI));
+            if (nextIt == BB.end())
+              return;
+            auto *copyAddr = dyn_cast<CopyAddrInst>(&*nextIt);
+            if (!copyAddr || copyAddr->getDest() != LI->getOperand() ||
+                !copyAddr->isTakeOfSrc() || !copyAddr->isInitializationOfDest())
+              return;
+            auto next2It = std::next(nextIt);
+            if (next2It == BB.end())
+              return;
+            auto *release = dyn_cast<ReleaseValueInst>(&*next2It);
+            if (!release || release->getOperand() != LI)
+              return;
+
+            SILBuilderWithScope builder(LI);
+            builder.createCopyAddr(copyAddr->getLoc(), copyAddr->getSrc(),
+                                   copyAddr->getDest(), IsTake,
+                                   IsNotInitialization);
+            Ignore.insert(LI);
+            Ignore.insert(release);
+            Ignore.insert(copyAddr);
+            Delete.push_back(release);
+            Delete.push_back(copyAddr);
+            Delete.push_back(LI);
+          }();
+        }
+        // load ; ... ; store -> copy_addr
+        if (auto *SI = dyn_cast<StoreInst>(&I)) {
+          auto ty = SI->getSrc()->getType();
+          if (!::isLargeLoadableType(genEnv, ty, irgenMod))
+            continue;
+          if (auto *LI = dyn_cast<LoadInst>(SI->getSrc())) {
+            if (LI->getParent() != SI->getParent() || !LI->hasOneUse())
+              continue;
+
+            bool canHoistStore = true;
+            bool canSinkLoad = true;
+
+            for (auto it = SILBasicBlock::iterator(LI),
+                      end = SILBasicBlock::iterator(SI);
+                 it != end; ++it) {
+
+              auto *destInst = SI->getDest().getDefiningInstruction();
+              if (AA->mayReadFromMemory(&*it, SI->getDest()) ||
+                  (destInst && destInst == &*it))
+                canHoistStore = false;
+
+              if (AA->mayWriteToMemory(&*it, LI->getOperand()))
+                canSinkLoad = false;
+            }
+
+            if (canHoistStore) {
+              SILBuilderWithScope builder(LI);
+              builder.createCopyAddr(SI->getLoc(), LI->getOperand(),
+                                     SI->getDest(), IsTake, IsInitialization);
+              Delete.push_back(SI);
+              Delete.push_back(LI);
+            } else if (canSinkLoad) {
+              SILBuilderWithScope builder(SI);
+              builder.createCopyAddr(SI->getLoc(), LI->getOperand(),
+                                     SI->getDest(), IsTake, IsInitialization);
+              Delete.push_back(SI);
+              Delete.push_back(LI);
+            }
+          }
+        }
+      }
+    }
+    for (auto *Inst : Delete)
+      Inst->eraseFromParent();
+  }
 }
 
 SILTransform *irgen::createLoadableByAddress() {
