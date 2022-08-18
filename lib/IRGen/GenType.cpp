@@ -112,13 +112,14 @@ TypeInfo::~TypeInfo() {
 }
 
 Address TypeInfo::getAddressForPointer(llvm::Value *ptr) const {
-  assert(ptr->getType()->getPointerElementType() == StorageType);
-  return Address(ptr, getBestKnownAlignment());
+  assert(cast<llvm::PointerType>(ptr->getType())
+             ->isOpaqueOrPointeeTypeMatches(getStorageType()));
+  return Address(ptr, getStorageType(), getBestKnownAlignment());
 }
 
 Address TypeInfo::getUndefAddress() const {
   return Address(llvm::UndefValue::get(getStorageType()->getPointerTo(0)),
-                 getBestKnownAlignment());
+                 getStorageType(), getBestKnownAlignment());
 }
 
 /// Whether this type is known to be empty.
@@ -667,9 +668,9 @@ llvm::Value *irgen::getFixedTypeEnumTagSinglePayload(
   auto *extraTagBitsAddr =
       Builder.CreateConstInBoundsGEP1_32(IGM.Int8Ty, valueAddr,
           fixedSize.getValue());
-  auto *extraTagBits = emitGetTag(IGF,
-      Address(extraTagBitsAddr, Alignment(1)),
-      numExtraTagBytes);
+  auto *extraTagBits =
+      emitGetTag(IGF, Address(extraTagBitsAddr, IGM.Int8Ty, Alignment(1)),
+                 numExtraTagBytes);
 
   extraTagBitsBB = llvm::BasicBlock::Create(Ctx);
   Builder.CreateCondBr(Builder.CreateICmpEQ(extraTagBits, zero),
@@ -698,14 +699,16 @@ llvm::Value *irgen::getFixedTypeEnumTagSinglePayload(
       auto *caseIndexAddr =
           Builder.CreateBitCast(valueAddr, caseIndexType->getPointerTo());
       caseIndexFromValue = Builder.CreateZExtOrTrunc(
-          Builder.CreateLoad(Address(caseIndexAddr, Alignment(1))),
+          Builder.CreateLoad(
+              Address(caseIndexAddr, caseIndexType, Alignment(1))),
           IGM.Int32Ty);
     } else {
       auto *caseIndexType = llvm::IntegerType::get(Ctx, 32);
       auto *caseIndexAddr =
           Builder.CreateBitCast(valueAddr, caseIndexType->getPointerTo());
       caseIndexFromValue = Builder.CreateZExtOrTrunc(
-          Builder.CreateLoad(Address(caseIndexAddr, Alignment(1))),
+          Builder.CreateLoad(
+              Address(caseIndexAddr, caseIndexType, Alignment(1))),
           IGM.Int32Ty);
     }
   }
