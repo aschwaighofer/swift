@@ -2041,7 +2041,8 @@ llvm::Value *emitIndirectAsyncFunctionPointer(IRGenFunction &IGF,
   llvm::Value *IntToPtr =
       IGF.Builder.CreateIntToPtr(UntaggedPointer,
                                  AsyncFunctionPointerPtrTy->getPointerTo());
-  llvm::Value *Load = IGF.Builder.CreateLoad(IntToPtr, PointerAlignment);
+  llvm::Value *Load = IGF.Builder.CreateLoad(
+      IntToPtr, AsyncFunctionPointerPtrTy, PointerAlignment);
 
   // (select (icmp eq, (and (ptrtoint %AsyncFunctionPointer), 1), 0),
   //         (%AsyncFunctionPointer),
@@ -2121,7 +2122,8 @@ std::pair<llvm::Value *, llvm::Value *> irgen::getAsyncFunctionAndSize(
       auto *sizePtr = IGF.Builder.CreateStructGEP(
           getAFPPtr()->getType()->getScalarType()->getPointerElementType(),
           getAFPPtr(), 1);
-      size = IGF.Builder.CreateLoad(sizePtr, IGF.IGM.getPointerAlignment());
+      size = IGF.Builder.CreateLoad(sizePtr, IGF.IGM.Int32Ty,
+                                    IGF.IGM.getPointerAlignment());
     }
   }
   return {fn, size};
@@ -2247,8 +2249,13 @@ public:
         auto *arg = getCallee().getCXXMethodSelf();
         // We might need to fix the level of indirection for foreign reference types.
         if (selfParam.getInterfaceType().isForeignReferenceType() &&
-            isIndirectFormalParameter(selfParam.getConvention()))
-            arg = IGF.Builder.CreateLoad(arg, IGF.IGM.getPointerAlignment());
+            isIndirectFormalParameter(selfParam.getConvention())) {
+          auto paramTy = fnConv.getSILType(
+              selfParam, IGF.IGM.getMaximalTypeExpansionContext());
+          auto &paramTI = cast<FixedTypeInfo>(IGF.IGM.getTypeInfo(paramTy));
+          arg = IGF.Builder.CreateLoad(arg, paramTI.getStorageType(),
+                                       IGF.IGM.getPointerAlignment());
+        }
 
         adjusted.add(arg);
       }
@@ -3618,8 +3625,11 @@ static void externalizeArguments(IRGenFunction &IGF, const Callee &callee,
     // and we can simply use the input directly.
     if (paramType.isForeignReferenceType()) {
       auto *arg = in.claimNext();
-      if (isIndirectFormalParameter(params[i - firstParam].getConvention()))
-        arg = IGF.Builder.CreateLoad(arg, IGF.IGM.getPointerAlignment());
+      if (isIndirectFormalParameter(params[i - firstParam].getConvention())) {
+        auto storageTy = IGF.IGM.getTypeInfo(paramType).getStorageType();
+        arg = IGF.Builder.CreateLoad(arg, storageTy,
+                                     IGF.IGM.getPointerAlignment());
+      }
       out.add(arg);
       continue;
     }
