@@ -159,15 +159,15 @@ public:
   llvm::Value *CreateAlloca(llvm::Type *type, llvm::Value *arraySize,
                             const llvm::Twine &name = "") = delete;
 
-  llvm::LoadInst *CreateLoad(llvm::Value *addr, Alignment align,
-                             const llvm::Twine &name = "") {
-    llvm::LoadInst *load = IRBuilderBase::CreateLoad(
-        addr->getType()->getPointerElementType(), addr, name);
+  llvm::LoadInst *CreateLoad(llvm::Value *addr, llvm::Type *elementType,
+                             Alignment align, const llvm::Twine &name = "") {
+    llvm::LoadInst *load = IRBuilderBase::CreateLoad(elementType, addr, name);
     load->setAlignment(llvm::MaybeAlign(align.getValue()).valueOrOne());
     return load;
   }
   llvm::LoadInst *CreateLoad(Address addr, const llvm::Twine &name = "") {
-    return CreateLoad(addr.getAddress(), addr.getAlignment(), name);
+    return CreateLoad(addr.getAddress(), addr.getElementType(),
+                      addr.getAlignment(), name);
   }
 
   llvm::StoreInst *CreateStore(llvm::Value *value, llvm::Value *addr,
