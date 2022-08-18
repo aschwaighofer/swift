@@ -1065,8 +1065,8 @@ public:
   llvm::Constant *getAddrOfObjCMethodName(StringRef methodName);
   llvm::Constant *getAddrOfObjCProtocolRecord(ProtocolDecl *proto,
                                               ForDefinition_t forDefinition);
-  llvm::Constant *getAddrOfObjCProtocolRef(ProtocolDecl *proto,
-                                           ForDefinition_t forDefinition);
+  Address getAddrOfObjCProtocolRef(ProtocolDecl *proto,
+                                   ForDefinition_t forDefinition);
   llvm::Constant *getAddrOfKeyPathPattern(KeyPathPattern *pattern,
                                           SILLocation diagLoc);
   llvm::Constant *getAddrOfOpaqueTypeDescriptor(OpaqueTypeDecl *opaqueType,

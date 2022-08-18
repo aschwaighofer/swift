@@ -338,12 +338,9 @@ llvm::Value *irgen::emitReferenceToObjCProtocol(IRGenFunction &IGF,
 
   // Get the address of the global variable the protocol reference gets
   // indirected through.
-  llvm::Constant *protocolRefAddr
-    = IGF.IGM.getAddrOfObjCProtocolRef(proto, NotForDefinition);
-
-  // Load the protocol reference.
-  Address addr(protocolRefAddr, IGF.IGM.getPointerAlignment());
-  return IGF.Builder.CreateLoad(addr);
+  auto protocolRefAddr =
+      IGF.IGM.getAddrOfObjCProtocolRef(proto, NotForDefinition);
+  return IGF.Builder.CreateLoad(protocolRefAddr);
 }
 
 /// Emit a helper function to look up \c numProtocols witness tables given

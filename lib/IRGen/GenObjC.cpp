@@ -331,10 +331,11 @@ IRGenModule::getAddrOfObjCProtocolRecord(ProtocolDecl *proto,
 /// create ObjC protocol_t records for protocols, storing references to the
 /// record into the __objc_protolist and __objc_protorefs sections to be
 /// fixed up by the runtime.
-llvm::Constant *IRGenModule::getAddrOfObjCProtocolRef(ProtocolDecl *proto,
-                                               ForDefinition_t forDefinition) {
-  return const_cast<llvm::Constant*>
-    (cast<llvm::Constant>(getObjCProtocolGlobalVars(proto).ref));
+Address IRGenModule::getAddrOfObjCProtocolRef(ProtocolDecl *proto,
+                                              ForDefinition_t forDefinition) {
+  return Address(const_cast<llvm::Constant*>
+    (cast<llvm::Constant>(getObjCProtocolGlobalVars(proto).ref),
+     Int8PtrTy, getPointerAlignment());
 }
 
 IRGenModule::ObjCProtocolPair

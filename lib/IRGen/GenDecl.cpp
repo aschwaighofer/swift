@@ -129,9 +129,9 @@ public:
     for (auto *p : ext->getLocalProtocols()) {
       if (!p->isObjC())
         continue;
-      
-      llvm::Value *protoRef = IGM.getAddrOfObjCProtocolRef(p, NotForDefinition);
-      auto proto = Builder.CreateLoad(protoRef, IGM.getPointerAlignment());
+
+      auto protoRefAddr = IGM.getAddrOfObjCProtocolRef(p, NotForDefinition);
+      auto proto = Builder.CreateLoad(protoRefAddr);
       Builder.CreateCall(class_addProtocol, {classMetadata, proto});
     }
   }
@@ -312,13 +312,10 @@ public:
     for (auto parentProto : proto->getInheritedProtocols()) {
       if (!parentProto->isObjC())
         continue;
-      llvm::Value *parentRef = IGM.getAddrOfObjCProtocolRef(parentProto,
-                                                            NotForDefinition);
-      parentRef = IGF.Builder.CreateBitCast(parentRef,
-                                            IGM.ProtocolDescriptorPtrTy
-                                              ->getPointerTo());
-      auto parent = Builder.CreateLoad(parentRef,
-                                       IGM.getPointerAlignment());
+      auto parentAddr =
+          IGM.getAddrOfObjCProtocolRef(parentProto, NotForDefinition);
+      llvm::Value *parent = Builder.CreateLoad(parentAddr);
+      parent = IGF.Builder.CreateBitCast(parent, IGM.ProtocolDescriptorPtrTy);
       Builder.CreateCall(protocol_addProtocol, {NewProto, parent});
     }
     
@@ -335,8 +332,9 @@ public:
     auto result = Builder.CreatePHI(IGM.ProtocolDescriptorPtrTy, 2);
     result->addIncoming(existing, existingBB);
     result->addIncoming(NewProto, newBB);
-    
-    llvm::Value *ref = IGM.getAddrOfObjCProtocolRef(proto, NotForDefinition);
+
+    llvm::Value *ref =
+        IGM.getAddrOfObjCProtocolRef(proto, NotForDefinition).getAddress();
     ref = IGF.Builder.CreateBitCast(ref,
                                   IGM.ProtocolDescriptorPtrTy->getPointerTo());
 
@@ -1016,7 +1014,8 @@ IRGenModule::getConstantReferenceForProtocolDescriptor(ProtocolDecl *proto) {
     // Get the indirected address of the protocol descriptor reference variable
     // that the ObjC runtime uniques.
     auto refVar = getAddrOfObjCProtocolRef(proto, NotForDefinition);
-    return ConstantReference(refVar, ConstantReference::Indirect);
+    return ConstantReference(cast<llvm::Constant>(refVar.getAddress()),
+                             ConstantReference::Indirect);
   }
   
   // Try to form a direct reference to the nominal type descriptor if it's in
@@ -2788,7 +2787,8 @@ void IRGenModule::createReplaceableProlog(IRGenFunction &IGF, SILFunction *f) {
   llvm::Value *ReplFn = nullptr, *hasReplFn = nullptr;
 
   if (UseBasicDynamicReplacement) {
-    ReplFn = IGF.Builder.CreateLoad(fnPtrAddr, getPointerAlignment());
+    ReplFn = IGF.Builder.CreateLoad(
+        Address(fnPtrAddr, FunctionPtrTy, getPointerAlignment()));
     llvm::Value *lhs = ReplFn;
     if (schema.isEnabled()) {
       lhs = emitPointerAuthStrip(IGF, lhs, schema.getKey());
@@ -2990,7 +2990,8 @@ static void emitDynamicallyReplaceableThunk(IRGenModule &IGM,
   auto *fnPtrAddr =
       llvm::ConstantExpr::getInBoundsGetElementPtr(
         linkEntry->getType()->getPointerElementType(), linkEntry, indices);
-  auto *fnPtr = IGF.Builder.CreateLoad(fnPtrAddr, IGM.getPointerAlignment());
+  auto *fnPtr = IGF.Builder.CreateLoad(
+      Address(fnPtrAddr, IGM.FunctionPtrTy, IGM.getPointerAlignment()));
   auto *typeFnPtr = IGF.Builder.CreateBitOrPointerCast(fnPtr, implFn->getType());
 
   SmallVector<llvm::Value *, 16> forwardedArgs;
