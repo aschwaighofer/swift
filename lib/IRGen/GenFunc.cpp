@@ -1783,7 +1783,8 @@ Optional<StackAddress> irgen::emitFunctionPartialApplication(
   enum HasSingleSwiftRefcountedContext { Maybe, Yes, No, Thunkable }
     hasSingleSwiftRefcountedContext = Maybe;
   Optional<ParameterConvention> singleRefcountedConvention;
-  
+  Optional<llvm::Type *> singleRefCountedType;
+
   SmallVector<const TypeInfo *, 4> argTypeInfos;
   SmallVector<SILType, 4> argValTypes;
   SmallVector<ParameterConvention, 4> argConventions;
@@ -1862,6 +1863,7 @@ Optional<StackAddress> irgen::emitFunctionPartialApplication(
     if (ti.isSingleSwiftRetainablePointer(ResilienceExpansion::Maximal)) {
       hasSingleSwiftRefcountedContext = Yes;
       singleRefcountedConvention = param.getConvention();
+      singleRefCountedType = ti.getStorageType();
     } else {
       hasSingleSwiftRefcountedContext = No;
     }
@@ -1920,6 +1922,7 @@ Optional<StackAddress> irgen::emitFunctionPartialApplication(
       assert(bindings.empty());
       hasSingleSwiftRefcountedContext = Yes;
       singleRefcountedConvention = origType->getCalleeConvention();
+      singleRefCountedType = IGF.IGM.getNativeObjectTypeInfo().getStorageType();
     }
   }
 
@@ -1983,7 +1986,8 @@ Optional<StackAddress> irgen::emitFunctionPartialApplication(
 
     llvm::Value *ctx = args.claimNext();
     if (isIndirectFormalParameter(*singleRefcountedConvention))
-      ctx = IGF.Builder.CreateLoad(ctx, IGF.IGM.getPointerAlignment());
+      ctx = IGF.Builder.CreateLoad(
+          Address(ctx, *singleRefCountedType, IGF.IGM.getPointerAlignment()));
 
     auto expectedClosureTy =
         outType->isNoEscape() ? IGF.IGM.OpaquePtrTy : IGF.IGM.RefCountedPtrTy;
