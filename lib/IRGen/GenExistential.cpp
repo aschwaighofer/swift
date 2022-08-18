@@ -2222,8 +2222,9 @@ static llvm::Constant *getDeallocateBoxedOpaqueExistentialBufferFunction(
             Builder.CreateBitCast(existentialBuffer.getAddress(),
                                   IGM.RefCountedPtrTy->getPointerTo());
         // Load the reference.
-        auto *boxReference = Builder.CreateLoad(
-            boxReferenceAddr, existentialBuffer.getAlignment());
+        auto *boxReference =
+            Builder.CreateLoad(Address(boxReferenceAddr, IGM.RefCountedPtrTy,
+                                       existentialBuffer.getAlignment()));
 
         // Size and alignment requirements of the boxed value.
         auto *size = emitLoadOfSize(IGF, metadata);
@@ -2318,8 +2319,9 @@ getProjectBoxedOpaqueExistentialFunction(IRGenFunction &IGF,
               Builder.CreateBitCast(existentialBuffer.getAddress(),
                                     IGM.RefCountedPtrTy->getPointerTo());
           // Load the reference.
-          auto *boxReference = Builder.CreateLoad(
-              boxReferenceAddr, existentialBuffer.getAlignment());
+          auto *boxReference =
+              Builder.CreateLoad(Address(boxReferenceAddr, IGM.RefCountedPtrTy,
+                                         existentialBuffer.getAlignment()));
 
           // Size and alignment requirements of the boxed value.
           auto *alignmentMask = emitAlignMaskFromFlags(IGF, flags);
@@ -2423,8 +2425,8 @@ static void initBufferWithCopyOfReference(IRGenFunction &IGF,
       destBuffer.getAddress(), IGM.RefCountedPtrTy->getPointerTo());
   auto *srcReferenceAddr = Builder.CreateBitCast(
       srcBuffer.getAddress(), IGM.RefCountedPtrTy->getPointerTo());
-  auto *srcReference =
-      Builder.CreateLoad(srcReferenceAddr, srcBuffer.getAlignment());
+  auto *srcReference = Builder.CreateLoad(
+      Address(srcReferenceAddr, IGM.RefCountedPtrTy, srcBuffer.getAlignment()));
   IGF.emitNativeStrongRetain(srcReference, IGF.getDefaultAtomicity());
   IGF.Builder.CreateStore(
       srcReference,
@@ -2507,10 +2509,12 @@ static llvm::Constant *getAssignBoxedOpaqueExistentialBufferFunction(
             auto *srcReferenceAddr = Builder.CreateBitCast(
                 srcBuffer.getAddress(), IGM.RefCountedPtrTy->getPointerTo());
             // Load the reference.
-            auto *destReference = Builder.CreateLoad(destReferenceAddr,
-                                                     destBuffer.getAlignment());
-            auto *srcReference =
-                Builder.CreateLoad(srcReferenceAddr, srcBuffer.getAlignment());
+            auto *destReference = Builder.CreateLoad(
+                Address(destReferenceAddr, IGM.RefCountedPtrTy,
+                        destBuffer.getAlignment()));
+            auto *srcReference = Builder.CreateLoad(
+                Address(srcReferenceAddr, IGM.RefCountedPtrTy,
+                        srcBuffer.getAlignment()));
             IGF.emitNativeStrongRetain(srcReference, IGF.getDefaultAtomicity());
             IGF.emitNativeStrongRelease(destReference,
                                         IGF.getDefaultAtomicity());
@@ -2605,8 +2609,9 @@ static llvm::Constant *getAssignBoxedOpaqueExistentialBufferFunction(
             // tmpRef = dest[0]
             auto *destReferenceAddr = Builder.CreateBitCast(
                 destBuffer.getAddress(), IGM.RefCountedPtrTy->getPointerTo());
-            auto *destReference =
-                Builder.CreateLoad(destReferenceAddr, srcBuffer.getAlignment());
+            auto *destReference = Builder.CreateLoad(
+                Address(destReferenceAddr, IGM.RefCountedPtrTy,
+                        srcBuffer.getAlignment()));
             auto *srcInlineBB = IGF.createBasicBlock("dest-outline-src-inline");
             auto *srcOutlineBB =
                 IGF.createBasicBlock("dest-outline-src-outline");
@@ -2693,8 +2698,8 @@ static llvm::Constant *getDestroyBoxedOpaqueExistentialBufferFunction(
           // swift_release(buffer[0])
           auto *referenceAddr = Builder.CreateBitCast(
               buffer.getAddress(), IGM.RefCountedPtrTy->getPointerTo());
-          auto *reference =
-              Builder.CreateLoad(referenceAddr, buffer.getAlignment());
+          auto *reference = Builder.CreateLoad(Address(
+              referenceAddr, IGM.RefCountedPtrTy, buffer.getAlignment()));
           IGF.emitNativeStrongRelease(reference, IGF.getDefaultAtomicity());
 
           Builder.CreateRetVoid();
