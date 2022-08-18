@@ -333,9 +333,9 @@ IRGenModule::getAddrOfObjCProtocolRecord(ProtocolDecl *proto,
 /// fixed up by the runtime.
 Address IRGenModule::getAddrOfObjCProtocolRef(ProtocolDecl *proto,
                                               ForDefinition_t forDefinition) {
-  return Address(const_cast<llvm::Constant*>
-    (cast<llvm::Constant>(getObjCProtocolGlobalVars(proto).ref),
-     Int8PtrTy, getPointerAlignment());
+  return Address(const_cast<llvm::Constant *>(cast<llvm::Constant>(
+                     getObjCProtocolGlobalVars(proto).ref)),
+                 Int8PtrTy, getPointerAlignment());
 }
 
 IRGenModule::ObjCProtocolPair
