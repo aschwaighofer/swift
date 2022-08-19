@@ -322,11 +322,12 @@ static Address emitDefaultInitializeBufferWithCopyOfBuffer(
         destBuffer.getAddress(), IGF.IGM.RefCountedPtrTy->getPointerTo());
     auto *srcReferenceAddr = IGF.Builder.CreateBitCast(
         srcBuffer.getAddress(), IGF.IGM.RefCountedPtrTy->getPointerTo());
-    auto *srcReference =
-        IGF.Builder.CreateLoad(srcReferenceAddr, srcBuffer.getAlignment());
+    auto *srcReference = IGF.Builder.CreateLoad(Address(
+        srcReferenceAddr, IGF.IGM.RefCountedPtrTy, srcBuffer.getAlignment()));
     IGF.emitNativeStrongRetain(srcReference, IGF.getDefaultAtomicity());
-    IGF.Builder.CreateStore(
-        srcReference, Address(destReferenceAddr, destBuffer.getAlignment()));
+    IGF.Builder.CreateStore(srcReference,
+                            Address(destReferenceAddr, IGF.IGM.RefCountedPtrTy,
+                                    destBuffer.getAlignment()));
     return emitDefaultProjectBuffer(IGF, destBuffer, T, type, packing);
   }
 }
