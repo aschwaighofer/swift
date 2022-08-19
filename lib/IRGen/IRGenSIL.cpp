@@ -2589,7 +2589,8 @@ void IRGenSILFunction::visitDifferentiabilityWitnessFunctionInst(
   diffWitness = Builder.CreateStructGEP(
       diffWitness->getType()->getScalarType()->getPointerElementType(),
       diffWitness, offset);
-  diffWitness = Builder.CreateLoad(diffWitness, IGM.getPointerAlignment());
+  diffWitness = Builder.CreateLoad(
+      Address(diffWitness, IGM.Int8PtrTy, IGM.getPointerAlignment()));
 
   auto fnType = cast<SILFunctionType>(i->getType().getASTType());
   Signature signature = IGM.getSignature(fnType);
