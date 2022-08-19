@@ -592,7 +592,7 @@ OwnedAddress irgen::projectPhysicalClassMemberAddress(IRGenFunction &IGF,
 
   switch (fieldInfo.first) {
   case FieldAccess::ConstantDirect: {
-    Address baseAddr(base, classLayout.getAlignment());
+    Address baseAddr(base, classLayout.getType(), classLayout.getAlignment());
     auto element = fieldInfo.second;
     Address memberAddr = element.project(IGF, baseAddr, None);
     // We may need to bitcast the address if the field is of a generic type.
@@ -682,8 +682,7 @@ Address irgen::emitTailProjection(IRGenFunction &IGF, llvm::Value *Base,
   llvm::Value *InvertedMask = IGF.Builder.CreateNot(AlignMask);
   Offset = IGF.Builder.CreateAnd(Offset, InvertedMask);
 
-  llvm::Value *Addr = IGF.emitByteOffsetGEP(Base, Offset,
-                                            TailTI.getStorageType(), "tailaddr");
+  Address Addr = IGF.emitByteOffsetGEP(Base, Offset, TailTI, "tailaddr");
 
   if (auto *OffsetConst = dyn_cast<llvm::ConstantInt>(Offset)) {
     // Try to get an accurate alignment (only possible if the Offset is a
@@ -691,7 +690,7 @@ Address irgen::emitTailProjection(IRGenFunction &IGF, llvm::Value *Base,
     Size TotalOffset(OffsetConst->getZExtValue());
     Align = HeapObjAlign.alignmentAtOffset(TotalOffset);
   }
-  return Address(Addr, Align);
+  return Address(Addr.getAddress(), Addr.getElementType(), Align);
 }
 
 /// Try to stack promote a class instance with possible tail allocated arrays.
@@ -2719,8 +2718,9 @@ irgen::emitClassResilientInstanceSizeAndAlignMask(IRGenFunction &IGF,
                                                   llvm::Value *metadata) {
   auto &layout = IGF.IGM.getClassMetadataLayout(theClass);
 
-  Address metadataAsBytes(IGF.Builder.CreateBitCast(metadata, IGF.IGM.Int8PtrTy),
-                          IGF.IGM.getPointerAlignment());
+  Address metadataAsBytes(
+      IGF.Builder.CreateBitCast(metadata, IGF.IGM.Int8PtrTy), IGF.IGM.Int8Ty,
+      IGF.IGM.getPointerAlignment());
 
   Address slot = IGF.Builder.CreateConstByteArrayGEP(
       metadataAsBytes,

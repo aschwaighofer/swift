@@ -139,7 +139,13 @@ void IRGenThunk::prepareArguments() {
       // nothing to do.
     } else {
       errorResult = original.takeLast();
-      IGF.setCallerErrorResultSlot(errorResult);
+      auto errorType =
+          conv.getSILErrorType(IGF.IGM.getMaximalTypeExpansionContext());
+      auto &errorTI = cast<FixedTypeInfo>(IGF.getTypeInfo(errorType));
+
+      IGF.setCallerErrorResultSlot(Address(errorResult,
+                                           errorTI.getStorageType(),
+                                           IGF.IGM.getPointerAlignment()));
     }
   }
 

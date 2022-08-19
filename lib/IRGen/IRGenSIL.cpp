@@ -2003,7 +2003,13 @@ static void emitEntryPointArgumentsNativeCC(IRGenSILFunction &IGF,
 
   // Bind the error result by popping it off the parameter list.
   if (funcTy->hasErrorResult() && !funcTy->isAsync()) {
-    IGF.setCallerErrorResultSlot(emission->getCallerErrorResultArgument());
+    SILFunctionConventions fnConv(funcTy, IGF.getSILModule());
+    auto errorType =
+        fnConv.getSILErrorType(IGF.IGM.getMaximalTypeExpansionContext());
+    auto &errorTI = cast<FixedTypeInfo>(IGF.getTypeInfo(errorType));
+    IGF.setCallerErrorResultSlot(
+        Address(emission->getCallerErrorResultArgument(),
+                errorTI.getStorageType(), IGF.IGM.getPointerAlignment()));
   }
 
   SILFunctionConventions conv(funcTy, IGF.getSILModule());

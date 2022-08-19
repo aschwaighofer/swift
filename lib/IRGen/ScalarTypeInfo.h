@@ -130,7 +130,7 @@ public:
       auto newAddr =
           Address(Builder.CreatePointerCast(addr.getAddress(),
                                             nextByteSizedIntTy->getPointerTo()),
-                  addr.getAlignment());
+                  nextByteSizedIntTy, addr.getAlignment());
       auto newValue = Builder.CreateZExt(src.claimNext(), nextByteSizedIntTy);
       Builder.CreateStore(newValue, newAddr);
       return;

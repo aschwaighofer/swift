@@ -45,9 +45,6 @@ public:
     assert(addr != nullptr && "building an invalid address");
   }
 
-  Address(llvm::Value *addr, Alignment align)
-      : Address(addr, addr->getType()->getPointerElementType(), align) {}
-
   llvm::Value *operator->() const {
     assert(isValid());
     return getAddress();

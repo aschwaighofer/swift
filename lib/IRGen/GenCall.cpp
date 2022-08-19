@@ -2104,7 +2104,9 @@ std::pair<llvm::Value *, llvm::Value *> irgen::getAsyncFunctionAndSize(
           getAFPPtr()->getType()->getScalarType()->getPointerElementType(),
           getAFPPtr(), 0);
       fn = IGF.emitLoadOfCompactFunctionPointer(
-          Address(addrPtr, IGF.IGM.getPointerAlignment()), /*isFar*/ false,
+          Address(addrPtr, IGF.IGM.RelativeAddressTy,
+                  IGF.IGM.getPointerAlignment()),
+          /*isFar*/ false,
           /*expectedType*/ functionPointer.getFunctionType()->getPointerTo());
     }
 
@@ -3046,7 +3048,7 @@ void CallEmission::emitYieldsToExplosion(Explosion &out) {
     auto indirectStructTy = cast<llvm::StructType>(
       indirectPointer->getType()->getPointerElementType());
     auto layout = IGF.IGM.DataLayout.getStructLayout(indirectStructTy);
-    Address indirectBuffer(indirectPointer,
+    Address indirectBuffer(indirectPointer, indirectStructTy,
                            Alignment(layout->getAlignment().value()));
 
     for (auto i : indices(indirectStructTy->elements())) {
@@ -3365,7 +3367,8 @@ static void emitCoerceAndExpand(IRGenFunction &IGF, Explosion &in,
   if (alloca->getAlignment() < coercionTyAlignment.getValue()) {
     alloca->setAlignment(
         llvm::MaybeAlign(coercionTyAlignment.getValue()).valueOrOne());
-    temporary = Address(temporary.getAddress(), coercionTyAlignment);
+    temporary = Address(temporary.getAddress(), temporary.getElementType(),
+                        coercionTyAlignment);
   }
 
   // If we're translating *to* the foreign expansion, do an ordinary
@@ -3675,7 +3678,8 @@ static void externalizeArguments(IRGenFunction &IGF, const Callee &callee,
           auto *AS = cast<llvm::AllocaInst>(addr.getAddress());
           AS->setAlignment(
               llvm::MaybeAlign(ABIAlign.getQuantity()).valueOrOne());
-          addr = Address(addr.getAddress(), Alignment(ABIAlign.getQuantity()));
+          addr = Address(addr.getAddress(), addr.getElementType(),
+                         Alignment(ABIAlign.getQuantity()));
         }
       }
 
@@ -4290,37 +4294,38 @@ Address IRGenFunction::createErrorResultSlot(SILType errorType, bool isAsync) {
 
 /// Fetch the error result slot.
 Address IRGenFunction::getCalleeErrorResultSlot(SILType errorType) {
-  if (!CalleeErrorResultSlot) {
-    CalleeErrorResultSlot =
-        createErrorResultSlot(errorType, /*isAsync=*/false).getAddress();
+  if (!CalleeErrorResultSlot.isValid()) {
+    CalleeErrorResultSlot = createErrorResultSlot(errorType, /*isAsync=*/false);
   }
-  return Address(CalleeErrorResultSlot, IGM.getPointerAlignment());
+  return CalleeErrorResultSlot;
 }
 
 /// Fetch the error result slot.
 Address IRGenFunction::getAsyncCalleeErrorResultSlot(SILType errorType) {
   assert(isAsync() &&
          "throwing async functions must be called from async functions");
-  if (!AsyncCalleeErrorResultSlot) {
+  if (!AsyncCalleeErrorResultSlot.isValid()) {
     AsyncCalleeErrorResultSlot =
-        createErrorResultSlot(errorType, /*isAsync=*/true).getAddress();
+        createErrorResultSlot(errorType, /*isAsync=*/true);
   }
-  return Address(AsyncCalleeErrorResultSlot, IGM.getPointerAlignment());
+  return AsyncCalleeErrorResultSlot;
 }
 
 /// Fetch the error result slot received from the caller.
 Address IRGenFunction::getCallerErrorResultSlot() {
-  assert(CallerErrorResultSlot && "no error result slot!");
-  assert(isa<llvm::Argument>(CallerErrorResultSlot) && !isAsync() ||
-         isa<llvm::LoadInst>(CallerErrorResultSlot) && isAsync() &&
+  assert(CallerErrorResultSlot.isValid() && "no error result slot!");
+  assert(isa<llvm::Argument>(CallerErrorResultSlot.getAddress()) &&
+             !isAsync() ||
+         isa<llvm::LoadInst>(CallerErrorResultSlot.getAddress()) && isAsync() &&
              "error result slot is local!");
-  return Address(CallerErrorResultSlot, IGM.getPointerAlignment());
+  return CallerErrorResultSlot;
 }
 
 // Set the error result slot.  This should only be done in the prologue.
-void IRGenFunction::setCallerErrorResultSlot(llvm::Value *address) {
-  assert(!CallerErrorResultSlot && "already have a caller error result slot!");
-  assert(isa<llvm::PointerType>(address->getType()));
+void IRGenFunction::setCallerErrorResultSlot(Address address) {
+  assert(!CallerErrorResultSlot.isValid() &&
+         "already have a caller error result slot!");
+  assert(isa<llvm::PointerType>(address.getAddress()->getType()));
   CallerErrorResultSlot = address;
   if (!isAsync()) {
     CalleeErrorResultSlot = address;
@@ -4493,7 +4498,8 @@ static void adjustAllocaAlignment(const llvm::DataLayout &DL,
   if (alloca->getAlignment() < layoutAlignment.getValue()) {
     alloca->setAlignment(
         llvm::MaybeAlign(layoutAlignment.getValue()).valueOrOne());
-    allocaAddr = Address(allocaAddr.getAddress(), layoutAlignment);
+    allocaAddr = Address(allocaAddr.getAddress(), allocaAddr.getElementType(),
+                         layoutAlignment);
   }
 }
 
@@ -4835,7 +4841,7 @@ Explosion IRGenFunction::coerceValueTo(SILType fromTy, Explosion &from,
   auto addr =
       Address(Builder.CreateBitCast(temporary.getAddressPointer(),
                                     fromTI.getStorageType()->getPointerTo()),
-              temporary.getAlignment());
+              fromTI.getStorageType(), temporary.getAlignment());
   fromTI.initialize(*this, from, addr, false);
 
   toTI.loadAsTake(*this, temporary.getAddress(), result);
@@ -4939,7 +4945,8 @@ Callee irgen::getBlockPointerCallee(IRGenFunction &IGF,
   auto blockStructTy = blockPtrTy->getPointerElementType();
   llvm::Value *invokeFnPtrPtr =
     IGF.Builder.CreateStructGEP(blockStructTy, castBlockPtr, 3);
-  Address invokeFnPtrAddr(invokeFnPtrPtr, IGF.IGM.getPointerAlignment());
+  Address invokeFnPtrAddr(invokeFnPtrPtr, IGF.IGM.FunctionPtrTy,
+                          IGF.IGM.getPointerAlignment());
   llvm::Value *invokeFnPtr = IGF.Builder.CreateLoad(invokeFnPtrAddr);
 
   auto sig = emitCastOfFunctionPointer(IGF, invokeFnPtr, info.OrigFnType);
@@ -5029,7 +5036,9 @@ llvm::Value *FunctionPointer::getPointer(IRGenFunction &IGF) const {
         descriptorPtr->getType()->getScalarType()->getPointerElementType(),
         descriptorPtr, 0);
     auto *result = IGF.emitLoadOfCompactFunctionPointer(
-        Address(addrPtr, IGF.IGM.getPointerAlignment()), /*isFar*/ false,
+        Address(addrPtr, IGF.IGM.RelativeAddressTy,
+                IGF.IGM.getPointerAlignment()),
+        /*isFar*/ false,
         /*expectedType*/ getFunctionType()->getPointerTo());
     if (auto codeAuthInfo = AuthInfo.getCorrespondingCodeAuthInfo()) {
       result = emitPointerAuthSign(IGF, result, codeAuthInfo);
@@ -5207,7 +5216,8 @@ Address irgen::emitAutoDiffCreateLinearMapContext(
       IGF.IGM.getAutoDiffCreateLinearMapContextFn(), {topLevelSubcontextSize});
   call->setDoesNotThrow();
   call->setCallingConv(IGF.IGM.SwiftCC);
-  return Address(call, IGF.IGM.getPointerAlignment());
+  return Address(call, IGF.IGM.RefCountedStructTy,
+                 IGF.IGM.getPointerAlignment());
 }
 
 Address irgen::emitAutoDiffProjectTopLevelSubcontext(
@@ -5217,7 +5227,7 @@ Address irgen::emitAutoDiffProjectTopLevelSubcontext(
       {context.getAddress()});
   call->setDoesNotThrow();
   call->setCallingConv(IGF.IGM.SwiftCC);
-  return Address(call, IGF.IGM.getPointerAlignment());
+  return Address(call, IGF.IGM.Int8Ty, IGF.IGM.getPointerAlignment());
 }
 
 Address irgen::emitAutoDiffAllocateSubcontext(
@@ -5227,7 +5237,7 @@ Address irgen::emitAutoDiffAllocateSubcontext(
       {context.getAddress(), size});
   call->setDoesNotThrow();
   call->setCallingConv(IGF.IGM.SwiftCC);
-  return Address(call, IGF.IGM.getPointerAlignment());
+  return Address(call, IGF.IGM.Int8Ty, IGF.IGM.getPointerAlignment());
 }
 
 FunctionPointer

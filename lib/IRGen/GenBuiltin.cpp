@@ -1309,14 +1309,16 @@ if (Builtin.ID == BuiltinValueKind::id) { \
   }
 
   if (Builtin.ID == BuiltinValueKind::AutoDiffProjectTopLevelSubcontext) {
-    Address allocatorAddr(args.claimNext(), IGF.IGM.getPointerAlignment());
+    Address allocatorAddr(args.claimNext(), IGF.IGM.RefCountedPtrTy,
+                          IGF.IGM.getPointerAlignment());
     out.add(
         emitAutoDiffProjectTopLevelSubcontext(IGF, allocatorAddr).getAddress());
     return;
   }
 
   if (Builtin.ID == BuiltinValueKind::AutoDiffAllocateSubcontext) {
-    Address allocatorAddr(args.claimNext(), IGF.IGM.getPointerAlignment());
+    Address allocatorAddr(args.claimNext(), IGF.IGM.RefCountedPtrTy,
+                          IGF.IGM.getPointerAlignment());
     auto size = args.claimNext();
     out.add(
         emitAutoDiffAllocateSubcontext(IGF, allocatorAddr, size).getAddress());
