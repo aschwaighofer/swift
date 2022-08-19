@@ -87,9 +87,9 @@ namespace {
         asTuple->getType()->getScalarType()->getPointerElementType(), asTuple,
         indices);
 
-    return IGF.Builder.CreateLoad(slot, IGF.IGM.getPointerAlignment(),
-                                  metadata->getName()
-                                    + "." + Twine(index) + ".offset");
+    return IGF.Builder.CreateLoad(
+        slot, IGF.IGM.Int32Ty, IGF.IGM.getPointerAlignment(),
+        metadata->getName() + "." + Twine(index) + ".offset");
   }
 
   /// Adapter for tuple types.
