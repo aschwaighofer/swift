@@ -305,8 +305,8 @@ namespace {
           fieldOffsetPtr =
             IGF.Builder.CreateBitCast(fieldOffsetPtr,
                                       IGF.IGM.Int32Ty->getPointerTo());
-          llvm::Value *fieldOffset =
-            IGF.Builder.CreateLoad(fieldOffsetPtr, Alignment(4));
+          llvm::Value *fieldOffset = IGF.Builder.CreateLoad(
+              Address(fieldOffsetPtr, IGF.IGM.Int32Ty, Alignment(4)));
           fieldOffset = IGF.Builder.CreateZExtOrBitCast(fieldOffset,
                                                         IGF.IGM.SizeTy);
 
