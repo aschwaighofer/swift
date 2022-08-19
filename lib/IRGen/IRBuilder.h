@@ -189,10 +189,21 @@ public:
   using IRBuilderBase::CreateStructGEP;
   Address CreateStructGEP(Address address, unsigned index, Size offset,
                           const llvm::Twine &name = "") {
-    llvm::Value *addr = CreateStructGEP(
-        address.getType()->getPointerElementType(), address.getAddress(),
-        index, name);
-    return Address(addr, address.getAlignment().alignmentAtOffset(offset));
+    assert(isa<llvm::StructType>(address.getElementType()) ||
+           isa<llvm::ArrayType>(address.getElementType()));
+
+    llvm::Value *addr = CreateStructGEP(address.getElementType(),
+                                        address.getAddress(), index, name);
+    llvm::Type *elementType = nullptr;
+    if (auto *structTy = dyn_cast<llvm::StructType>(address.getElementType())) {
+      elementType = structTy->getElementType(index);
+    } else if (auto *arrTy =
+                   dyn_cast<llvm::ArrayType>(address.getElementType())) {
+      elementType = arrTy->getElementType();
+    }
+
+    return Address(addr, elementType,
+                   address.getAlignment().alignmentAtOffset(offset));
   }
   Address CreateStructGEP(Address address, unsigned index,
                           const llvm::StructLayout *layout,
@@ -205,9 +216,9 @@ public:
   /// N elements past it.  The type is not changed.
   Address CreateConstArrayGEP(Address base, unsigned index, Size eltSize,
                               const llvm::Twine &name = "") {
-    auto addr = CreateConstInBoundsGEP1_32(
-        base.getType()->getPointerElementType(), base.getAddress(), index, name);
-    return Address(addr,
+    auto addr = CreateConstInBoundsGEP1_32(base.getElementType(),
+                                           base.getAddress(), index, name);
+    return Address(addr, base.getElementType(),
                    base.getAlignment().alignmentAtOffset(eltSize * index));
   }
 
@@ -215,16 +226,16 @@ public:
   Address CreateConstByteArrayGEP(Address base, Size offset,
                                   const llvm::Twine &name = "") {
     auto addr = CreateConstInBoundsGEP1_32(
-        base.getType()->getPointerElementType(), base.getAddress(), offset.getValue(),
-        name);
-    return Address(addr, base.getAlignment().alignmentAtOffset(offset));
+        base.getElementType(), base.getAddress(), offset.getValue(), name);
+    return Address(addr, base.getElementType(),
+                   base.getAlignment().alignmentAtOffset(offset));
   }
 
   using IRBuilderBase::CreateBitCast;
   Address CreateBitCast(Address address, llvm::Type *type,
                         const llvm::Twine &name = "") {
     llvm::Value *addr = CreateBitCast(address.getAddress(), type, name);
-    return Address(addr, address.getAlignment());
+    return Address(addr, type->getPointerElementType(), address.getAlignment());
   }
 
   /// Cast the given address to be a pointer to the given element type,
