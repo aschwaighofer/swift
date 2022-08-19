@@ -2932,7 +2932,8 @@ emitMetadataAccessByMangledName(IRGenFunction &IGF, CanType type,
     // in the current LLVM ARM backend.
     auto cacheWordAddr = subIGF.Builder.CreateBitCast(cache,
                                                  IGM.Int64Ty->getPointerTo());
-    auto load = subIGF.Builder.CreateLoad(cacheWordAddr, Alignment(8));
+    auto load = subIGF.Builder.CreateLoad(
+        Address(cacheWordAddr, IGM.Int64Ty, Alignment(8)));
     // Make this barrier explicit when building for TSan to avoid false positives.
     if (IGM.IRGen.Opts.Sanitizers & SanitizerKind::Thread)
       load->setOrdering(llvm::AtomicOrdering::Acquire);
