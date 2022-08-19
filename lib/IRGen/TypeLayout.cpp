@@ -649,8 +649,8 @@ llvm::Value *TypeLayoutEntry::initBufferWithCopyOfBuffer(IRGenFunction &IGF,
         dest.getAddress(), IGM.RefCountedPtrTy->getPointerTo());
     auto *srcReferenceAddr = Builder.CreateBitCast(
         src.getAddress(), IGM.RefCountedPtrTy->getPointerTo());
-    auto *srcReference =
-        Builder.CreateLoad(srcReferenceAddr, src.getAlignment());
+    auto *srcReference = Builder.CreateLoad(
+        Address(srcReferenceAddr, IGM.RefCountedPtrTy, src.getAlignment()));
     IGF.emitNativeStrongRetain(srcReference, IGF.getDefaultAtomicity());
     Builder.CreateStore(srcReference,
                         Address(destReferenceAddr, dest.getAlignment()));
