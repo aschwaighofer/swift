@@ -2532,7 +2532,7 @@ Address IRGenModule::getAddrOfSILGlobalVariable(SILGlobalVariable *var,
 
     auto alignment =
       Alignment(getClangASTContext().getDeclAlign(clangDecl).getQuantity());
-    return Address(addr, alignment);
+    return Address(addr, ti.getStorageType(), alignment);
   }
 
   ResilienceExpansion expansion = getResilienceExpansionForLayout(var);
@@ -2644,7 +2644,7 @@ Address IRGenModule::getAddrOfSILGlobalVariable(SILGlobalVariable *var,
   addr = llvm::ConstantExpr::getBitCast(
       addr,
       castStorageToType ? castStorageToType : storageType->getPointerTo());
-  return Address(addr, Alignment(gvar->getAlignment()));
+  return Address(addr, storageType, Alignment(gvar->getAlignment()));
 }
 
 /// Return True if the function \p f is a 'readonly' function. Checking
@@ -4344,7 +4344,7 @@ Address IRGenModule::getAddrOfObjCClassRef(ClassDecl *theClass) {
     }
   }
 
-  return Address(addr, entity.getAlignment(*this));
+  return Address(addr, ObjCClassPtrTy, entity.getAlignment(*this));
 }
 
 /// Fetch a global reference to the given Objective-C class.  The
@@ -5209,7 +5209,7 @@ static Address getAddrOfSimpleVariable(IRGenModule &IGM,
     auto existing = cast<llvm::GlobalVariable>(entry);
     assert(alignment == Alignment(existing->getAlignment()));
     if (forDefinition) updateLinkageForDefinition(IGM, existing, entity);
-    return Address(entry, alignment);
+    return Address(entry, type, alignment);
   }
 
   // Otherwise, we need to create it.
@@ -5217,7 +5217,7 @@ static Address getAddrOfSimpleVariable(IRGenModule &IGM,
   auto addr = createVariable(IGM, link, type, alignment);
 
   entry = addr;
-  return Address(addr, alignment);
+  return Address(addr, type, alignment);
 }
 
 /// getAddrOfFieldOffset - Get the address of the global variable
@@ -5366,7 +5366,7 @@ Address IRGenFunction::createAlloca(llvm::Type *type,
       new llvm::AllocaInst(type, IGM.DataLayout.getAllocaAddrSpace(), name,
                            AllocaIP);
   alloca->setAlignment(llvm::MaybeAlign(alignment.getValue()).valueOrOne());
-  return Address(alloca, alignment);
+  return Address(alloca, type, alignment);
 }
 
 /// Create an allocation of an array on the stack.
@@ -5377,7 +5377,7 @@ Address IRGenFunction::createAlloca(llvm::Type *type,
   llvm::AllocaInst *alloca = new llvm::AllocaInst(
       type, IGM.DataLayout.getAllocaAddrSpace(), ArraySize,
       llvm::MaybeAlign(alignment.getValue()).valueOrOne(), name, AllocaIP);
-  return Address(alloca, alignment);
+  return Address(alloca, type, alignment);
 }
 
 /// Allocate a fixed-size buffer on the stack.
