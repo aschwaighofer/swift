@@ -378,7 +378,7 @@ namespace {
               IGF.Builder.CreateBitCast(addr.getAddress(), IGF.IGM.Int8PtrTy);
           baseAddrVal = IGF.Builder.CreateConstGEP1_64(
               IGF.IGM.Int8Ty, baseAddrVal, offset.getQuantity());
-          baseAddr = Address(baseAddrVal, Alignment(1));
+          baseAddr = Address(baseAddrVal, IGF.IGM.Int8Ty, Alignment(1));
         }
 
         fn(typeInfo, baseAddr);
