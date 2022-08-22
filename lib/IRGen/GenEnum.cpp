@@ -681,7 +681,7 @@ namespace {
           payloadLayout, IGF.IGM.TypeLayoutTy->getPointerTo());
       auto payloadExtraInhabitantCount =
           IGF.Builder.CreateLoad(IGF.Builder.CreateStructGEP(
-              Address(payloadRef, Alignment(1)), 3,
+              Address(payloadRef, IGF.IGM.TypeLayoutTy, Alignment(1)), 3,
               Size(IGF.IGM.DataLayout.getTypeAllocSize(IGF.IGM.SizeTy) * 2 +
                    IGF.IGM.DataLayout.getTypeAllocSize(IGF.IGM.Int32Ty))));
       emitStoreOfExtraInhabitantCount(IGF, payloadExtraInhabitantCount,
@@ -1860,7 +1860,7 @@ namespace {
       auto PayloadT = getPayloadType(IGF.IGM, T);
       auto opaqueAddr = Address(
           IGF.Builder.CreateBitCast(enumAddr.getAddress(), IGF.IGM.OpaquePtrTy),
-          enumAddr.getAlignment());
+          IGF.IGM.OpaqueTy, enumAddr.getAlignment());
       return emitGetEnumTagSinglePayloadCall(IGF, PayloadT, numEmptyCases,
                                              opaqueAddr);
     }
@@ -2830,7 +2830,7 @@ namespace {
           IGF.Builder.CreateBitCast(dest.getAddress(), IGM.OpaquePtrTy);
 
       auto PayloadT = getPayloadType(IGM, T);
-      auto Addr = Address(opaqueAddr, dest.getAlignment());
+      auto Addr = Address(opaqueAddr, IGM.OpaqueTy, dest.getAlignment());
       auto *whichCase = llvm::ConstantInt::get(IGM.Int32Ty, 0);
       auto *numEmptyCases =
           llvm::ConstantInt::get(IGM.Int32Ty, ElementsWithNoPayload.size());
@@ -3118,7 +3118,7 @@ namespace {
           = IGF.Builder.CreateBitCast(enumAddr.getAddress(),
                                       IGM.OpaquePtrTy);
         auto PayloadT = getPayloadType(IGM, T);
-        auto Addr = Address(opaqueAddr, enumAddr.getAlignment());
+        auto Addr = Address(opaqueAddr, IGM.OpaqueTy, enumAddr.getAlignment());
         emitStoreEnumTagSinglePayloadCall(IGF, PayloadT, caseIndex,
                                           numEmptyCases, Addr);
         return;
@@ -3156,7 +3156,7 @@ namespace {
 
       llvm::Value *numEmptyCases = llvm::ConstantInt::get(IGM.Int32Ty,
                                                 ElementsWithNoPayload.size());
-      auto Addr = Address(opaqueAddr, enumAddr.getAlignment());
+      auto Addr = Address(opaqueAddr, IGM.OpaqueTy, enumAddr.getAlignment());
       emitStoreEnumTagSinglePayloadCall(IGF, PayloadT, tag, numEmptyCases,
                                         Addr);
     }
