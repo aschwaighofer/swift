@@ -728,7 +728,7 @@ void DistributedAccessor::emit() {
     // indirect result (e.g. large struct) it result buffer would be passed
     // as an argument.
     {
-      Address resultAddr(typedResultBuffer,
+      Address resultAddr(typedResultBuffer, directResultTI.getStorageType(),
                          directResultTI.getBestKnownAlignment());
       emission->emitToMemory(resultAddr, cast<LoadableTypeInfo>(directResultTI),
                              /*isOutlined=*/false);
@@ -807,7 +807,9 @@ ArgumentDecoderInfo DistributedAccessor::findArgumentDecoder(
 
     Explosion instance;
 
-    classTI.loadAsTake(IGF, {typedDecoderPtr, classTI.getBestKnownAlignment()},
+    classTI.loadAsTake(IGF,
+                       {typedDecoderPtr, classTI.getStorageType(),
+                        classTI.getBestKnownAlignment()},
                        instance);
 
     decoder = instance.claimNext();
