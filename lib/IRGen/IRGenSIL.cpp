@@ -2138,7 +2138,8 @@ static void emitEntryPointArgumentsCOrObjC(IRGenSILFunction &IGF,
       llvm::Value *ptr = params.claimNext();
       ptr = IGF.Builder.CreateBitCast(ptr,
                                       argTI.getStorageType()->getPointerTo());
-      IGF.setLoweredAddress(arg, Address(ptr, argTI.getBestKnownAlignment()));
+      IGF.setLoweredAddress(arg, Address(ptr, argTI.getStorageType(),
+                                         argTI.getBestKnownAlignment()));
       continue;
     }
     
@@ -2797,8 +2798,9 @@ void IRGenSILFunction::visitGlobalValueInst(GlobalValueInst *i) {
 
 void IRGenSILFunction::visitBaseAddrForOffsetInst(BaseAddrForOffsetInst *i) {
   auto storagePtrTy = IGM.getStoragePointerType(i->getType());
+  auto storageTy = IGM.getStorageType(i->getType());
   llvm::Value *addr = llvm::ConstantPointerNull::get(storagePtrTy);
-  setLoweredAddress(i, Address(addr, Alignment()));
+  setLoweredAddress(i, Address(addr, storageTy, Alignment()));
 }
 
 void IRGenSILFunction::visitMetatypeInst(swift::MetatypeInst *i) {
@@ -4312,8 +4314,9 @@ static LoweredValue getLoweredValueForSelect(IRGenSILFunction &IGF,
                                              SelectInstBase<C, T, B> *inst) {
   if (inst->getType().isAddress())
     // FIXME: Loses potentially better alignment info we might have.
-    return LoweredValue(Address(result.claimNext(),
-                IGF.getTypeInfo(inst->getType()).getBestKnownAlignment()));
+    return LoweredValue(Address(
+        result.claimNext(), IGF.getTypeInfo(inst->getType()).getStorageType(),
+        IGF.getTypeInfo(inst->getType()).getBestKnownAlignment()));
   return LoweredValue(result);
 }
 
@@ -5905,7 +5908,8 @@ void IRGenSILFunction::visitPointerToAddressInst(swift::PointerToAddressInst *i)
   ptrValue = Builder.CreateBitCast(ptrValue, destType);
 
   if (i->alignment())
-    setLoweredAddress(i, Address(ptrValue, Alignment(i->alignment()->value())));
+    setLoweredAddress(i, Address(ptrValue, ti.getStorageType(),
+                                 Alignment(i->alignment()->value())));
   else
     setLoweredAddress(i, ti.getAddressForPointer(ptrValue));
 }
@@ -6553,7 +6557,7 @@ void IRGenSILFunction::visitUpcastInst(swift::UpcastInst *i) {
     Address fromAddr = getLoweredAddress(i->getOperand());
     llvm::Value *toValue = Builder.CreateBitCast(
       fromAddr.getAddress(), toTy->getPointerTo());
-    Address Addr(toValue, fromAddr.getAlignment());
+    Address Addr(toValue, toTy, fromAddr.getAlignment());
     setLoweredAddress(i, Addr);
     return;
   }
