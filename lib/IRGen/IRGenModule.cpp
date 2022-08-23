@@ -1127,7 +1127,7 @@ Address IRGenModule::getAddrOfObjCISAMask() {
     ApplyIRLinkage(IRLinkage::ExternalImport)
         .to(cast<llvm::GlobalVariable>(ObjCISAMaskPtr));
   }
-  return Address(ObjCISAMaskPtr, getPointerAlignment());
+  return Address(ObjCISAMaskPtr, IntPtrTy, getPointerAlignment());
 }
 
 ModuleDecl *IRGenModule::getSwiftModule() const {
