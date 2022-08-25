@@ -1428,6 +1428,10 @@ llvm::PointerType *IRGenModule::getExistentialPtrTy(unsigned numTables) {
   return Types.getExistentialType(numTables)->getPointerTo();
 }
 
+llvm::Type *IRGenModule::getExistentialType(unsigned numTables) {
+  return Types.getExistentialType(numTables);
+}
+
 static const TypeInfo *createExistentialTypeInfo(IRGenModule &IGM, CanType T) {
   auto layout = T.getExistentialLayout();
 
@@ -2079,7 +2083,7 @@ irgen::emitExistentialMetatypeProjection(IRGenFunction &IGF,
 static Address castToOpaquePtr(IRGenFunction &IGF, Address addr) {
   return Address(
       IGF.Builder.CreateBitCast(addr.getAddress(), IGF.IGM.OpaquePtrTy),
-      addr.getAlignment());
+      IGF.IGM.OpaqueTy, addr.getAlignment());
 }
 
 static llvm::Constant *getAllocateBoxedOpaqueExistentialBufferFunction(
@@ -2098,7 +2102,9 @@ static llvm::Constant *getAllocateBoxedOpaqueExistentialBufferFunction(
   return IGM.getOrCreateHelperFunction(
       fnName, IGM.OpaquePtrTy, argTys, [&](IRGenFunction &IGF) {
         auto it = IGF.CurFn->arg_begin();
-        Address existentialContainer(&*(it++), existLayout.getAlignment(IGM));
+        Address existentialContainer(
+            &*(it++), IGF.IGM.getExistentialType(existLayout.getNumTables()),
+            existLayout.getAlignment(IGM));
 
         // Dynamically check whether this type is inline or needs an allocation.
         auto *metadata = existLayout.loadMetadataRef(IGF, existentialContainer);
@@ -2128,6 +2134,7 @@ static llvm::Constant *getAllocateBoxedOpaqueExistentialBufferFunction(
               box,
               Address(IGF.Builder.CreateBitCast(existentialBuffer.getAddress(),
                                                 box->getType()->getPointerTo()),
+                      IGF.IGM.RefCountedPtrTy,
                       existLayout.getAlignment(IGF.IGM)));
           IGF.Builder.CreateRet(addressInBox);
         }
@@ -2195,7 +2202,9 @@ static llvm::Constant *getDeallocateBoxedOpaqueExistentialBufferFunction(
       fnName, IGM.VoidTy, argTys, [&](IRGenFunction &IGF) {
         auto &Builder = IGF.Builder;
         auto it = IGF.CurFn->arg_begin();
-        Address existentialContainer(&*(it++), existLayout.getAlignment(IGM));
+        Address existentialContainer(
+            &*(it++), IGM.getExistentialType(existLayout.getNumTables()),
+            existLayout.getAlignment(IGM));
 
         // Dynamically check whether this type is inline or needs a
         // deallocation.
@@ -2293,7 +2302,9 @@ getProjectBoxedOpaqueExistentialFunction(IRGenFunction &IGF,
         auto &Builder = IGF.Builder;
         auto &IGM = IGF.IGM;
         auto it = IGF.CurFn->arg_begin();
-        Address existentialBuffer(&*(it++), existLayout.getAlignment(IGM));
+        Address existentialBuffer(
+            &*(it++), IGM.getExistentialType(existLayout.getNumTables()),
+            existLayout.getAlignment(IGM));
         auto *metadata = &*(it++);
 
         // Dynamically check whether this type is inline or needs a
@@ -2411,7 +2422,7 @@ Address irgen::emitOpaqueBoxedExistentialProjection(
   addrOfValue->setCallingConv(IGF.IGM.DefaultCC);
   addrOfValue->setDoesNotThrow();
 
-  return Address(addrOfValue, Alignment(1));
+  return Address(addrOfValue, IGF.IGM.OpaqueTy, Alignment(1));
 }
 
 static void initBufferWithCopyOfReference(IRGenFunction &IGF,
@@ -2428,9 +2439,9 @@ static void initBufferWithCopyOfReference(IRGenFunction &IGF,
   auto *srcReference = Builder.CreateLoad(
       Address(srcReferenceAddr, IGM.RefCountedPtrTy, srcBuffer.getAlignment()));
   IGF.emitNativeStrongRetain(srcReference, IGF.getDefaultAtomicity());
-  IGF.Builder.CreateStore(
-      srcReference,
-      Address(destReferenceAddr, existLayout.getAlignment(IGF.IGM)));
+  IGF.Builder.CreateStore(srcReference,
+                          Address(destReferenceAddr, IGM.RefCountedPtrTy,
+                                  existLayout.getAlignment(IGF.IGM)));
 }
 
 static llvm::Constant *getAssignBoxedOpaqueExistentialBufferFunction(
@@ -2450,8 +2461,9 @@ static llvm::Constant *getAssignBoxedOpaqueExistentialBufferFunction(
   return IGM.getOrCreateHelperFunction(
       fnName, IGM.VoidTy, argTys, [&](IRGenFunction &IGF) {
         auto it = IGF.CurFn->arg_begin();
-        Address dest(&*(it++), getFixedBufferAlignment(IGM));
-        Address src(&*(it++), getFixedBufferAlignment(IGM));
+        auto boxTy = IGM.getExistentialType(existLayout.getNumTables());
+        Address dest(&*(it++), boxTy, getFixedBufferAlignment(IGM));
+        Address src(&*(it++), boxTy, getFixedBufferAlignment(IGM));
         auto &Builder = IGF.Builder;
 
         // If doing a self-assignment, we're done.
@@ -2519,8 +2531,8 @@ static llvm::Constant *getAssignBoxedOpaqueExistentialBufferFunction(
             IGF.emitNativeStrongRelease(destReference,
                                         IGF.getDefaultAtomicity());
             IGF.Builder.CreateStore(
-                srcReference,
-                Address(destReferenceAddr, existLayout.getAlignment(IGF.IGM)));
+                srcReference, Address(destReferenceAddr, IGM.RefCountedPtrTy,
+                                      existLayout.getAlignment(IGF.IGM)));
             Builder.CreateBr(doneBB);
           }
         }
@@ -2669,7 +2681,9 @@ static llvm::Constant *getDestroyBoxedOpaqueExistentialBufferFunction(
       fnName, IGM.VoidTy, argTys, [&](IRGenFunction &IGF) {
         auto &Builder = IGF.Builder;
         auto it = IGF.CurFn->arg_begin();
-        Address existentialContainer(&*(it++), existLayout.getAlignment(IGM));
+        auto boxTy = IGM.getExistentialType(existLayout.getNumTables());
+        Address existentialContainer(&*(it++), boxTy,
+                                     existLayout.getAlignment(IGM));
         auto *metadata = existLayout.loadMetadataRef(IGF, existentialContainer);
         auto buffer =
             existLayout.projectExistentialBuffer(IGF, existentialContainer);
@@ -2686,8 +2700,9 @@ static llvm::Constant *getDestroyBoxedOpaqueExistentialBufferFunction(
           ConditionalDominanceScope domScope(IGF);
           auto *opaquePtrToBuffer =
               Builder.CreateBitCast(buffer.getAddress(), IGM.OpaquePtrTy);
-          emitDestroyCall(IGF, metadata,
-                          Address(opaquePtrToBuffer, buffer.getAlignment()));
+          emitDestroyCall(
+              IGF, metadata,
+              Address(opaquePtrToBuffer, IGM.OpaqueTy, buffer.getAlignment()));
           Builder.CreateRetVoid();
         }
 

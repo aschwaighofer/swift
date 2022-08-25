@@ -869,6 +869,7 @@ public:
 
   llvm::Type *getFixedBufferTy();
   llvm::PointerType *getExistentialPtrTy(unsigned numTables);
+  llvm::Type *getExistentialType(unsigned numTables);
   llvm::Type *getValueWitnessTy(ValueWitness index);
   Signature getValueWitnessSignature(ValueWitness index);
 
