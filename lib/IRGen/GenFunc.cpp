@@ -2140,9 +2140,11 @@ static llvm::Function *emitBlockCopyHelper(IRGenModule &IGM,
   
   // Copy the captures from the source to the destination.
   Explosion params = IGF.collectParameters();
-  auto dest = Address(params.claimNext(), blockTL.getFixedAlignment());
-  auto src = Address(params.claimNext(), blockTL.getFixedAlignment());
-  
+  auto dest = Address(params.claimNext(), blockTL.getStorageType(),
+                      blockTL.getFixedAlignment());
+  auto src = Address(params.claimNext(), blockTL.getStorageType(),
+                     blockTL.getFixedAlignment());
+
   auto destCapture = blockTL.projectCapture(IGF, dest);
   auto srcCapture = blockTL.projectCapture(IGF, src);
   auto &captureTL = IGM.getTypeInfoForLowered(blockTy->getCaptureType());
@@ -2178,7 +2180,8 @@ static llvm::Function *emitBlockDisposeHelper(IRGenModule &IGM,
   
   // Destroy the captures.
   Explosion params = IGF.collectParameters();
-  auto storage = Address(params.claimNext(), blockTL.getFixedAlignment());
+  auto storage = Address(params.claimNext(), blockTL.getStorageType(),
+                         blockTL.getFixedAlignment());
   auto capture = blockTL.projectCapture(IGF, storage);
   auto &captureTL = IGM.getTypeInfoForLowered(blockTy->getCaptureType());
   captureTL.destroy(IGF, capture, blockTy->getCaptureAddressType(),
@@ -2295,7 +2298,7 @@ void irgen::emitBlockHeader(IRGenFunction &IGF,
 llvm::Value *
 IRGenFunction::emitAsyncResumeProjectContext(llvm::Value *calleeContext) {
   auto addr = Builder.CreateBitOrPointerCast(calleeContext, IGM.Int8PtrPtrTy);
-  Address callerContextAddr(addr, IGM.getPointerAlignment());
+  Address callerContextAddr(addr, IGM.Int8PtrTy, IGM.getPointerAlignment());
   llvm::Value *callerContext = Builder.CreateLoad(callerContextAddr);
   if (auto schema = IGM.getOptions().PointerAuth.AsyncContextParent) {
     auto authInfo =
@@ -2309,7 +2312,7 @@ IRGenFunction::emitAsyncResumeProjectContext(llvm::Value *calleeContext) {
     auto contextLocationInExtendedFrame =
         Address(Builder.CreateIntrinsicCall(
                     llvm::Intrinsic::swift_async_context_addr, {}),
-                IGM.getPointerAlignment());
+                IGM.Int8PtrTy, IGM.getPointerAlignment());
     // On arm64e we need to sign this pointer address discriminated
     // with 0xc31a and process dependent key.
     if (auto schema =
