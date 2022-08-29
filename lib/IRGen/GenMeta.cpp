@@ -2288,7 +2288,7 @@ namespace {
 
             bindFromGenericRequirementsBuffer(
                 IGF, requirements,
-                Address(bindingsBufPtr, IGM.getPointerAlignment()),
+                Address(bindingsBufPtr, IGM.Int8Ty, IGM.getPointerAlignment()),
                 MetadataState::Complete, [&](CanType t) {
                   return genericEnv ? genericEnv->mapTypeIntoContext(t)
                                           ->getCanonicalType()
@@ -2986,7 +2986,7 @@ namespace {
 
       // Bind the generic arguments.
       if (Target->isGenericContext()) {
-        Address argsArray(args, IGM.getPointerAlignment());
+        Address argsArray(args, IGM.Int8Ty, IGM.getPointerAlignment());
         emitPolymorphicParametersFromArray(IGF, Target, argsArray,
                                            MetadataState::Abstract);
       }
@@ -5351,8 +5351,8 @@ void irgen::emitSpecializedGenericEnumMetadata(IRGenModule &IGM, CanType type,
 
 llvm::Value *IRGenFunction::emitObjCSelectorRefLoad(StringRef selector) {
   llvm::Constant *loadSelRef = IGM.getAddrOfObjCSelectorRef(selector);
-  llvm::Value *loadSel =
-    Builder.CreateLoad(Address(loadSelRef, IGM.getPointerAlignment()));
+  llvm::Value *loadSel = Builder.CreateLoad(
+      Address(loadSelRef, IGM.Int8PtrTy, IGM.getPointerAlignment()));
 
   // When generating JIT'd code, we need to call sel_registerName() to force
   // the runtime to unique the selector. For non-JIT'd code, the linker will
@@ -5483,7 +5483,8 @@ namespace {
 
       // Dig out the address of the superclass field and store.
       auto &layout = IGF.IGM.getForeignMetadataLayout(Target);
-      Address addr(metadata, IGM.getPointerAlignment());
+      Address addr(metadata, IGM.TypeMetadataStructTy,
+                   IGM.getPointerAlignment());
       addr = IGF.Builder.CreateElementBitCast(addr, IGM.TypeMetadataPtrTy);
       auto superclassField =
         createPointerSizedGEP(IGF, addr,
