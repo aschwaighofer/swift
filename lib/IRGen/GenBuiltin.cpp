@@ -953,14 +953,14 @@ if (Builtin.ID == BuiltinValueKind::id) { \
     auto ToTy = cast<llvm::IntegerType>(
       IGF.IGM.getStorageTypeForLowered(Builtin.Types[1]->getCanonicalType()));
 
+    auto FromTy = IGF.IGM.getStorageTypeForLowered(FromType);
+
     // Handle the arbitrary-precision truncate specially.
     if (isa<BuiltinIntegerLiteralType>(FromType)) {
-      emitIntegerLiteralCheckedTrunc(IGF, args, ToTy, Signed, out);
+      emitIntegerLiteralCheckedTrunc(IGF, args, cast<llvm::IntegerType>(FromTy),
+                                     ToTy, Signed, out);
       return;
     }
-
-    auto FromTy =
-      IGF.IGM.getStorageTypeForLowered(FromType);
 
     // Compute the result for SToSCheckedTrunc_IntFrom_IntTo(Arg):
     //   Res = trunc_IntTo(Arg)

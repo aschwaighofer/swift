@@ -202,12 +202,12 @@ ConstantIntegerLiteralMap::get(IRGenModule &IGM, APInt &&value) {
   return entry;
 }
 
-void irgen::emitIntegerLiteralCheckedTrunc(IRGenFunction &IGF,
-                                           Explosion &in,
+void irgen::emitIntegerLiteralCheckedTrunc(IRGenFunction &IGF, Explosion &in,
+                                           llvm::IntegerType *FromTy,
                                            llvm::IntegerType *resultTy,
                                            bool resultIsSigned,
                                            Explosion &out) {
-  Address data(in.claimNext(), IGF.IGM.getPointerAlignment());
+  Address data(in.claimNext(), FromTy, IGF.IGM.getPointerAlignment());
   auto flags = in.claimNext();
 
   size_t chunkWidth = IGF.IGM.getPointerSize().getValueInBits();
