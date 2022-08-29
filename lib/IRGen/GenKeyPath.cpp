@@ -90,12 +90,12 @@ bindPolymorphicArgumentsFromComponentIndices(IRGenFunction &IGF,
         args->getType()->getScalarType()->getPointerElementType(), args,
         genericArgsOffset);
   }
-  bindFromGenericRequirementsBuffer(IGF, requirements,
-    Address(args, IGF.IGM.getPointerAlignment()),
-    MetadataState::Complete,
-    [&](CanType t) {
-      return genericEnv->mapTypeIntoContext(t)->getCanonicalType();
-    });
+  bindFromGenericRequirementsBuffer(
+      IGF, requirements,
+      Address(args, IGF.IGM.Int8Ty, IGF.IGM.getPointerAlignment()),
+      MetadataState::Complete, [&](CanType t) {
+        return genericEnv->mapTypeIntoContext(t)->getCanonicalType();
+      });
 }
 
 static llvm::Function *
@@ -293,12 +293,12 @@ getLayoutFunctionForComputedComponent(IRGenModule &IGM,
     auto args = parameters.claimNext();
     
     if (genericEnv) {
-      bindFromGenericRequirementsBuffer(IGF, requirements,
-        Address(args, IGF.IGM.getPointerAlignment()),
-        MetadataState::Complete,
-        [&](CanType t) {
-          return genericEnv->mapTypeIntoContext(t)->getCanonicalType();
-        });
+      bindFromGenericRequirementsBuffer(
+          IGF, requirements,
+          Address(args, IGM.Int8Ty, IGF.IGM.getPointerAlignment()),
+          MetadataState::Complete, [&](CanType t) {
+            return genericEnv->mapTypeIntoContext(t)->getCanonicalType();
+          });
     }
     
     // Run through the captured index types to determine the size and alignment
@@ -587,12 +587,12 @@ getInitializerForComputedComponent(IRGenModule &IGM,
         IGM.getPointerSize().getValue() * requirements.size());
 
       // Bind the generic environment from the argument buffer.
-      bindFromGenericRequirementsBuffer(IGF, requirements,
-        Address(src, IGF.IGM.getPointerAlignment()),
-        MetadataState::Complete,
-        [&](CanType t) {
-          return genericEnv->mapTypeIntoContext(t)->getCanonicalType();
-        });
+      bindFromGenericRequirementsBuffer(
+          IGF, requirements,
+          Address(src, IGM.Int8Ty, IGF.IGM.getPointerAlignment()),
+          MetadataState::Complete, [&](CanType t) {
+            return genericEnv->mapTypeIntoContext(t)->getCanonicalType();
+          });
 
     } else {
       offset = llvm::ConstantInt::get(IGM.SizeTy, 0);
