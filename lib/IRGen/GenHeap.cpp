@@ -1713,6 +1713,7 @@ Address irgen::emitAllocateExistentialBoxInBuffer(
                    Address(IGF.Builder.CreateBitCast(
                                destBuffer.getAddress(),
                                owned.getOwner()->getType()->getPointerTo()),
+                           owned.getOwner()->getType(),
                            destBuffer.getAlignment()),
                    isOutlined);
   return owned.getAddress();
@@ -1827,8 +1828,8 @@ llvm::Value *irgen::emitLoadOfObjCHeapMetadataRef(IRGenFunction &IGF,
   if (IGF.IGM.TargetInfo.hasISAMasking()) {
     object = IGF.Builder.CreateBitCast(object,
                                        IGF.IGM.IntPtrTy->getPointerTo());
-    llvm::Value *metadata =
-      IGF.Builder.CreateLoad(Address(object, IGF.IGM.getPointerAlignment()));
+    llvm::Value *metadata = IGF.Builder.CreateLoad(
+        Address(object, IGF.IGM.IntPtrTy, IGF.IGM.getPointerAlignment()));
     llvm::Value *mask = IGF.Builder.CreateLoad(IGF.IGM.getAddrOfObjCISAMask());
     metadata = IGF.Builder.CreateAnd(metadata, mask);
     metadata = IGF.Builder.CreateIntToPtr(metadata, IGF.IGM.TypeMetadataPtrTy);
@@ -1838,8 +1839,8 @@ llvm::Value *irgen::emitLoadOfObjCHeapMetadataRef(IRGenFunction &IGF,
   } else {
     object = IGF.Builder.CreateBitCast(object,
                                   IGF.IGM.TypeMetadataPtrTy->getPointerTo());
-    llvm::Value *metadata =
-      IGF.Builder.CreateLoad(Address(object, IGF.IGM.getPointerAlignment()));
+    llvm::Value *metadata = IGF.Builder.CreateLoad(Address(
+        object, IGF.IGM.TypeMetadataPtrTy, IGF.IGM.getPointerAlignment()));
     return metadata;
   }
 }
@@ -1891,8 +1892,8 @@ static llvm::Value *emitLoadOfHeapMetadataRef(IRGenFunction &IGF,
       }
     }
 
-    auto metadata = IGF.Builder.CreateLoad(Address(slot,
-                                               IGF.IGM.getPointerAlignment()));
+    auto metadata = IGF.Builder.CreateLoad(Address(
+        slot, IGF.IGM.TypeMetadataPtrTy, IGF.IGM.getPointerAlignment()));
     if (IGF.IGM.EnableValueNames && object->hasName())
       metadata->setName(llvm::Twine(object->getName()) + ".metadata");
     return metadata;
