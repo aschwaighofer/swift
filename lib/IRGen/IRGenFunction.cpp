@@ -332,7 +332,8 @@ IRGenFunction::emitLoadOfRelativePointer(Address addr, bool isFar,
   auto *addrInt = Builder.CreatePtrToInt(addr.getAddress(), IGM.IntPtrTy);
   auto *uncastPointerInt = Builder.CreateAdd(addrInt, value);
   auto *uncastPointer = Builder.CreateIntToPtr(uncastPointerInt, IGM.Int8PtrTy);
-  auto uncastPointerAddress = Address(uncastPointer, IGM.getPointerAlignment());
+  auto uncastPointerAddress =
+      Address(uncastPointer, IGM.Int8Ty, IGM.getPointerAlignment());
   auto pointer = Builder.CreateBitCast(uncastPointerAddress, expectedType);
   return pointer.getAddress();
 }
@@ -344,7 +345,9 @@ IRGenFunction::emitLoadOfCompactFunctionPointer(Address addr, bool isFar,
   if (IGM.getOptions().CompactAbsoluteFunctionPointer) {
     llvm::Value *value = Builder.CreateLoad(addr);
     auto *uncastPointer = Builder.CreateIntToPtr(value, IGM.Int8PtrTy);
-    auto pointer = Builder.CreateBitCast(Address(uncastPointer, IGM.getPointerAlignment()), expectedType);
+    auto pointer = Builder.CreateBitCast(
+        Address(uncastPointer, IGM.Int8Ty, IGM.getPointerAlignment()),
+        expectedType);
     return pointer.getAddress();
   } else {
     return emitLoadOfRelativePointer(addr, isFar, expectedType, name);
@@ -385,7 +388,7 @@ IRGenFunction::emitLoadOfRelativeIndirectablePointer(Address addr,
     ptr = Builder.CreateIntToPtr(ptr, expectedType->getPointerTo());
 
     // Load.
-    Address indirectAddr(ptr, IGM.getPointerAlignment());
+    Address indirectAddr(ptr, expectedType, IGM.getPointerAlignment());
     indirectResult = Builder.CreateLoad(indirectAddr);
 
     Builder.CreateBr(contBB);
@@ -470,18 +473,16 @@ Address IRGenFunction::emitAddressAtOffset(llvm::Value *base, Offset offset,
       auto scaledIndex =
         int64_t(byteOffset.getValue()) / int64_t(objectSize.getValue());
       auto indexValue = IGM.getSize(Size(scaledIndex));
-      auto slotPtr = Builder.CreateInBoundsGEP(
-          base->getType()->getScalarType()->getPointerElementType(), base,
-          indexValue);
+      auto slotPtr = Builder.CreateInBoundsGEP(objectTy, base, indexValue);
 
-      return Address(slotPtr, objectAlignment);
+      return Address(slotPtr, objectTy, objectAlignment);
     }
   }
 
   // GEP to the slot.
   auto offsetValue = offset.getAsValue(*this);
   auto slotPtr = emitByteOffsetGEP(base, offsetValue, objectTy);
-  return Address(slotPtr, objectAlignment);
+  return Address(slotPtr, objectTy, objectAlignment);
 }
 
 llvm::CallInst *IRBuilder::CreateNonMergeableTrap(IRGenModule &IGM,
@@ -530,7 +531,7 @@ Address IRGenFunction::emitTaskAlloc(llvm::Value *size, Alignment alignment) {
   auto *call = Builder.CreateCall(IGM.getTaskAllocFn(), {size});
   call->setDoesNotThrow();
   call->setCallingConv(IGM.SwiftCC);
-  auto address = Address(call, alignment);
+  auto address = Address(call, IGM.Int8Ty, alignment);
   return address;
 }
 
@@ -565,7 +566,7 @@ static llvm::Value *emitLoadOfResumeContextFromTask(IRGenFunction &IGF,
   const unsigned taskResumeContextIndex = 8;
   const Size taskResumeContextOffset = (7 * IGF.IGM.getPointerSize()) + Size(8);
 
-  auto addr = Address(task, IGF.IGM.getPointerAlignment());
+  auto addr = Address(task, IGF.IGM.SwiftTaskTy, IGF.IGM.getPointerAlignment());
   auto resumeContextAddr = IGF.Builder.CreateStructGEP(
     addr, taskResumeContextIndex, taskResumeContextOffset);
   llvm::Value *resumeContext = IGF.Builder.CreateLoad(resumeContextAddr);
@@ -582,7 +583,8 @@ static Address emitLoadOfContinuationContext(IRGenFunction &IGF,
                                              llvm::Value *continuation) {
   auto ptr = emitLoadOfResumeContextFromTask(IGF, continuation);
   ptr = IGF.Builder.CreateBitCast(ptr, IGF.IGM.ContinuationAsyncContextPtrTy);
-  return Address(ptr, IGF.IGM.getAsyncContextAlignment());
+  return Address(ptr, IGF.IGM.ContinuationAsyncContextTy,
+                 IGF.IGM.getAsyncContextAlignment());
 }
 
 static Address emitAddrOfContinuationNormalResultPointer(IRGenFunction &IGF,
@@ -715,6 +717,7 @@ void IRGenFunction::emitAwaitAsyncContinuation(
     llvm::PHINode *&optionalErrorResult, llvm::BasicBlock *&optionalErrorBB) {
   assert(AsyncCoroutineCurrentContinuationContext && "no active continuation");
   Address continuationContext(AsyncCoroutineCurrentContinuationContext,
+                              IGM.ContinuationAsyncContextTy,
                               IGM.getAsyncContextAlignment());
 
   // Call swift_continuation_await to check whether the continuation
@@ -820,7 +823,7 @@ void IRGenFunction::emitAwaitAsyncContinuation(
     auto resultAddr =
         Address(Builder.CreateBitOrPointerCast(resultAddrVal,
                                                resultStorageTy->getPointerTo()),
-                resumeTI.getFixedAlignment());
+                resultStorageTy, resumeTI.getFixedAlignment());
     resumeTI.loadAsTake(*this, resultAddr, outDirectResult);
   }
 
