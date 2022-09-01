@@ -409,7 +409,8 @@ llvm::Constant *IRGenModule::getOrCreateRetainFunction(const TypeInfo &ti,
       funcName, llvmType, argTys,
       [&](IRGenFunction &IGF) {
         auto it = IGF.CurFn->arg_begin();
-        Address addr(&*it++, loadableTI->getFixedAlignment());
+        Address addr(&*it++, loadableTI->getStorageType(),
+                     loadableTI->getFixedAlignment());
         Explosion loaded;
         loadableTI->loadAsTake(IGF, addr, loaded);
         Explosion out;
@@ -436,7 +437,8 @@ IRGenModule::getOrCreateReleaseFunction(const TypeInfo &ti,
       funcName, llvmType, argTys,
       [&](IRGenFunction &IGF) {
         auto it = IGF.CurFn->arg_begin();
-        Address addr(&*it++, loadableTI->getFixedAlignment());
+        Address addr(&*it++, loadableTI->getStorageType(),
+                     loadableTI->getFixedAlignment());
         Explosion loaded;
         loadableTI->loadAsTake(IGF, addr, loaded);
         loadableTI->consume(IGF, loaded, atomicity);
