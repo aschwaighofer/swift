@@ -134,6 +134,8 @@ void IRGenThunk::prepareArguments() {
     witnessMetadata.SelfMetadata = original.takeLast();
   }
 
+  SILFunctionConventions conv(origTy, IGF.getSILModule());
+
   if (origTy->hasErrorResult()) {
     if (isAsync) {
       // nothing to do.
@@ -156,7 +158,6 @@ void IRGenThunk::prepareArguments() {
   selfValue = original.takeLast();
 
   // Prepare indirect results, if any.
-  SILFunctionConventions conv(origTy, IGF.getSILModule());
   SILType directResultType = conv.getSILResultType(expansionContext);
   auto &directResultTL = IGF.IGM.getTypeInfo(directResultType);
   auto &schema = directResultTL.nativeReturnValueSchema(IGF.IGM);
@@ -298,6 +299,7 @@ void IRGenThunk::emit() {
   auto &schema = directResultTL.nativeReturnValueSchema(IGF.IGM);
   if (schema.requiresIndirect()) {
     Address indirectReturnAddr(indirectReturnSlot,
+                               IGF.IGM.getStorageType(directResultType),
                                directResultTL.getBestKnownAlignment());
     emission->emitToMemory(indirectReturnAddr,
                            cast<LoadableTypeInfo>(directResultTL), false);
