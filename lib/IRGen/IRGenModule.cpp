@@ -689,6 +689,13 @@ IRGenModule::IRGenModule(IRGenerator &irgen,
   ContinuationAsyncContextPtrTy =
     ContinuationAsyncContextTy->getPointerTo(DefaultAS);
 
+  ClassMetadataBaseOffsetTy = llvm::StructType::get(
+      getLLVMContext(), {
+                            SizeTy,  // Immediate members offset
+                            Int32Ty, // Negative size in words
+                            Int32Ty  // Positive size in words
+                        });
+
   DifferentiabilityWitnessTy = createStructType(
       *this, "swift.differentiability_witness", {Int8PtrTy, Int8PtrTy});
 }
