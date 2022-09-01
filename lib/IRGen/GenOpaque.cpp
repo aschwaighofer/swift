@@ -318,7 +318,7 @@ Address irgen::slotForLoadOfOpaqueWitness(IRGenFunction &IGF,
     slot = IGF.Builder.CreateConstInBoundsGEP1_32(
         table->getType()->getPointerElementType(), table, index.getValue());
 
-  return Address(slot, IGF.IGM.getPointerAlignment());
+  return Address(slot, IGF.IGM.WitnessTableTy, IGF.IGM.getPointerAlignment());
 }
 
 /// Load a specific witness from a known table.  The result is
@@ -346,8 +346,8 @@ llvm::Value *irgen::emitInvariantLoadOfOpaqueWitness(IRGenFunction &IGF,
 
   if (slotPtr) *slotPtr = slot;
 
-  auto witness =
-    IGF.Builder.CreateLoad(Address(slot, IGF.IGM.getPointerAlignment()));
+  auto witness = IGF.Builder.CreateLoad(
+      Address(slot, IGF.IGM.WitnessTableTy, IGF.IGM.getPointerAlignment()));
   IGF.setInvariantLoad(witness);
   return witness;
 }
@@ -372,7 +372,8 @@ static Address emitAddressOfValueWitnessTableValue(IRGenFunction &IGF,
        ? unsigned(ValueWitness::Flags) * pointerSize + Size(4)
        : unsigned(witness) * pointerSize);
 
-  Address addr = Address(table, IGF.IGM.getPointerAlignment());
+  Address addr =
+      Address(table, IGF.IGM.WitnessTableTy, IGF.IGM.getPointerAlignment());
   addr = IGF.Builder.CreateBitCast(addr, IGF.IGM.getValueWitnessTablePtrTy());
   addr = IGF.Builder.CreateStructGEP(addr, unsigned(witness), offset);
   return addr;
@@ -578,7 +579,7 @@ StackAddress IRGenFunction::emitDynamicAlloca(llvm::Type *eltTy,
         &IGM.Module, llvm::Intrinsic::coro_alloca_get);
     auto ptr = Builder.CreateCall(getFn, { allocToken });
 
-    return {Address(ptr, align), allocToken};
+    return {Address(ptr, IGM.Int8Ty, align), allocToken};
   }
 
   // Otherwise, use a dynamic alloca.
@@ -602,7 +603,7 @@ StackAddress IRGenFunction::emitDynamicAlloca(llvm::Type *eltTy,
          getActiveDominancePoint().isUniversal() &&
              "Must be in entry block if we insert dynamic alloca's without "
              "stackrestores");
-  return {Address(alloca, align), stackRestorePoint};
+  return {Address(alloca, eltTy, align), stackRestorePoint};
 }
 
 /// Deallocate dynamic alloca's memory if requested by restoring the stack
@@ -611,7 +612,8 @@ void IRGenFunction::emitDeallocateDynamicAlloca(StackAddress address,
                                                 bool allowTaskDealloc) {
   // Async function use taskDealloc.
   if (allowTaskDealloc && isAsync() && address.getAddress().isValid()) {
-    emitTaskDealloc(Address(address.getExtraInfo(), address.getAlignment()));
+    emitTaskDealloc(
+        Address(address.getExtraInfo(), IGM.Int8Ty, address.getAlignment()));
     return;
   }
   // In coroutines, unconditionally call llvm.coro.alloca.free.
@@ -1093,7 +1095,7 @@ static llvm::Constant *getAllocateValueBufferFunction(IRGenModule &IGM) {
       [&](IRGenFunction &IGF) {
         auto it = IGF.CurFn->arg_begin();
         auto *metadata = &*(it++);
-        auto buffer = Address(&*(it++), Alignment(1));
+        auto buffer = Address(&*(it++), IGM.OpaqueTy, Alignment(1));
 
         // Dynamically check whether this type is inline or needs an allocation.
         llvm::Value *isInline, *flags;
@@ -1116,7 +1118,7 @@ static llvm::Constant *getAllocateValueBufferFunction(IRGenModule &IGM) {
               valueAddr, Address(IGF.Builder.CreateBitCast(
                                      buffer.getAddress(),
                                      valueAddr->getType()->getPointerTo()),
-                                 Alignment(1)));
+                                 IGM.Int8PtrTy, Alignment(1)));
           addressOutline =
               IGF.Builder.CreateBitCast(valueAddr, IGM.OpaquePtrTy);
           IGF.Builder.CreateBr(doneBB);
@@ -1136,6 +1138,7 @@ Address irgen::emitAllocateValueInBuffer(IRGenFunction &IGF, SILType type,
   // Handle FixedSize types.
   auto &IGM = IGF.IGM;
   auto storagePtrTy = IGM.getStoragePointerType(type);
+  auto storageTy = IGM.getStorageType(type);
   auto &Builder = IGF.Builder;
   if (auto *fixedTI = dyn_cast<FixedTypeInfo>(&IGF.getTypeInfo(type))) {
     auto packing = fixedTI->getFixedPacking(IGM);
@@ -1143,7 +1146,7 @@ Address irgen::emitAllocateValueInBuffer(IRGenFunction &IGF, SILType type,
     // Inline representation.
     if (packing == FixedPacking::OffsetZero) {
       return Address(Builder.CreateBitCast(buffer.getAddress(), storagePtrTy),
-                     buffer.getAlignment());
+                     storageTy, buffer.getAlignment());
     }
 
     // Outline representation.
@@ -1152,12 +1155,11 @@ Address irgen::emitAllocateValueInBuffer(IRGenFunction &IGF, SILType type,
     auto alignMask = fixedTI->getStaticAlignmentMask(IGM);
     auto valueAddr =
         IGF.emitAllocRawCall(size, alignMask, "outline.ValueBuffer");
-    Builder.CreateStore(
-        valueAddr,
-        Address(Builder.CreateBitCast(buffer.getAddress(),
-                                      valueAddr->getType()->getPointerTo()),
-                buffer.getAlignment()));
-    return Address(Builder.CreateBitCast(valueAddr, storagePtrTy),
+    Builder.CreateStore(valueAddr,
+                        Address(Builder.CreateBitCast(buffer.getAddress(),
+                                                      IGF.IGM.Int8PtrPtrTy),
+                                IGM.Int8PtrPtrTy, buffer.getAlignment()));
+    return Address(Builder.CreateBitCast(valueAddr, storagePtrTy), storageTy,
                    buffer.getAlignment());
   }
 
@@ -1173,7 +1175,7 @@ Address irgen::emitAllocateValueInBuffer(IRGenFunction &IGF, SILType type,
   call->setDoesNotThrow();
 
   auto addressOfValue = Builder.CreateBitCast(call, storagePtrTy);
-  return Address(addressOfValue, Alignment(1));
+  return Address(addressOfValue, storageTy, Alignment(1));
 }
 
 static llvm::Constant *getProjectValueInBufferFunction(IRGenModule &IGM) {
@@ -1187,7 +1189,7 @@ static llvm::Constant *getProjectValueInBufferFunction(IRGenModule &IGM) {
       [&](IRGenFunction &IGF) {
         auto it = IGF.CurFn->arg_begin();
         auto *metadata = &*(it++);
-        auto buffer = Address(&*(it++), Alignment(1));
+        auto buffer = Address(&*(it++), IGM.OpaqueTy, Alignment(1));
         auto &Builder = IGF.Builder;
 
         // Dynamically check whether this type is inline or needs an allocation.
@@ -1207,7 +1209,7 @@ static llvm::Constant *getProjectValueInBufferFunction(IRGenModule &IGM) {
           addressOutline = Builder.CreateLoad(
               Address(Builder.CreateBitCast(buffer.getAddress(),
                                             IGM.OpaquePtrTy->getPointerTo()),
-                      Alignment(1)));
+                      IGM.OpaquePtrTy, Alignment(1)));
           Builder.CreateBr(doneBB);
         }
 
@@ -1226,6 +1228,7 @@ Address irgen::emitProjectValueInBuffer(IRGenFunction &IGF, SILType type,
   // Handle FixedSize types.
   auto &IGM = IGF.IGM;
   auto storagePtrTy = IGM.getStoragePointerType(type);
+  auto storageTy = IGM.getStorageType(type);
   auto &Builder = IGF.Builder;
   if (auto *fixedTI = dyn_cast<FixedTypeInfo>(&IGF.getTypeInfo(type))) {
     auto packing = fixedTI->getFixedPacking(IGM);
@@ -1233,7 +1236,7 @@ Address irgen::emitProjectValueInBuffer(IRGenFunction &IGF, SILType type,
     // Inline representation.
     if (packing == FixedPacking::OffsetZero) {
       return Address(Builder.CreateBitCast(buffer.getAddress(), storagePtrTy),
-                     buffer.getAlignment());
+                     storageTy, buffer.getAlignment());
     }
 
     // Outline representation.
@@ -1241,8 +1244,8 @@ Address irgen::emitProjectValueInBuffer(IRGenFunction &IGF, SILType type,
     auto valueAddr = Builder.CreateLoad(
         Address(Builder.CreateBitCast(buffer.getAddress(),
                                       storagePtrTy->getPointerTo()),
-                buffer.getAlignment()));
-    return Address(Builder.CreateBitCast(valueAddr, storagePtrTy),
+                storagePtrTy, buffer.getAlignment()));
+    return Address(Builder.CreateBitCast(valueAddr, storagePtrTy), storageTy,
                    buffer.getAlignment());
   }
 
@@ -1256,7 +1259,7 @@ Address irgen::emitProjectValueInBuffer(IRGenFunction &IGF, SILType type,
   call->setDoesNotThrow();
 
   auto addressOfValue = Builder.CreateBitCast(call, storagePtrTy);
-  return Address(addressOfValue, Alignment(1));
+  return Address(addressOfValue, storageTy, Alignment(1));
 }
 
 llvm::Value *
