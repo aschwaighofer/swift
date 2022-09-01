@@ -2100,7 +2100,8 @@ void irgen::emitCacheAccessFunction(IRGenModule &IGM,
       cast<llvm::PointerType>(
         cacheVariable->getType()->getPointerElementType()));
 
-  Address cache(cacheVariable, IGM.getPointerAlignment());
+  Address cache(cacheVariable, IGM.TypeMetadataPtrTy,
+                IGM.getPointerAlignment());
 
   // Okay, first thing, check the cache variable.
   //
@@ -2293,7 +2294,8 @@ MetadataResponse irgen::emitGenericTypeMetadataAccessFunction(
     // swift_getGenericMetadata's calling convention is already cleverly
     // laid out to minimize the assembly language size of the thunk.
     // The caller passed us an appropriate buffer with the arguments.
-    auto argsBuffer = Address(params.claimNext(), IGM.getPointerAlignment());
+    auto argsBuffer =
+        Address(params.claimNext(), IGM.Int8PtrTy, IGM.getPointerAlignment());
     llvm::Value *arguments =
       IGF.Builder.CreateBitCast(argsBuffer.getAddress(), IGM.Int8PtrTy);
 
