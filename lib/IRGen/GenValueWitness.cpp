@@ -241,7 +241,7 @@ static Address emitDefaultProjectBuffer(IRGenFunction &IGF, Address buffer,
     Address boxAddress(
         Builder.CreateBitCast(buffer.getAddress(),
                               IGM.RefCountedPtrTy->getPointerTo()),
-        buffer.getAlignment());
+        IGM.RefCountedPtrTy, buffer.getAlignment());
     auto *boxStart = IGF.Builder.CreateLoad(boxAddress);
     auto *alignmentMask = type.getAlignmentMask(IGF, T);
     auto *heapHeaderSize = llvm::ConstantInt::get(
@@ -281,7 +281,7 @@ static Address emitDefaultAllocateBuffer(IRGenFunction &IGF, Address buffer,
     IGF.Builder.CreateStore(
         box, Address(IGF.Builder.CreateBitCast(buffer.getAddress(),
                                                box->getType()->getPointerTo()),
-                     buffer.getAlignment()));
+                     IGF.IGM.RefCountedPtrTy, buffer.getAlignment()));
 
     llvm::PointerType *resultTy = type.getStorageType()->getPointerTo();
     address = IGF.Builder.CreateBitCast(address, resultTy);
@@ -378,7 +378,8 @@ static Address getArgAsBuffer(IRGenFunction &IGF,
                               llvm::Function::arg_iterator &it,
                               StringRef name) {
   llvm::Value *arg = getArg(it, name);
-  return Address(arg, getFixedBufferAlignment(IGF.IGM));
+  return Address(arg, IGF.IGM.getFixedBufferTy(),
+                 getFixedBufferAlignment(IGF.IGM));
 }
 
 static CanType getFormalTypeInContext(CanType abstractType, DeclContext *dc) {
@@ -601,10 +602,11 @@ static void buildValueWitnessFunction(IRGenModule &IGM,
       if (auto *enumTypeLayoutEntry =
               conditionallyGetEnumTypeLayoutEntry(IGM, concreteType)) {
         enumTypeLayoutEntry->destructiveProjectEnumData(
-            IGF, Address(value, type.getBestKnownAlignment()));
+            IGF, Address(value, IGM.OpaqueTy, type.getBestKnownAlignment()));
       } else {
         strategy.destructiveProjectDataForLoad(
-            IGF, concreteType, Address(value, type.getBestKnownAlignment()));
+            IGF, concreteType,
+            Address(value, IGM.OpaqueTy, type.getBestKnownAlignment()));
       }
     }
 
@@ -626,10 +628,11 @@ static void buildValueWitnessFunction(IRGenModule &IGM,
     if (auto *enumTypeLayoutEntry =
             conditionallyGetEnumTypeLayoutEntry(IGM, concreteType)) {
       enumTypeLayoutEntry->destructiveInjectEnumTag(
-          IGF, tag, Address(value, type.getBestKnownAlignment()));
+          IGF, tag, Address(value, IGM.OpaqueTy, type.getBestKnownAlignment()));
     } else {
-      strategy.emitStoreTag(IGF, concreteType,
-                            Address(value, type.getBestKnownAlignment()), tag);
+      strategy.emitStoreTag(
+          IGF, concreteType,
+          Address(value, IGM.OpaqueTy, type.getBestKnownAlignment()), tag);
     }
 
     IGF.Builder.CreateRetVoid();
@@ -647,11 +650,13 @@ static void buildValueWitnessFunction(IRGenModule &IGM,
     if (auto *typeLayoutEntry =
             conditionallyGetTypeLayoutEntry(IGM, concreteType)) {
       auto *idx = typeLayoutEntry->getEnumTagSinglePayload(
-          IGF, numEmptyCases, Address(value, type.getBestKnownAlignment()));
+          IGF, numEmptyCases,
+          Address(value, IGM.OpaqueTy, type.getBestKnownAlignment()));
       IGF.Builder.CreateRet(idx);
     } else {
       llvm::Value *idx = type.getEnumTagSinglePayload(
-          IGF, numEmptyCases, Address(value, type.getBestKnownAlignment()),
+          IGF, numEmptyCases,
+          Address(value, IGM.OpaqueTy, type.getBestKnownAlignment()),
           concreteType, true);
       IGF.Builder.CreateRet(idx);
     }
@@ -672,11 +677,12 @@ static void buildValueWitnessFunction(IRGenModule &IGM,
             conditionallyGetTypeLayoutEntry(IGM, concreteType)) {
       typeLayoutEntry->storeEnumTagSinglePayload(
           IGF, whichCase, numEmptyCases,
-          Address(value, type.getBestKnownAlignment()));
+          Address(value, IGM.OpaqueTy, type.getBestKnownAlignment()));
     } else {
       type.storeEnumTagSinglePayload(
           IGF, whichCase, numEmptyCases,
-          Address(value, type.getBestKnownAlignment()), concreteType, true);
+          Address(value, IGM.OpaqueTy, type.getBestKnownAlignment()),
+          concreteType, true);
     }
     IGF.Builder.CreateRetVoid();
     return;
@@ -713,8 +719,8 @@ static llvm::Constant *getAssignWithCopyStrongFunction(IRGenModule &IGM) {
                                        ptrPtrTy, argTys,
                                        [&](IRGenFunction &IGF) {
     auto it = IGF.CurFn->arg_begin();
-    Address dest(&*(it++), IGM.getPointerAlignment());
-    Address src(&*(it++), IGM.getPointerAlignment());
+    Address dest(&*(it++), IGM.RefCountedPtrTy, IGM.getPointerAlignment());
+    Address src(&*(it++), IGM.RefCountedPtrTy, IGM.getPointerAlignment());
 
     llvm::Value *newValue = IGF.Builder.CreateLoad(src, "new");
     IGF.emitNativeStrongRetain(newValue, IGF.getDefaultAtomicity());
@@ -737,8 +743,8 @@ static llvm::Constant *getAssignWithTakeStrongFunction(IRGenModule &IGM) {
                                        ptrPtrTy, argTys,
                                        [&](IRGenFunction &IGF) {
     auto it = IGF.CurFn->arg_begin();
-    Address dest(&*(it++), IGM.getPointerAlignment());
-    Address src(&*(it++), IGM.getPointerAlignment());
+    Address dest(&*(it++), IGM.RefCountedPtrTy, IGM.getPointerAlignment());
+    Address src(&*(it++), IGM.RefCountedPtrTy, IGM.getPointerAlignment());
 
     llvm::Value *newValue = IGF.Builder.CreateLoad(src, "new");
     llvm::Value *oldValue = IGF.Builder.CreateLoad(dest, "old");
@@ -759,8 +765,8 @@ static llvm::Constant *getInitWithCopyStrongFunction(IRGenModule &IGM) {
                                        ptrPtrTy, argTys,
                                        [&](IRGenFunction &IGF) {
     auto it = IGF.CurFn->arg_begin();
-    Address dest(&*(it++), IGM.getPointerAlignment());
-    Address src(&*(it++), IGM.getPointerAlignment());
+    Address dest(&*(it++), IGM.RefCountedPtrTy, IGM.getPointerAlignment());
+    Address src(&*(it++), IGM.RefCountedPtrTy, IGM.getPointerAlignment());
 
     llvm::Value *newValue = IGF.Builder.CreateLoad(src, "new");
     IGF.emitNativeStrongRetain(newValue, IGF.getDefaultAtomicity());
@@ -774,13 +780,14 @@ static llvm::Constant *getInitWithCopyStrongFunction(IRGenModule &IGM) {
 /// pointer from the first, and calls swift_release on it immediately.
 static llvm::Constant *getDestroyStrongFunction(IRGenModule &IGM) {
   llvm::Type *argTys[] = { IGM.Int8PtrPtrTy, IGM.WitnessTablePtrTy };
-  return IGM.getOrCreateHelperFunction("__swift_destroy_strong",
-                                       IGM.VoidTy, argTys,
-                                       [&](IRGenFunction &IGF) {
-    Address arg(&*IGF.CurFn->arg_begin(), IGM.getPointerAlignment());
-    IGF.emitNativeStrongRelease(IGF.Builder.CreateLoad(arg), IGF.getDefaultAtomicity());
-    IGF.Builder.CreateRetVoid();
-  });
+  return IGM.getOrCreateHelperFunction(
+      "__swift_destroy_strong", IGM.VoidTy, argTys, [&](IRGenFunction &IGF) {
+        Address arg(&*IGF.CurFn->arg_begin(), IGM.Int8PtrTy,
+                    IGM.getPointerAlignment());
+        IGF.emitNativeStrongRelease(IGF.Builder.CreateLoad(arg),
+                                    IGF.getDefaultAtomicity());
+        IGF.Builder.CreateRetVoid();
+      });
 }
 
 /// Return a function which takes two pointer arguments, memcpys
@@ -810,8 +817,8 @@ static llvm::Constant *getMemCpyFunction(IRGenModule &IGM,
   return IGM.getOrCreateHelperFunction(name, IGM.Int8PtrTy, argTys,
                                        [&](IRGenFunction &IGF) {
     auto it = IGF.CurFn->arg_begin();
-    Address dest(&*it++, fixedTI->getFixedAlignment());
-    Address src(&*it++, fixedTI->getFixedAlignment());
+    Address dest(&*it++, IGM.Int8Ty, fixedTI->getFixedAlignment());
+    Address src(&*it++, IGM.Int8Ty, fixedTI->getFixedAlignment());
     IGF.emitMemCpy(dest, src, fixedTI->getFixedSize());
     IGF.Builder.CreateRet(dest.getAddress());
   });
@@ -1370,15 +1377,13 @@ Address TypeInfo::indexArray(IRGenFunction &IGF, Address base,
     if (size->getType() != index->getType())
       size = IGF.Builder.CreateZExtOrTrunc(size, index->getType());
     llvm::Value *distance = IGF.Builder.CreateNSWMul(index, size);
-    destValue = IGF.Builder.CreateInBoundsGEP(
-        byteAddr->getType()->getScalarType()->getPointerElementType(), byteAddr,
-        distance);
+    destValue =
+        IGF.Builder.CreateInBoundsGEP(IGF.IGM.Int8Ty, byteAddr, distance);
     destValue = IGF.Builder.CreateBitCast(destValue, base.getType());
   } else {
     // We don't expose a non-inbounds GEP operation.
-    destValue = IGF.Builder.CreateInBoundsGEP(
-        base.getAddress()->getType()->getScalarType()->getPointerElementType(),
-        base.getAddress(), index);
+    destValue = IGF.Builder.CreateInBoundsGEP(getStorageType(),
+                                              base.getAddress(), index);
     stride = fixedTI->getFixedStride();
   }
   if (auto *IndexConst = dyn_cast<llvm::ConstantInt>(index)) {
@@ -1388,7 +1393,7 @@ Address TypeInfo::indexArray(IRGenFunction &IGF, Address base,
     stride *= IndexConst->getValue().getZExtValue();
   }
   Alignment Align = base.getAlignment().alignmentAtOffset(stride);
-  return Address(destValue, Align);
+  return Address(destValue, getStorageType(), Align);
 }
 
 Address TypeInfo::roundUpToTypeAlignment(IRGenFunction &IGF, Address base,
@@ -1408,7 +1413,7 @@ Address TypeInfo::roundUpToTypeAlignment(IRGenFunction &IGF, Address base,
   llvm::Value *InvertedMask = IGF.Builder.CreateNot(TyAlignMask);
   Addr = IGF.Builder.CreateAnd(Addr, InvertedMask);
   Addr = IGF.Builder.CreateIntToPtr(Addr, base.getAddress()->getType());
-  return Address(Addr, Align);
+  return Address(Addr, getStorageType(), Align);
 }
 
 void TypeInfo::destroyArray(IRGenFunction &IGF, Address array,
