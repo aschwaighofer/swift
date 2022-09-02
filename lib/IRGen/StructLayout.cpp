@@ -152,7 +152,7 @@ Address StructLayout::emitCastTo(IRGenFunction &IGF,
                                  const llvm::Twine &name) const {
   llvm::Value *addr =
     IGF.Builder.CreateBitCast(ptr, getType()->getPointerTo(), name);
-  return Address(addr, getAlignment());
+  return Address(addr, getType(), getAlignment());
 }
 
 Address ElementLayout::project(IRGenFunction &IGF, Address baseAddr,
