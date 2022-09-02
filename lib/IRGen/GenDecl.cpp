@@ -2641,9 +2641,12 @@ Address IRGenModule::getAddrOfSILGlobalVariable(SILGlobalVariable *var,
     addr = llvm::ConstantExpr::getGetElementPtr(
       gvar->getType()->getPointerElementType(), gvar, Indices);
   }
+
   addr = llvm::ConstantExpr::getBitCast(
       addr,
       castStorageToType ? castStorageToType : storageType->getPointerTo());
+  if (castStorageToType)
+    storageType = castStorageToType->getPointerElementType();
   return Address(addr, storageType, Alignment(gvar->getAlignment()));
 }
 

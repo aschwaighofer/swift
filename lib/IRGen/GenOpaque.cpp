@@ -1158,7 +1158,7 @@ Address irgen::emitAllocateValueInBuffer(IRGenFunction &IGF, SILType type,
     Builder.CreateStore(valueAddr,
                         Address(Builder.CreateBitCast(buffer.getAddress(),
                                                       IGF.IGM.Int8PtrPtrTy),
-                                IGM.Int8PtrPtrTy, buffer.getAlignment()));
+                                IGM.Int8PtrTy, buffer.getAlignment()));
     return Address(Builder.CreateBitCast(valueAddr, storagePtrTy), storageTy,
                    buffer.getAlignment());
   }

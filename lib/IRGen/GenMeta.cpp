@@ -2598,7 +2598,8 @@ void irgen::emitLazyMetadataAccessor(IRGenModule &IGM,
                      NumDirectGenericTypeMetadataAccessFunctionArgs);
 
   emitCacheAccessFunction(
-      IGM, accessor, /*cache*/ nullptr, CacheStrategy::None,
+      IGM, accessor, /*cache*/ nullptr, /*cache type*/ nullptr,
+      CacheStrategy::None,
       [&](IRGenFunction &IGF, Explosion &params) {
         return emitGenericTypeMetadataAccessFunction(IGF, params, nominal,
                                                      genericArgs);
@@ -2617,7 +2618,8 @@ void irgen::emitLazyCanonicalSpecializedMetadataAccessor(IRGenModule &IGM,
   }
 
   emitCacheAccessFunction(
-      IGM, accessor, /*cache=*/nullptr, CacheStrategy::None,
+      IGM, accessor, /*cache=*/nullptr, /*cache type*/ nullptr,
+      CacheStrategy::None,
       [&](IRGenFunction &IGF, Explosion &params) {
         return emitCanonicalSpecializedGenericTypeMetadataAccessFunction(
             IGF, params, theType);
@@ -2986,7 +2988,7 @@ namespace {
 
       // Bind the generic arguments.
       if (Target->isGenericContext()) {
-        Address argsArray(args, IGM.Int8Ty, IGM.getPointerAlignment());
+        Address argsArray(args, IGM.Int8PtrTy, IGM.getPointerAlignment());
         emitPolymorphicParametersFromArray(IGF, Target, argsArray,
                                            MetadataState::Abstract);
       }

@@ -39,6 +39,11 @@ public:
 
   Address(llvm::Value *addr, llvm::Type *elementType, Alignment align)
       : Addr(addr), ElementType(elementType), Align(align) {
+    if (!llvm::cast<llvm::PointerType>(addr->getType())
+             ->isOpaqueOrPointeeTypeMatches(elementType)) {
+      addr->getType()->dump();
+      elementType->dump();
+    }
     assert(llvm::cast<llvm::PointerType>(addr->getType())
                ->isOpaqueOrPointeeTypeMatches(elementType) &&
            "Incorrect pointer element type");

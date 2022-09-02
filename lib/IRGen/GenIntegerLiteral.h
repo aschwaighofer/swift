@@ -57,7 +57,7 @@ emitConstantIntegerLiteral(IRGenModule &IGM, IntegerLiteralInst *ILI);
 
 /// Emit a checked truncation of an IntegerLiteral value.
 void emitIntegerLiteralCheckedTrunc(IRGenFunction &IGF, Explosion &in,
-                                    llvm::IntegerType *FromTy,
+                                    llvm::Type *FromTy,
                                     llvm::IntegerType *resultTy,
                                     bool resultIsSigned, Explosion &out);
 

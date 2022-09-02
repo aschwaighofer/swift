@@ -2039,12 +2039,11 @@ static bool isLoadFrom(llvm::Value *value, Address address) {
 /// If cacheVariable is null, we perform the direct access every time.
 /// This is used for metadata accessors that come about due to resilience,
 /// where the direct access is completely trivial.
-void irgen::emitCacheAccessFunction(IRGenModule &IGM,
-                                    llvm::Function *accessor,
+void irgen::emitCacheAccessFunction(IRGenModule &IGM, llvm::Function *accessor,
                                     llvm::Constant *cacheVariable,
+                                    llvm::Type *cacheTy,
                                     CacheStrategy cacheStrategy,
-                                    CacheEmitter getValue,
-                                    bool isReadNone) {
+                                    CacheEmitter getValue, bool isReadNone) {
   assert((cacheStrategy == CacheStrategy::None) == (cacheVariable == nullptr));
   accessor->setDoesNotThrow();
   // Don't inline cache functions, since doing so has little impact on
@@ -2100,8 +2099,7 @@ void irgen::emitCacheAccessFunction(IRGenModule &IGM,
       cast<llvm::PointerType>(
         cacheVariable->getType()->getPointerElementType()));
 
-  Address cache(cacheVariable, IGM.TypeMetadataPtrTy,
-                IGM.getPointerAlignment());
+  Address cache(cacheVariable, cacheTy, IGM.getPointerAlignment());
 
   // Okay, first thing, check the cache variable.
   //
@@ -2604,6 +2602,7 @@ irgen::createTypeMetadataAccessFunction(IRGenModule &IGM, CanType type,
 
   // Okay, define the accessor.
   llvm::Constant *cacheVariable = nullptr;
+  llvm::Type *cacheTy = nullptr;
 
   // If our preferred access method is to go via an accessor, it means
   // there is some non-trivial computation that needs to be cached.
@@ -2618,12 +2617,14 @@ irgen::createTypeMetadataAccessFunction(IRGenModule &IGM, CanType type,
     // For lazy initialization, the cache variable is just a pointer.
     case CacheStrategy::Lazy:
       cacheVariable = IGM.getAddrOfTypeMetadataLazyCacheVariable(type);
+      cacheTy = IGM.TypeMetadataPtrTy;
       break;
 
     // For in-place initialization, drill down to the first element.
     case CacheStrategy::SingletonInitialization:
       cacheVariable = IGM.getAddrOfTypeMetadataSingletonInitializationCache(
                                           type->getAnyNominal(), ForDefinition);
+      cacheTy = IGM.TypeMetadataPtrTy;
       break;
     }
 
@@ -2631,11 +2632,12 @@ irgen::createTypeMetadataAccessFunction(IRGenModule &IGM, CanType type,
       accessor->addFnAttr(llvm::Attribute::NoInline);
   }
 
-  emitCacheAccessFunction(IGM, accessor, cacheVariable, cacheStrategy,
+  emitCacheAccessFunction(IGM, accessor, cacheVariable, cacheTy, cacheStrategy,
                           [&](IRGenFunction &IGF, Explosion &params) {
-    auto request = DynamicMetadataRequest(params.claimNext());
-    return generator(IGF, request, cacheVariable);
-  });
+                            auto request =
+                                DynamicMetadataRequest(params.claimNext());
+                            return generator(IGF, request, cacheVariable);
+                          });
 
   return accessor;
 }

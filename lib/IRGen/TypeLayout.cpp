@@ -1047,7 +1047,7 @@ void AlignedGroupEntry::destroy(IRGenFunction &IGF, Address addr) const {
           addr.getAddress(),
           llvm::ConstantInt::get(IGF.IGM.Int32Ty, offset.getValue()),
           IGF.IGM.OpaquePtrTy);
-      entry->destroy(IGF, Address(projected, IGF.IGM.OpaqueTy,
+      entry->destroy(IGF, Address(projected, IGF.IGM.OpaquePtrTy,
                                   *entry->fixedAlignment(IGF.IGM)));
       offset += *entry->fixedSize(IGF.IGM);
     }
@@ -1095,9 +1095,9 @@ void AlignedGroupEntry::withEachEntry(
           llvm::ConstantInt::get(IGF.IGM.Int32Ty, offset.getValue()),
           IGF.IGM.OpaquePtrTy);
       entryFun(entry,
-               Address(projectedDest, IGF.IGM.OpaqueTy,
+               Address(projectedDest, IGF.IGM.OpaquePtrTy,
                        *entry->fixedAlignment(IGF.IGM)),
-               Address(projectedSrc, IGF.IGM.OpaqueTy,
+               Address(projectedSrc, IGF.IGM.OpaquePtrTy,
                        *entry->fixedAlignment(IGF.IGM)));
       offset += *entry->fixedSize(IGF.IGM);
     }
@@ -1184,7 +1184,7 @@ llvm::Value *AlignedGroupEntry::withExtraInhabitantProvidingEntry(
             llvm::ConstantInt::get(IGF.IGM.Int32Ty, offset.getValue()),
             IGF.IGM.OpaquePtrTy);
         return entryFun(entry,
-                        Address(projected, IGF.IGM.OpaqueTy,
+                        Address(projected, IGF.IGM.OpaquePtrTy,
                                 *entry->fixedAlignment(IGF.IGM)),
                         llvm::ConstantInt::get(IGF.IGM.Int32Ty, *xiCount));
       }

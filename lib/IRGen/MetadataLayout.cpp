@@ -515,8 +515,9 @@ Address irgen::emitAddressOfSuperclassRefInClassMetadata(IRGenFunction &IGF,
   // The superclass field in a class type is the first field past the isa.
   unsigned index = 1;
 
-  Address addr(IGF.Builder.CreateBitCast(metadata, IGF.IGM.TypeMetadataPtrTy),
-               IGF.IGM.TypeMetadataStructTy, IGF.IGM.getPointerAlignment());
+  Address addr(
+      IGF.Builder.CreateBitCast(metadata, IGF.IGM.TypeMetadataPtrPtrTy),
+      IGF.IGM.TypeMetadataPtrTy, IGF.IGM.getPointerAlignment());
   return IGF.Builder.CreateConstArrayGEP(addr, index, IGF.IGM.getPointerSize());
 }
 

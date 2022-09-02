@@ -957,7 +957,10 @@ if (Builtin.ID == BuiltinValueKind::id) { \
 
     // Handle the arbitrary-precision truncate specially.
     if (isa<BuiltinIntegerLiteralType>(FromType)) {
-      emitIntegerLiteralCheckedTrunc(IGF, args, cast<llvm::IntegerType>(FromTy),
+      emitIntegerLiteralCheckedTrunc(IGF, args,
+                                     cast<llvm::StructType>(FromTy)
+                                         ->getElementType(0)
+                                         ->getPointerElementType(),
                                      ToTy, Signed, out);
       return;
     }
@@ -1309,7 +1312,7 @@ if (Builtin.ID == BuiltinValueKind::id) { \
   }
 
   if (Builtin.ID == BuiltinValueKind::AutoDiffProjectTopLevelSubcontext) {
-    Address allocatorAddr(args.claimNext(), IGF.IGM.RefCountedPtrTy,
+    Address allocatorAddr(args.claimNext(), IGF.IGM.RefCountedStructTy,
                           IGF.IGM.getPointerAlignment());
     out.add(
         emitAutoDiffProjectTopLevelSubcontext(IGF, allocatorAddr).getAddress());
@@ -1317,7 +1320,7 @@ if (Builtin.ID == BuiltinValueKind::id) { \
   }
 
   if (Builtin.ID == BuiltinValueKind::AutoDiffAllocateSubcontext) {
-    Address allocatorAddr(args.claimNext(), IGF.IGM.RefCountedPtrTy,
+    Address allocatorAddr(args.claimNext(), IGF.IGM.RefCountedStructTy,
                           IGF.IGM.getPointerAlignment());
     auto size = args.claimNext();
     out.add(

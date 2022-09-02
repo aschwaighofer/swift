@@ -628,11 +628,13 @@ static void buildValueWitnessFunction(IRGenModule &IGM,
     if (auto *enumTypeLayoutEntry =
             conditionallyGetEnumTypeLayoutEntry(IGM, concreteType)) {
       enumTypeLayoutEntry->destructiveInjectEnumTag(
-          IGF, tag, Address(value, IGM.OpaqueTy, type.getBestKnownAlignment()));
+          IGF, tag,
+          Address(value, type.getStorageType(), type.getBestKnownAlignment()));
     } else {
       strategy.emitStoreTag(
           IGF, concreteType,
-          Address(value, IGM.OpaqueTy, type.getBestKnownAlignment()), tag);
+          Address(value, type.getStorageType(), type.getBestKnownAlignment()),
+          tag);
     }
 
     IGF.Builder.CreateRetVoid();
@@ -651,12 +653,12 @@ static void buildValueWitnessFunction(IRGenModule &IGM,
             conditionallyGetTypeLayoutEntry(IGM, concreteType)) {
       auto *idx = typeLayoutEntry->getEnumTagSinglePayload(
           IGF, numEmptyCases,
-          Address(value, IGM.OpaqueTy, type.getBestKnownAlignment()));
+          Address(value, type.getStorageType(), type.getBestKnownAlignment()));
       IGF.Builder.CreateRet(idx);
     } else {
       llvm::Value *idx = type.getEnumTagSinglePayload(
           IGF, numEmptyCases,
-          Address(value, IGM.OpaqueTy, type.getBestKnownAlignment()),
+          Address(value, type.getStorageType(), type.getBestKnownAlignment()),
           concreteType, true);
       IGF.Builder.CreateRet(idx);
     }
@@ -677,11 +679,11 @@ static void buildValueWitnessFunction(IRGenModule &IGM,
             conditionallyGetTypeLayoutEntry(IGM, concreteType)) {
       typeLayoutEntry->storeEnumTagSinglePayload(
           IGF, whichCase, numEmptyCases,
-          Address(value, IGM.OpaqueTy, type.getBestKnownAlignment()));
+          Address(value, type.getStorageType(), type.getBestKnownAlignment()));
     } else {
       type.storeEnumTagSinglePayload(
           IGF, whichCase, numEmptyCases,
-          Address(value, IGM.OpaqueTy, type.getBestKnownAlignment()),
+          Address(value, type.getStorageType(), type.getBestKnownAlignment()),
           concreteType, true);
     }
     IGF.Builder.CreateRetVoid();
@@ -1412,7 +1414,7 @@ Address TypeInfo::roundUpToTypeAlignment(IRGenFunction &IGF, Address base,
   Addr = IGF.Builder.CreateNUWAdd(Addr, TyAlignMask);
   llvm::Value *InvertedMask = IGF.Builder.CreateNot(TyAlignMask);
   Addr = IGF.Builder.CreateAnd(Addr, InvertedMask);
-  Addr = IGF.Builder.CreateIntToPtr(Addr, base.getAddress()->getType());
+  Addr = IGF.Builder.CreateIntToPtr(Addr, getStorageType()->getPointerTo());
   return Address(Addr, getStorageType(), Align);
 }
 
