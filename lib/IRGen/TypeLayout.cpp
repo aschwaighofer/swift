@@ -635,7 +635,7 @@ llvm::Value *TypeLayoutEntry::initBufferWithCopyOfBuffer(IRGenFunction &IGF,
     // Inline of the buffer.
     this->initWithCopy(IGF, dest, src);
     pointerToObject->addIncoming(
-        Builder.CreateBitCast(dest, IGM.OpaquePtrTy).getAddress(),
+        Builder.CreateElementBitCast(dest, IGM.OpaqueTy).getAddress(),
         Builder.GetInsertBlock());
     Builder.CreateBr(finishedBB);
   }
