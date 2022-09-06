@@ -257,7 +257,8 @@ static Address emitDefaultProjectBuffer(IRGenFunction &IGF, Address buffer,
   }
 
   case FixedPacking::OffsetZero: {
-    return IGF.Builder.CreateBitCast(buffer, resultTy, "object");
+    return IGF.Builder.CreateElementBitCast(buffer, type.getStorageType(),
+                                            "object");
   }
 
   case FixedPacking::Dynamic:
@@ -488,7 +489,7 @@ static void buildValueWitnessFunction(IRGenModule &IGM,
     } else {
       type.assignWithCopy(IGF, dest, src, concreteType, true);
     }
-    dest = IGF.Builder.CreateBitCast(dest, IGF.IGM.OpaquePtrTy);
+    dest = IGF.Builder.CreateElementBitCast(dest, IGF.IGM.OpaqueTy);
     IGF.Builder.CreateRet(dest.getAddress());
     return;
   }
@@ -503,7 +504,7 @@ static void buildValueWitnessFunction(IRGenModule &IGM,
     } else {
       type.assignWithTake(IGF, dest, src, concreteType, true);
     }
-    dest = IGF.Builder.CreateBitCast(dest, IGF.IGM.OpaquePtrTy);
+    dest = IGF.Builder.CreateElementBitCast(dest, IGF.IGM.OpaqueTy);
     IGF.Builder.CreateRet(dest.getAddress());
     return;
   }
@@ -533,7 +534,7 @@ static void buildValueWitnessFunction(IRGenModule &IGM,
     } else {
       Address result = emitInitializeBufferWithCopyOfBuffer(
           IGF, dest, src, concreteType, type, packing);
-      result = IGF.Builder.CreateBitCast(result, IGF.IGM.OpaquePtrTy);
+      result = IGF.Builder.CreateElementBitCast(result, IGF.IGM.OpaqueTy);
       objectPtr = result.getAddress();
     }
     IGF.Builder.CreateRet(objectPtr);
@@ -550,7 +551,7 @@ static void buildValueWitnessFunction(IRGenModule &IGM,
     } else {
       type.initializeWithCopy(IGF, dest, src, concreteType, true);
     }
-    dest = IGF.Builder.CreateBitCast(dest, IGF.IGM.OpaquePtrTy);
+    dest = IGF.Builder.CreateElementBitCast(dest, IGF.IGM.OpaqueTy);
     IGF.Builder.CreateRet(dest.getAddress());
     return;
   }
@@ -566,7 +567,7 @@ static void buildValueWitnessFunction(IRGenModule &IGM,
     } else {
       type.initializeWithTake(IGF, dest, src, concreteType, true);
     }
-    dest = IGF.Builder.CreateBitCast(dest, IGF.IGM.OpaquePtrTy);
+    dest = IGF.Builder.CreateElementBitCast(dest, IGF.IGM.OpaqueTy);
     IGF.Builder.CreateRet(dest.getAddress());
     return;
   }
