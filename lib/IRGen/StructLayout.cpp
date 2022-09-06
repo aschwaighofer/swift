@@ -178,9 +178,9 @@ Address ElementLayout::project(IRGenFunction &IGF, Address baseAddr,
   }
 
   case Kind::InitialNonFixedSize:
-    return IGF.Builder.CreateBitCast(baseAddr,
-                                 getType().getStorageType()->getPointerTo(),
-                                 baseAddr.getAddress()->getName() + suffix);
+    return IGF.Builder.CreateElementBitCast(
+        baseAddr, getType().getStorageType(),
+        baseAddr.getAddress()->getName() + suffix);
   }
   llvm_unreachable("bad element layout kind");
 }
