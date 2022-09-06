@@ -3523,7 +3523,7 @@ static llvm::Value *emitWTableSlotLoad(IRGenFunction &IGF, llvm::Value *wtable,
     // method.
     llvm::Function *checkedLoadIntrinsic = llvm::Intrinsic::getDeclaration(
         &IGF.IGM.Module, llvm::Intrinsic::type_checked_load);
-    auto slotAsPointer = IGF.Builder.CreateBitCast(slot, IGF.IGM.Int8PtrTy);
+    auto slotAsPointer = IGF.Builder.CreateElementBitCast(slot, IGF.IGM.Int8Ty);
     auto typeId = typeIdForMethod(IGF.IGM, member);
 
     // Arguments for @llvm.type.checked.load: 1) target address, 2) offset -
