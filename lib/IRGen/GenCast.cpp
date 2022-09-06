@@ -68,8 +68,8 @@ llvm::Value *irgen::emitCheckedCast(IRGenFunction &IGF,
   DynamicCastFlags flags = getDynamicCastFlags(consumptionKind, mode);
 
   // Cast both addresses to opaque pointer type.
-  dest = IGF.Builder.CreateBitCast(dest, IGF.IGM.OpaquePtrTy);
-  src = IGF.Builder.CreateBitCast(src, IGF.IGM.OpaquePtrTy);
+  dest = IGF.Builder.CreateElementBitCast(dest, IGF.IGM.OpaqueTy);
+  src = IGF.Builder.CreateElementBitCast(src, IGF.IGM.OpaqueTy);
 
   // Load type metadata for the source's static type and the target type.
   llvm::Value *srcMetadata = IGF.emitTypeMetadataRef(srcType);
@@ -703,8 +703,8 @@ void irgen::emitScalarExistentialDowncast(IRGenFunction &IGF,
                                                              objcProtos.size()),
                                         IGF.IGM.getPointerAlignment(),
                                         "objc_protocols");
-    protoRefsBuf = IGF.Builder.CreateBitCast(protoRefsBuf,
-                                             IGF.IGM.Int8PtrPtrTy);
+    protoRefsBuf =
+        IGF.Builder.CreateElementBitCast(protoRefsBuf, IGF.IGM.Int8PtrTy);
 
     for (unsigned index : indices(objcProtos)) {
       Address protoRefSlot = IGF.Builder.CreateConstArrayGEP(
