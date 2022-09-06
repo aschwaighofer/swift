@@ -2910,8 +2910,8 @@ static void emitApplyArgument(IRGenSILFunction &IGF,
 
     // If a substitution is in play, just bitcast the address.
     if (isSubstituted) {
-      auto origType = IGF.IGM.getStoragePointerType(paramType);
-      addr = IGF.Builder.CreateBitCast(addr, origType);
+      auto origType = IGF.IGM.getStorageType(paramType);
+      addr = IGF.Builder.CreateElementBitCast(addr, origType);
     }
       
     out.add(addr.getAddress());
@@ -5963,7 +5963,7 @@ void IRGenSILFunction::visitUncheckedAddrCastInst(
                                              swift::UncheckedAddrCastInst *i) {
   auto addr = getLoweredAddress(i->getOperand());
   auto &ti = getTypeInfo(i->getType());
-  auto result = Builder.CreateBitCast(addr,ti.getStorageType()->getPointerTo());
+  auto result = Builder.CreateElementBitCast(addr, ti.getStorageType());
   setLoweredAddress(i, result);
 }
 
@@ -6033,8 +6033,8 @@ static void emitUncheckedValueBitCast(IRGenSILFunction &IGF,
   // Store the 'in' value.
   inTI.initialize(IGF, in, inStorage, false);
   // Load the 'out' value as the destination type.
-  auto outStorage = IGF.Builder.CreateBitCast(inStorage,
-                                        outTI.getStorageType()->getPointerTo());
+  auto outStorage =
+      IGF.Builder.CreateElementBitCast(inStorage, outTI.getStorageType());
   outTI.loadAsTake(IGF, outStorage, out);
   
   IGF.Builder.CreateLifetimeEnd(inStorage, maxSize);
@@ -6593,8 +6593,8 @@ void IRGenSILFunction::visitTailAddrInst(swift::TailAddrInst *i) {
   Address dest = baseTI.indexArray(*this, base, index, baseTy);
   const TypeInfo &TailTI = getTypeInfo(i->getTailType());
   dest = TailTI.roundUpToTypeAlignment(*this, dest, i->getTailType());
-  llvm::Type *destType = TailTI.getStorageType()->getPointerTo();
-  dest = Builder.CreateBitCast(dest, destType);
+  llvm::Type *destType = TailTI.getStorageType();
+  dest = Builder.CreateElementBitCast(dest, destType);
   setLoweredAddress(i, dest);
 }
 
