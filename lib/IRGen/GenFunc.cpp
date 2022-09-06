@@ -815,8 +815,8 @@ public:
           outConv.getSILResultType(IGM.getMaximalTypeExpansionContext()),
           "return.temp");
       resultValueAddr = stackAddr.getAddress();
-      auto resultAddr = subIGF.Builder.CreateBitCast(
-          resultValueAddr, IGM.getStoragePointerType(origConv.getSILResultType(
+      auto resultAddr = subIGF.Builder.CreateElementBitCast(
+          resultValueAddr, IGM.getStorageType(origConv.getSILResultType(
                                IGM.getMaximalTypeExpansionContext())));
       args.add(resultAddr.getAddress());
       useSRet = false;
@@ -2025,8 +2025,8 @@ Optional<StackAddress> irgen::emitFunctionPartialApplication(
     if (outType->isNoEscape()) {
       stackAddr = IGF.emitDynamicAlloca(
           IGF.IGM.Int8Ty, layout.isFixedLayout() ? layout.emitSize(IGF.IGM) : offsets.getSize() , Alignment(16));
-      stackAddr = stackAddr->withAddress(IGF.Builder.CreateBitCast(
-          stackAddr->getAddress(), IGF.IGM.OpaquePtrTy));
+      stackAddr = stackAddr->withAddress(IGF.Builder.CreateElementBitCast(
+          stackAddr->getAddress(), IGF.IGM.OpaqueTy));
       data = stackAddr->getAddress().getAddress();
     } else {
         auto descriptor = IGF.IGM.getAddrOfCaptureDescriptor(SILFn, origType,
