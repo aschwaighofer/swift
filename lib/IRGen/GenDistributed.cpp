@@ -490,8 +490,8 @@ void DistributedAccessor::decodeArgument(unsigned argumentIdx,
   case ParameterConvention::Direct_Guaranteed:
   case ParameterConvention::Direct_Unowned: {
     auto paramTy = param.getSILStorageInterfaceType();
-    Address eltPtr = IGF.Builder.CreateBitCast(
-        resultValue.getAddress(), IGM.getStoragePointerType(paramTy));
+    Address eltPtr = IGF.Builder.CreateElementBitCast(
+        resultValue.getAddress(), IGM.getStorageType(paramTy));
 
     cast<LoadableTypeInfo>(paramInfo).loadAsTake(IGF, eltPtr, arguments);
     break;
