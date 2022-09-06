@@ -2997,8 +2997,8 @@ void CallEmission::emitToMemory(Address addr,
       ->getCanonicalType();
 
   if (origResultType != substResultType) {
-    auto origTy = IGF.IGM.getStoragePointerTypeForLowered(origResultType);
-    origAddr = IGF.Builder.CreateBitCast(origAddr, origTy);
+    auto origTy = IGF.IGM.getStorageTypeForLowered(origResultType);
+    origAddr = IGF.Builder.CreateElementBitCast(origAddr, origTy);
   }
 
   emitToUnmappedMemory(origAddr);
@@ -3457,13 +3457,12 @@ static void emitDirectExternalArgument(IRGenFunction &IGF, SILType argType,
   IGF.Builder.CreateLifetimeStart(temporary, tempSize);
 
   // Store to a temporary.
-  Address tempOfArgTy = IGF.Builder.CreateBitCast(
-      temporary, argTI.getStorageType()->getPointerTo());
+  Address tempOfArgTy =
+      IGF.Builder.CreateElementBitCast(temporary, argTI.getStorageType());
   argTI.initializeFromParams(IGF, in, tempOfArgTy, argType, isOutlined);
 
   // Bitcast the temporary to the expected type.
-  Address coercedAddr =
-      IGF.Builder.CreateBitCast(temporary, coercedTy->getPointerTo());
+  Address coercedAddr = IGF.Builder.CreateElementBitCast(temporary, coercedTy);
 
   if (IsDirectFlattened && isa<llvm::StructType>(coercedTy)) {
     // Project out individual elements if necessary.
@@ -3492,7 +3491,7 @@ namespace {
       : ClangExpandProjection(IGF), Out(out) {}
 
     void visitScalar(llvm::Type *scalarTy, Address addr) {
-      addr = IGF.Builder.CreateBitCast(addr, scalarTy->getPointerTo());
+      addr = IGF.Builder.CreateElementBitCast(addr, scalarTy);
       auto value = IGF.Builder.CreateLoad(addr);
       Out.add(value);
     }
@@ -3509,7 +3508,7 @@ namespace {
     void visitScalar(llvm::Type *scalarTy, Address addr) {
       auto value = In.claimNext();
 
-      addr = IGF.Builder.CreateBitCast(addr, scalarTy->getPointerTo());
+      addr = IGF.Builder.CreateElementBitCast(addr, scalarTy);
       IGF.Builder.CreateStore(value, addr);
     }
   };
@@ -3532,7 +3531,7 @@ emitClangExpandedArgument(IRGenFunction &IGF, Explosion &in, Explosion &out,
   Address temp = ctemp.getAddress();
   swiftTI.initialize(IGF, in, temp, isOutlined);
 
-  Address castTemp = IGF.Builder.CreateBitCast(temp, IGF.IGM.Int8PtrTy);
+  Address castTemp = IGF.Builder.CreateElementBitCast(temp, IGF.IGM.Int8Ty);
   ClangExpandLoadEmitter(IGF, out).visit(clangType, castTemp);
 
   swiftTI.deallocateStack(IGF, ctemp, swiftType);
@@ -3555,7 +3554,7 @@ void irgen::emitClangExpandedParameter(IRGenFunction &IGF,
   auto tempAlloc = swiftTI.allocateStack(IGF, swiftType,
                                          "clang-expand-param.temp");
   Address temp = tempAlloc.getAddress();
-  Address castTemp = IGF.Builder.CreateBitCast(temp, IGF.IGM.Int8PtrTy);
+  Address castTemp = IGF.Builder.CreateElementBitCast(temp, IGF.IGM.Int8Ty);
   ClangExpandStoreEmitter(IGF, in).visit(clangType, castTemp);
 
   // Then load out.
@@ -3801,8 +3800,7 @@ static void emitDirectForeignParameter(IRGenFunction &IGF, Explosion &in,
   IGF.Builder.CreateLifetimeStart(temporary, tempSize);
 
   // Write the input parameters into the temporary:
-  Address coercedAddr =
-    IGF.Builder.CreateBitCast(temporary, coercionTy->getPointerTo());
+  Address coercedAddr = IGF.Builder.CreateElementBitCast(temporary, coercionTy);
 
   // Break down a struct expansion if necessary.
   if (auto expansionTy = dyn_cast<llvm::StructType>(coercionTy)) {
@@ -3819,8 +3817,8 @@ static void emitDirectForeignParameter(IRGenFunction &IGF, Explosion &in,
   }
 
   // Pull out the elements.
-  temporary = IGF.Builder.CreateBitCast(temporary,
-                                      paramTI.getStorageType()->getPointerTo());
+  temporary =
+      IGF.Builder.CreateElementBitCast(temporary, paramTI.getStorageType());
   paramTI.loadAsTake(IGF, temporary, out);
 
   // Deallocate the temporary.
@@ -4448,9 +4446,9 @@ llvm::Value* IRGenFunction::coerceValue(llvm::Value *value, llvm::Type *toTy,
   std::tie(address, size) = allocateForCoercion(*this, fromTy, toTy,
                                                 value->getName() + ".coercion");
   Builder.CreateLifetimeStart(address, size);
-  auto orig = Builder.CreateBitCast(address, fromTy->getPointerTo());
+  auto orig = Builder.CreateElementBitCast(address, fromTy);
   Builder.CreateStore(value, orig);
-  auto coerced = Builder.CreateBitCast(address, toTy->getPointerTo());
+  auto coerced = Builder.CreateElementBitCast(address, toTy);
   auto loaded = Builder.CreateLoad(coerced);
   Builder.CreateLifetimeEnd(address, size);
   return loaded;
@@ -4670,8 +4668,8 @@ Explosion NativeConventionSchema::mapFromNative(IRGenModule &IGM,
   }
 
   // Reload according to the types schema.
-  Address storageAddr = Builder.CreateBitCast(
-      temporary, loadableTI.getStorageType()->getPointerTo());
+  Address storageAddr =
+      Builder.CreateElementBitCast(temporary, loadableTI.getStorageType());
   loadableTI.loadAsTake(IGF, storageAddr, nonNativeExplosion);
 
   Builder.CreateLifetimeEnd(temporary, tempSize);
@@ -4776,8 +4774,8 @@ Explosion NativeConventionSchema::mapIntoNative(IRGenModule &IGM,
   Builder.CreateLifetimeStart(temporary, tempSize);
 
   // Initialize the memory of the temporary.
-  Address storageAddr = Builder.CreateBitCast(
-      temporary, loadableTI.getStorageType()->getPointerTo());
+  Address storageAddr =
+      Builder.CreateElementBitCast(temporary, loadableTI.getStorageType());
   loadableTI.initialize(IGF, fromNonNative, storageAddr, isOutlined);
 
   // Load the expanded type elements from memory.
