@@ -255,9 +255,9 @@ static StringRef getValueWitnessLabel(ValueWitness index) {
   llvm_unreachable("bad value witness index");
 }
 
-static llvm::PointerType *
-getOrCreateValueWitnessTablePtrTy(IRGenModule &IGM, llvm::PointerType *&cache,
-                                  StringRef name, bool includeEnumWitnesses) {
+static llvm::StructType *
+getOrCreateValueWitnessTableTy(IRGenModule &IGM, llvm::StructType *&cache,
+                               StringRef name, bool includeEnumWitnesses) {
   if (cache) return cache;
 
   SmallVector<llvm::Type*, 16> types;
@@ -285,26 +285,24 @@ getOrCreateValueWitnessTablePtrTy(IRGenModule &IGM, llvm::PointerType *&cache,
 #undef FUNC
 
   auto structTy = llvm::StructType::create(types, name);
-  auto ptrTy = structTy->getPointerTo();
-  cache = ptrTy;
-  return ptrTy;
+  cache = structTy;
+  return structTy;
 }
 
 llvm::StructType *IRGenModule::getValueWitnessTableTy() {
-  return cast<llvm::StructType>(getValueWitnessTablePtrTy()->getPointerElementType());
+  return getOrCreateValueWitnessTableTy(*this, ValueWitnessTableTy,
+                                        "swift.vwtable", false);
 }
 llvm::PointerType *IRGenModule::getValueWitnessTablePtrTy() {
-  return getOrCreateValueWitnessTablePtrTy(*this, ValueWitnessTablePtrTy,
-                                           "swift.vwtable", false);
+  return getValueWitnessTableTy()->getPointerTo();
 }
 
 llvm::StructType *IRGenModule::getEnumValueWitnessTableTy() {
-  return cast<llvm::StructType>(getEnumValueWitnessTablePtrTy()
-           ->getPointerElementType());
+  return getOrCreateValueWitnessTableTy(*this, EnumValueWitnessTableTy,
+                                        "swift.enum_vwtable", true);
 }
 llvm::PointerType *IRGenModule::getEnumValueWitnessTablePtrTy() {
-  return getOrCreateValueWitnessTablePtrTy(*this, EnumValueWitnessTablePtrTy,
-                                           "swift.enum_vwtable", true);
+  return getEnumValueWitnessTableTy()->getPointerTo();
 }
 
 Address irgen::slotForLoadOfOpaqueWitness(IRGenFunction &IGF,
@@ -374,7 +372,8 @@ static Address emitAddressOfValueWitnessTableValue(IRGenFunction &IGF,
 
   Address addr =
       Address(table, IGF.IGM.WitnessTableTy, IGF.IGM.getPointerAlignment());
-  addr = IGF.Builder.CreateBitCast(addr, IGF.IGM.getValueWitnessTablePtrTy());
+  addr =
+      IGF.Builder.CreateElementBitCast(addr, IGF.IGM.getValueWitnessTableTy());
   addr = IGF.Builder.CreateStructGEP(addr, unsigned(witness), offset);
   return addr;
 }

@@ -930,8 +930,8 @@ private:
   llvm::FunctionType *AssociatedTypeWitnessTableAccessFunctionTy = nullptr;
   llvm::StructType *GenericWitnessTableCacheTy = nullptr;
   llvm::StructType *IntegerLiteralTy = nullptr;
-  llvm::PointerType *ValueWitnessTablePtrTy = nullptr;
-  llvm::PointerType *EnumValueWitnessTablePtrTy = nullptr;
+  llvm::StructType *ValueWitnessTableTy = nullptr;
+  llvm::StructType *EnumValueWitnessTableTy = nullptr;
 
   llvm::DenseMap<llvm::Type *, SpareBitVector> SpareBitsForTypes;
 
