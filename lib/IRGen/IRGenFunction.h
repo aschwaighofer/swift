@@ -259,16 +259,12 @@ public:
                                               Address addr,
                                               bool isFar);
 
-  llvm::Value *
-  emitLoadOfRelativeIndirectablePointer(Address addr, bool isFar,
-                                        llvm::PointerType *expectedType,
-                                        const llvm::Twine &name = "");
   llvm::Value *emitLoadOfRelativePointer(Address addr, bool isFar,
-                                         llvm::PointerType *expectedType,
+                                         llvm::Type *expectedPointedToType,
                                          const llvm::Twine &name = "");
   llvm::Value *
   emitLoadOfCompactFunctionPointer(Address addr, bool isFar,
-                                   llvm::PointerType *expectedType,
+                                   llvm::Type *expectedPointedToType,
                                    const llvm::Twine &name = "");
 
   llvm::Value *emitAllocObjectCall(llvm::Value *metadata, llvm::Value *size,

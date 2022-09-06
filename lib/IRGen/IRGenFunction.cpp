@@ -321,7 +321,7 @@ void IRGenFunction::emitStoreOfRelativeIndirectablePointer(llvm::Value *value,
 
 llvm::Value *
 IRGenFunction::emitLoadOfRelativePointer(Address addr, bool isFar,
-                                         llvm::PointerType *expectedType,
+                                         llvm::Type *expectedPointedToType,
                                          const llvm::Twine &name) {
   llvm::Value *value = Builder.CreateLoad(addr);
   assert(value->getType() ==
@@ -334,72 +334,24 @@ IRGenFunction::emitLoadOfRelativePointer(Address addr, bool isFar,
   auto *uncastPointer = Builder.CreateIntToPtr(uncastPointerInt, IGM.Int8PtrTy);
   auto uncastPointerAddress =
       Address(uncastPointer, IGM.Int8Ty, IGM.getPointerAlignment());
-  auto pointer = Builder.CreateBitCast(uncastPointerAddress, expectedType);
+  auto pointer =
+      Builder.CreateElementBitCast(uncastPointerAddress, expectedPointedToType);
   return pointer.getAddress();
 }
 
-llvm::Value *
-IRGenFunction::emitLoadOfCompactFunctionPointer(Address addr, bool isFar,
-                                                 llvm::PointerType *expectedType,
-                                                 const llvm::Twine &name) {
+llvm::Value *IRGenFunction::emitLoadOfCompactFunctionPointer(
+    Address addr, bool isFar, llvm::Type *expectedPointedToType,
+    const llvm::Twine &name) {
   if (IGM.getOptions().CompactAbsoluteFunctionPointer) {
     llvm::Value *value = Builder.CreateLoad(addr);
     auto *uncastPointer = Builder.CreateIntToPtr(value, IGM.Int8PtrTy);
-    auto pointer = Builder.CreateBitCast(
+    auto pointer = Builder.CreateElementBitCast(
         Address(uncastPointer, IGM.Int8Ty, IGM.getPointerAlignment()),
-        expectedType);
+        expectedPointedToType);
     return pointer.getAddress();
   } else {
-    return emitLoadOfRelativePointer(addr, isFar, expectedType, name);
+    return emitLoadOfRelativePointer(addr, isFar, expectedPointedToType, name);
   }
-}
-
-llvm::Value *
-IRGenFunction::emitLoadOfRelativeIndirectablePointer(Address addr,
-                                                bool isFar,
-                                                llvm::PointerType *expectedType,
-                                                const llvm::Twine &name) {
-  // Load the pointer and turn it back into a pointer.
-  llvm::Value *value = Builder.CreateLoad(addr);
-  assert(value->getType() == (isFar ? IGM.FarRelativeAddressTy
-                                    : IGM.RelativeAddressTy));
-  if (!isFar) {
-    value = Builder.CreateSExt(value, IGM.IntPtrTy);
-  }
-  assert(value->getType() == IGM.IntPtrTy);
-
-  llvm::BasicBlock *origBB = Builder.GetInsertBlock();
-  llvm::Value *directResult = Builder.CreateIntToPtr(value, expectedType);
-
-  // Check whether the low bit is set.
-  llvm::Constant *one = llvm::ConstantInt::get(IGM.IntPtrTy, 1);
-  llvm::BasicBlock *indirectBB = createBasicBlock("relptr.indirect");
-  llvm::BasicBlock *contBB = createBasicBlock("relptr.cont");
-  llvm::Value *isIndirect = Builder.CreateAnd(value, one);
-  isIndirect = Builder.CreateIsNotNull(isIndirect);
-  Builder.CreateCondBr(isIndirect, indirectBB, contBB);
-
-  // In the indirect block, clear the low bit and perform an additional load.
-  llvm::Value *indirectResult; {
-    Builder.emitBlock(indirectBB);
-
-    // Clear the low bit.
-    llvm::Value *ptr = Builder.CreateSub(value, one);
-    ptr = Builder.CreateIntToPtr(ptr, expectedType->getPointerTo());
-
-    // Load.
-    Address indirectAddr(ptr, expectedType, IGM.getPointerAlignment());
-    indirectResult = Builder.CreateLoad(indirectAddr);
-
-    Builder.CreateBr(contBB);
-  }
-
-  Builder.emitBlock(contBB);
-  auto phi = Builder.CreatePHI(expectedType, 2, name);
-  phi->addIncoming(directResult, origBB);
-  phi->addIncoming(indirectResult, indirectBB);
-
-  return phi;
 }
 
 void IRGenFunction::emitFakeExplosion(const TypeInfo &type,

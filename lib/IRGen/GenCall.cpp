@@ -2107,7 +2107,7 @@ std::pair<llvm::Value *, llvm::Value *> irgen::getAsyncFunctionAndSize(
           Address(addrPtr, IGF.IGM.RelativeAddressTy,
                   IGF.IGM.getPointerAlignment()),
           /*isFar*/ false,
-          /*expectedType*/ functionPointer.getFunctionType()->getPointerTo());
+          /*expectedType*/ functionPointer.getFunctionType());
     }
 
     if (auto authInfo =
@@ -5037,7 +5037,7 @@ llvm::Value *FunctionPointer::getPointer(IRGenFunction &IGF) const {
         Address(addrPtr, IGF.IGM.RelativeAddressTy,
                 IGF.IGM.getPointerAlignment()),
         /*isFar*/ false,
-        /*expectedType*/ getFunctionType()->getPointerTo());
+        /*expectedType*/ getFunctionType());
     if (auto codeAuthInfo = AuthInfo.getCorrespondingCodeAuthInfo()) {
       result = emitPointerAuthSign(IGF, result, codeAuthInfo);
     }
