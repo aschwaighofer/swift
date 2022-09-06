@@ -1824,9 +1824,9 @@ namespace {
                                                  "protocols");
       IGF.Builder.CreateLifetimeStart(descriptorArray,
                                    IGF.IGM.getPointerSize() * protocols.size());
-      descriptorArray = IGF.Builder.CreateBitCast(descriptorArray,
-                               IGF.IGM.ProtocolDescriptorRefTy->getPointerTo());
-      
+      descriptorArray = IGF.Builder.CreateElementBitCast(
+          descriptorArray, IGF.IGM.ProtocolDescriptorRefTy);
+
       unsigned index = 0;
       for (auto *protoDecl : protocols) {
         llvm::Value *ref = emitProtocolDescriptorRef(IGF, protoDecl);
