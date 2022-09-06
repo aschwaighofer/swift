@@ -597,8 +597,8 @@ OwnedAddress irgen::projectPhysicalClassMemberAddress(IRGenFunction &IGF,
     Address memberAddr = element.project(IGF, baseAddr, None);
     // We may need to bitcast the address if the field is of a generic type.
     if (memberAddr.getType()->getPointerElementType() != fieldTI.getStorageType())
-      memberAddr = IGF.Builder.CreateBitCast(memberAddr,
-                                     fieldTI.getStorageType()->getPointerTo());
+      memberAddr = IGF.Builder.CreateElementBitCast(memberAddr,
+                                                    fieldTI.getStorageType());
     return OwnedAddress(memberAddr, base);
   }
     
@@ -2725,7 +2725,7 @@ irgen::emitClassResilientInstanceSizeAndAlignMask(IRGenFunction &IGF,
   Address slot = IGF.Builder.CreateConstByteArrayGEP(
       metadataAsBytes,
       layout.getInstanceSizeOffset());
-  slot = IGF.Builder.CreateBitCast(slot, IGF.IGM.Int32Ty->getPointerTo());
+  slot = IGF.Builder.CreateElementBitCast(slot, IGF.IGM.Int32Ty);
   llvm::Value *size = IGF.Builder.CreateLoad(slot);
   if (IGF.IGM.SizeTy != IGF.IGM.Int32Ty)
     size = IGF.Builder.CreateZExt(size, IGF.IGM.SizeTy);
@@ -2733,7 +2733,7 @@ irgen::emitClassResilientInstanceSizeAndAlignMask(IRGenFunction &IGF,
   slot = IGF.Builder.CreateConstByteArrayGEP(
       metadataAsBytes,
       layout.getInstanceAlignMaskOffset());
-  slot = IGF.Builder.CreateBitCast(slot, IGF.IGM.Int16Ty->getPointerTo());
+  slot = IGF.Builder.CreateElementBitCast(slot, IGF.IGM.Int16Ty);
   llvm::Value *alignMask = IGF.Builder.CreateLoad(slot);
   alignMask = IGF.Builder.CreateZExt(alignMask, IGF.IGM.SizeTy);
 
@@ -2756,7 +2756,7 @@ static llvm::Value *emitVTableSlotLoad(IRGenFunction &IGF, Address slot,
     // method.
     llvm::Function *checkedLoadIntrinsic = llvm::Intrinsic::getDeclaration(
         &IGF.IGM.Module, llvm::Intrinsic::type_checked_load);
-    auto slotAsPointer = IGF.Builder.CreateBitCast(slot, IGF.IGM.Int8PtrTy);
+    auto slotAsPointer = IGF.Builder.CreateElementBitCast(slot, IGF.IGM.Int8Ty);
     auto typeId = typeIdForMethod(IGF.IGM, method);
 
     // Arguments for @llvm.type.checked.load: 1) target address, 2) offset -
