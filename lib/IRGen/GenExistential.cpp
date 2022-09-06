@@ -707,55 +707,52 @@ namespace {
     StringRef getStructNameSuffix() const { return "." #name "ref"; } \
     REF_STORAGE_HELPER(Name, FixedTypeInfo) \
   };
-#define ALWAYS_LOADABLE_CHECKED_REF_STORAGE(Name, ...) \
-  class Loadable##Name##ClassExistentialTypeInfo final \
-    : public ScalarExistentialTypeInfoBase< \
-                                     Loadable##Name##ClassExistentialTypeInfo, \
-                                     LoadableTypeInfo> { \
-    ReferenceCounting Refcounting; \
-    llvm::Type *ValueType; \
-    bool IsOptional; \
-  public: \
-    Loadable##Name##ClassExistentialTypeInfo( \
-        ArrayRef<const ProtocolDecl *> storedProtocols, \
-        llvm::Type *valueTy, llvm::Type *ty, \
-        const SpareBitVector &spareBits, \
-        Size size, Alignment align, \
-        ReferenceCounting refcounting, \
-        bool isOptional) \
-      : ScalarExistentialTypeInfoBase(storedProtocols, ty, size, \
-                                      spareBits, align, IsNotPOD, IsFixedSize), \
-        Refcounting(refcounting), ValueType(valueTy), IsOptional(isOptional) { \
-      assert(refcounting == ReferenceCounting::Native || \
-             refcounting == ReferenceCounting::Unknown); \
-    } \
-    TypeLayoutEntry *buildTypeLayoutEntry(IRGenModule &IGM, \
-                                          SILType T) const override { \
-      return IGM.typeLayoutCache.getOrCreateScalarEntry(*this, T); \
-    } \
-    llvm::Type *getValueType() const { \
-      return ValueType; \
-    } \
-    Address projectValue(IRGenFunction &IGF, Address addr) const { \
-      Address valueAddr = ScalarExistentialTypeInfoBase::projectValue(IGF, addr); \
-      return IGF.Builder.CreateBitCast(valueAddr, ValueType->getPointerTo()); \
-    } \
-    void emitValueRetain(IRGenFunction &IGF, llvm::Value *value, \
-                         Atomicity atomicity) const { \
-      IGF.emit##Name##Retain(value, Refcounting, atomicity); \
-    } \
-    void emitValueRelease(IRGenFunction &IGF, llvm::Value *value, \
-                          Atomicity atomicity) const { \
-      IGF.emit##Name##Release(value, Refcounting, atomicity); \
-    } \
-    void emitValueFixLifetime(IRGenFunction &IGF, llvm::Value *value) const { \
-      IGF.emitFixLifetime(value); \
-    } \
-    const LoadableTypeInfo & \
-    getValueTypeInfoForExtraInhabitants(IRGenModule &IGM) const { \
-      llvm_unreachable("should have overridden all actual uses of this"); \
-    } \
-    REF_STORAGE_HELPER(Name, LoadableTypeInfo) \
+#define ALWAYS_LOADABLE_CHECKED_REF_STORAGE(Name, ...)                         \
+  class Loadable##Name##ClassExistentialTypeInfo final                         \
+      : public ScalarExistentialTypeInfoBase<                                  \
+            Loadable##Name##ClassExistentialTypeInfo, LoadableTypeInfo> {      \
+    ReferenceCounting Refcounting;                                             \
+    llvm::Type *ValueType;                                                     \
+    bool IsOptional;                                                           \
+                                                                               \
+  public:                                                                      \
+    Loadable##Name##ClassExistentialTypeInfo(                                  \
+        ArrayRef<const ProtocolDecl *> storedProtocols, llvm::Type *valueTy,   \
+        llvm::Type *ty, const SpareBitVector &spareBits, Size size,            \
+        Alignment align, ReferenceCounting refcounting, bool isOptional)       \
+        : ScalarExistentialTypeInfoBase(storedProtocols, ty, size, spareBits,  \
+                                        align, IsNotPOD, IsFixedSize),         \
+          Refcounting(refcounting), ValueType(valueTy),                        \
+          IsOptional(isOptional) {                                             \
+      assert(refcounting == ReferenceCounting::Native ||                       \
+             refcounting == ReferenceCounting::Unknown);                       \
+    }                                                                          \
+    TypeLayoutEntry *buildTypeLayoutEntry(IRGenModule &IGM,                    \
+                                          SILType T) const override {          \
+      return IGM.typeLayoutCache.getOrCreateScalarEntry(*this, T);             \
+    }                                                                          \
+    llvm::Type *getValueType() const { return ValueType; }                     \
+    Address projectValue(IRGenFunction &IGF, Address addr) const {             \
+      Address valueAddr =                                                      \
+          ScalarExistentialTypeInfoBase::projectValue(IGF, addr);              \
+      return IGF.Builder.CreateElementBitCast(valueAddr, ValueType);           \
+    }                                                                          \
+    void emitValueRetain(IRGenFunction &IGF, llvm::Value *value,               \
+                         Atomicity atomicity) const {                          \
+      IGF.emit##Name##Retain(value, Refcounting, atomicity);                   \
+    }                                                                          \
+    void emitValueRelease(IRGenFunction &IGF, llvm::Value *value,              \
+                          Atomicity atomicity) const {                         \
+      IGF.emit##Name##Release(value, Refcounting, atomicity);                  \
+    }                                                                          \
+    void emitValueFixLifetime(IRGenFunction &IGF, llvm::Value *value) const {  \
+      IGF.emitFixLifetime(value);                                              \
+    }                                                                          \
+    const LoadableTypeInfo &                                                   \
+    getValueTypeInfoForExtraInhabitants(IRGenModule &IGM) const {              \
+      llvm_unreachable("should have overridden all actual uses of this");      \
+    }                                                                          \
+    REF_STORAGE_HELPER(Name, LoadableTypeInfo)                                 \
   };
 #define SOMETIMES_LOADABLE_CHECKED_REF_STORAGE(Name, name, ...) \
   NEVER_LOADABLE_CHECKED_REF_STORAGE(Name, name, "...") \
