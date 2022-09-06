@@ -322,7 +322,7 @@ FixedTypeInfo::getSpareBitExtraInhabitantIndex(IRGenFunction &IGF,
   
   // Load the value.
   auto payloadTy = llvm::IntegerType::get(C, getFixedSize().getValueInBits());
-  src = IGF.Builder.CreateBitCast(src, payloadTy->getPointerTo());
+  src = IGF.Builder.CreateElementBitCast(src, payloadTy);
   auto val = IGF.Builder.CreateLoad(src);
   
   // If the spare bits are all zero, then we have a valid value and not an
@@ -506,7 +506,7 @@ static llvm::Value *emitLoadBytes(IRGenFunction &IGF, Address from,
         }
         // Generate a load of size bytes and zero-extend it to 32-bits.
         auto *type = B.getIntNTy(s.getValueInBits());
-        Address addr = B.CreateBitCast(from, type->getPointerTo());
+        Address addr = B.CreateElementBitCast(from, type);
         auto *val = B.CreateZExtOrTrunc(B.CreateLoad(addr), B.getInt32Ty());
         phi->addIncoming(val, B.GetInsertBlock());
       },
@@ -558,7 +558,7 @@ static void emitStoreBytes(IRGenFunction &IGF, Address to, llvm::Value *val,
         // Store value truncated to size bytes.
         auto *type = B.getIntNTy(s.getValueInBits());
         auto *trunc = B.CreateZExtOrTrunc(val, type);
-        Address addr = B.CreateBitCast(to, type->getPointerTo());
+        Address addr = B.CreateElementBitCast(to, type);
         B.CreateStore(trunc, addr);
       },
       size,
@@ -885,16 +885,14 @@ void irgen::storeFixedTypeEnumTagSinglePayload(
     if (fixedSize.getValueInBits() <= llvm::IntegerType::MAX_INT_BITS / 4) {
       // Write the value to the payload as a zero extended integer.
       auto *intType = Builder.getIntNTy(fixedSize.getValueInBits());
-      Builder.CreateStore(
-          Builder.CreateZExtOrTrunc(payloadIndex, intType),
-          Builder.CreateBitCast(valueAddr, intType->getPointerTo()));
+      Builder.CreateStore(Builder.CreateZExtOrTrunc(payloadIndex, intType),
+                          Builder.CreateElementBitCast(valueAddr, intType));
     } else {
       // Write the value to the payload as a zero extended integer.
       Size limit = IGM.getPointerSize();
       auto *intType = Builder.getIntNTy(limit.getValueInBits());
-      Builder.CreateStore(
-          Builder.CreateZExtOrTrunc(payloadIndex, intType),
-          Builder.CreateBitCast(valueAddr, intType->getPointerTo()));
+      Builder.CreateStore(Builder.CreateZExtOrTrunc(payloadIndex, intType),
+                          Builder.CreateElementBitCast(valueAddr, intType));
       // Zero the remainder of the payload.
       auto zeroAddr = Builder.CreateConstByteArrayGEP(valueAddr, limit);
       auto zeroSize = Builder.CreateSub(
@@ -955,8 +953,8 @@ FixedTypeInfo::storeSpareBitExtraInhabitant(IRGenFunction &IGF,
   
   // Combine the values and store to the destination.
   llvm::Value *inhabitant = IGF.Builder.CreateOr(occupied, spare);
-  
-  dest = IGF.Builder.CreateBitCast(dest, payloadTy->getPointerTo());
+
+  dest = IGF.Builder.CreateElementBitCast(dest, payloadTy);
   IGF.Builder.CreateStore(inhabitant, dest);
 }
 
@@ -1095,7 +1093,7 @@ namespace {
                                          SILType T,
                                          bool isOutlined) const override {
       // Copied from BridgeObjectTypeInfo.
-      src = IGF.Builder.CreateBitCast(src, IGF.IGM.IntPtrTy->getPointerTo());
+      src = IGF.Builder.CreateElementBitCast(src, IGF.IGM.IntPtrTy);
       auto val = IGF.Builder.CreateLoad(src);
       auto zero = llvm::ConstantInt::get(IGF.IGM.IntPtrTy, 0);
       auto isNonzero = IGF.Builder.CreateICmpNE(val, zero);
@@ -1109,7 +1107,7 @@ namespace {
                               bool isOutlined) const override {
       // Copied from BridgeObjectTypeInfo.
       // There's only one extra inhabitant, 0.
-      dest = IGF.Builder.CreateBitCast(dest, IGF.IGM.IntPtrTy->getPointerTo());
+      dest = IGF.Builder.CreateElementBitCast(dest, IGF.IGM.IntPtrTy);
       IGF.Builder.CreateStore(llvm::ConstantInt::get(IGF.IGM.IntPtrTy, 0),dest);
     }
   };
