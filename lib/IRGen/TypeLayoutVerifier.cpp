@@ -111,9 +111,9 @@ IRGenTypeVerifierFunction::emit(ArrayRef<CanType> formalTypes) {
         auto fixedXIBuf = createAlloca(fixedTI->getStorageType(),
                                            fixedTI->getFixedAlignment(),
                                            "extra-inhabitant");
-        auto xiOpaque = Builder.CreateBitCast(xiBuf, IGM.OpaquePtrTy);
-        auto fixedXIOpaque = Builder.CreateBitCast(fixedXIBuf,
-                                                       IGM.OpaquePtrTy);
+        auto xiOpaque = Builder.CreateElementBitCast(xiBuf, IGM.OpaqueTy);
+        auto fixedXIOpaque =
+            Builder.CreateElementBitCast(fixedXIBuf, IGM.OpaqueTy);
         auto xiMask = fixedTI->getFixedExtraInhabitantMask(IGM);
         auto xiSchema = EnumPayloadSchema(xiMask.getBitWidth());
 
