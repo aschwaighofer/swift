@@ -232,11 +232,6 @@ public:
   }
 
   using IRBuilderBase::CreateBitCast;
-  Address CreateBitCast(Address address, llvm::Type *type,
-                        const llvm::Twine &name = "") {
-    llvm::Value *addr = CreateBitCast(address.getAddress(), type, name);
-    return Address(addr, type->getPointerElementType(), address.getAlignment());
-  }
 
   /// Cast the given address to be a pointer to the given element type,
   /// preserving the original address space.
@@ -247,8 +242,10 @@ public:
     if (origPtrType->getPointerElementType() == type) return address;
 
     // Otherwise, cast to a pointer to the correct type.
-    auto ptrType = type->getPointerTo(origPtrType->getAddressSpace());
-    return CreateBitCast(address, ptrType, name);
+    return Address(
+        CreateBitCast(address.getAddress(),
+                      type->getPointerTo(origPtrType->getAddressSpace())),
+        type, address.getAlignment());
   }
 
   /// Insert the given basic block after the IP block and move the
