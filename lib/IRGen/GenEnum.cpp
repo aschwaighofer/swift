@@ -208,8 +208,8 @@ const {
   }
 
   // Payloads are all placed at the beginning of the value.
-  return IGF.Builder.CreateBitCast(enumAddr,
-                           payloadI->ti->getStorageType()->getPointerTo());
+  return IGF.Builder.CreateElementBitCast(enumAddr,
+                                          payloadI->ti->getStorageType());
 }
 
 Address
@@ -233,8 +233,8 @@ const {
   destructiveProjectDataForLoad(IGF, enumType, enumAddr);
 
   // Payloads are all placed at the beginning of the value.
-  return IGF.Builder.CreateBitCast(enumAddr,
-                           payloadI->ti->getStorageType()->getPointerTo());
+  return IGF.Builder.CreateElementBitCast(enumAddr,
+                                          payloadI->ti->getStorageType());
 }
 
 unsigned
@@ -346,8 +346,8 @@ namespace {
     }
 
     Address getSingletonAddress(IRGenFunction &IGF, Address addr) const {
-      return IGF.Builder.CreateBitCast(addr,
-                             getSingleton()->getStorageType()->getPointerTo());
+      return IGF.Builder.CreateElementBitCast(addr,
+                                              getSingleton()->getStorageType());
     }
 
     SILType getSingletonType(IRGenModule &IGM, SILType T) const {
@@ -1130,7 +1130,7 @@ namespace {
       // Load the value.
       auto payloadTy = llvm::IntegerType::get(C,
                       cast<FixedTypeInfo>(TI)->getFixedSize().getValueInBits());
-      src = IGF.Builder.CreateBitCast(src, payloadTy->getPointerTo());
+      src = IGF.Builder.CreateElementBitCast(src, payloadTy);
       llvm::Value *val = IGF.Builder.CreateLoad(src);
 
       // Convert to i32.
@@ -1158,7 +1158,7 @@ namespace {
       auto &C = IGF.IGM.getLLVMContext();
       auto payloadTy = llvm::IntegerType::get(C,
                       cast<FixedTypeInfo>(TI)->getFixedSize().getValueInBits());
-      dest = IGF.Builder.CreateBitCast(dest, payloadTy->getPointerTo());
+      dest = IGF.Builder.CreateElementBitCast(dest, payloadTy);
 
       index = IGF.Builder.CreateZExtOrTrunc(index, payloadTy);
       index = IGF.Builder.CreateAdd(index,
@@ -1444,7 +1444,7 @@ namespace {
       assert(ExtraTagBitCount > 0 && "does not have extra tag bits");
 
       if (PayloadElementCount == 0) {
-        return IGF.Builder.CreateBitCast(addr, ExtraTagTy->getPointerTo());
+        return IGF.Builder.CreateElementBitCast(addr, ExtraTagTy);
       }
 
       addr = IGF.Builder.CreateStructGEP(addr, 1, getOffsetOfExtraTagBits());
@@ -1870,8 +1870,8 @@ namespace {
     /// address to the payload type for either injection or projection of the
     /// enum.
     Address projectPayloadData(IRGenFunction &IGF, Address addr) const {
-      return IGF.Builder.CreateBitCast(addr,
-                         getPayloadTypeInfo().getStorageType()->getPointerTo());
+      return IGF.Builder.CreateElementBitCast(
+          addr, getPayloadTypeInfo().getStorageType());
     }
     void destructiveProjectDataForLoad(IRGenFunction &IGF,
                                        SILType T,
@@ -2758,8 +2758,8 @@ namespace {
 
         case NullableRefcounted: {
           // Apply the payload's operation.
-          addr = IGF.Builder.CreateBitCast(
-              addr, getRefcountedPtrType(IGM)->getPointerTo());
+          addr =
+              IGF.Builder.CreateElementBitCast(addr, getRefcountedPtrType(IGM));
           llvm::Value *ptr = IGF.Builder.CreateLoad(addr);
           releaseRefcountedPayload(IGF, ptr);
           return;
@@ -2768,8 +2768,8 @@ namespace {
         case ForwardToPayload: {
           auto &payloadTI = getPayloadTypeInfo();
           // Apply the payload's operation.
-          addr = IGF.Builder.CreateBitCast(
-              addr, payloadTI.getStorageType()->getPointerTo());
+          addr = IGF.Builder.CreateElementBitCast(addr,
+                                                  payloadTI.getStorageType());
           payloadTI.destroy(IGF, addr, getPayloadType(IGF.IGM, T), isOutlined);
           return;
         }
@@ -2928,10 +2928,8 @@ namespace {
       case NullableRefcounted: {
         // Do the assignment as for a refcounted pointer.
         auto refCountedTy = getRefcountedPtrType(IGM);
-        Address destAddr = IGF.Builder.CreateBitCast(dest,
-                                                 refCountedTy->getPointerTo());
-        Address srcAddr = IGF.Builder.CreateBitCast(src,
-                                                refCountedTy->getPointerTo());
+        Address destAddr = IGF.Builder.CreateElementBitCast(dest, refCountedTy);
+        Address srcAddr = IGF.Builder.CreateElementBitCast(src, refCountedTy);
         // Load the old pointer at the destination.
         llvm::Value *oldPtr = IGF.Builder.CreateLoad(destAddr);
         // Store the new pointer.
@@ -2947,10 +2945,9 @@ namespace {
       case ForwardToPayload: {
         auto &payloadTI = getPayloadTypeInfo();
         // Apply the payload's operation.
-        dest = IGF.Builder.CreateBitCast(dest,
-                                  payloadTI.getStorageType()->getPointerTo());
-        src = IGF.Builder.CreateBitCast(src,
-                                  payloadTI.getStorageType()->getPointerTo());
+        dest =
+            IGF.Builder.CreateElementBitCast(dest, payloadTI.getStorageType());
+        src = IGF.Builder.CreateElementBitCast(src, payloadTI.getStorageType());
         payloadTI.assign(IGF, dest, src, isTake,
                          getPayloadType(IGF.IGM, T), isOutlined);
         return;
@@ -3012,10 +3009,8 @@ namespace {
         auto refCountedTy = getRefcountedPtrType(IGM);
 
         // Do the initialization as for a refcounted pointer.
-        Address destAddr = IGF.Builder.CreateBitCast(dest,
-                                                 refCountedTy->getPointerTo());
-        Address srcAddr = IGF.Builder.CreateBitCast(src,
-                                                 refCountedTy->getPointerTo());
+        Address destAddr = IGF.Builder.CreateElementBitCast(dest, refCountedTy);
+        Address srcAddr = IGF.Builder.CreateElementBitCast(src, refCountedTy);
 
         llvm::Value *srcPtr = IGF.Builder.CreateLoad(srcAddr);
         if (!isTake)
@@ -3027,10 +3022,9 @@ namespace {
       case ForwardToPayload: {
         auto &payloadTI = getPayloadTypeInfo();
         // Apply the payload's operation.
-        dest = IGF.Builder.CreateBitCast(dest,
-                                  payloadTI.getStorageType()->getPointerTo());
-        src = IGF.Builder.CreateBitCast(src,
-                                  payloadTI.getStorageType()->getPointerTo());
+        dest =
+            IGF.Builder.CreateElementBitCast(dest, payloadTI.getStorageType());
+        src = IGF.Builder.CreateElementBitCast(src, payloadTI.getStorageType());
         payloadTI.initialize(IGF, dest, src, isTake,
                              getPayloadType(IGF.IGM, T), isOutlined);
         return;
@@ -3860,7 +3854,7 @@ namespace {
     /// Returns a tag index in the range [0..NumElements-1].
     llvm::Value *
     loadDynamicTag(IRGenFunction &IGF, Address addr, SILType T) const {
-      addr = IGF.Builder.CreateBitCast(addr, IGM.OpaquePtrTy);
+      addr = IGF.Builder.CreateElementBitCast(addr, IGM.OpaqueTy);
       auto metadata = IGF.emitTypeMetadataRef(T.getASTType());
       auto call = IGF.Builder.CreateCall(IGM.getGetEnumCaseMultiPayloadFn(),
                                          {addr.getAddress(), metadata});
@@ -4832,10 +4826,10 @@ namespace {
           ConditionalDominanceScope condition(IGF);
 
           // Do the take/copy of the payload.
-          Address srcData = IGF.Builder.CreateBitCast(src,
-                                  payloadTI.getStorageType()->getPointerTo());
-          Address destData = IGF.Builder.CreateBitCast(dest,
-                                    payloadTI.getStorageType()->getPointerTo());
+          Address srcData =
+              IGF.Builder.CreateElementBitCast(src, payloadTI.getStorageType());
+          Address destData = IGF.Builder.CreateElementBitCast(
+              dest, payloadTI.getStorageType());
 
           if (isTake)
             payloadTI.initializeWithTake(IGF, destData, srcData, PayloadT,
@@ -4973,8 +4967,8 @@ namespace {
                 // Clear tag bits out of the payload area, if any.
                 destructiveProjectDataForLoad(IGF, T, addr);
                 // Destroy the data.
-                Address dataAddr = IGF.Builder.CreateBitCast(
-                    addr, elt.ti->getStorageType()->getPointerTo());
+                Address dataAddr = IGF.Builder.CreateElementBitCast(
+                    addr, elt.ti->getStorageType());
                 SILType payloadT = T.getEnumElementType(
                     elt.decl, IGF.getSILModule(),
                     IGF.IGM.getMaximalTypeExpansionContext());
@@ -5110,7 +5104,7 @@ namespace {
       assert(TIK < Fixed);
 
       // Invoke the runtime to store the tag.
-      enumAddr = IGF.Builder.CreateBitCast(enumAddr, IGM.OpaquePtrTy);
+      enumAddr = IGF.Builder.CreateElementBitCast(enumAddr, IGM.OpaqueTy);
       auto metadata = IGF.emitTypeMetadataRef(T.getASTType());
       
       auto call = IGF.Builder.CreateCall(
@@ -5271,10 +5265,10 @@ namespace {
                                                    Address base) const {
       auto addr = projectExtraTagBits(IGF, base);
       if (ExtraTagTy->getBitWidth() != getExtraTagBitCountForExtraInhabitants()) {
-        addr = IGF.Builder.CreateBitCast(addr,
-             llvm::IntegerType::get(IGM.getLLVMContext(),
-                                     getExtraTagBitCountForExtraInhabitants())
-               ->getPointerTo());
+        addr = IGF.Builder.CreateElementBitCast(
+            addr,
+            llvm::IntegerType::get(IGM.getLLVMContext(),
+                                   getExtraTagBitCountForExtraInhabitants()));
       }
       return addr;
     }
