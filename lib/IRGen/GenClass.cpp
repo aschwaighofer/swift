@@ -2804,7 +2804,8 @@ FunctionPointer irgen::emitVirtualMethodValue(IRGenFunction &IGF,
                        : IGF.getOptions().PointerAuth.SwiftClassMethods;
     auto authInfo =
       PointerAuthInfo::emit(IGF, schema, slot.getAddress(), method);
-    return FunctionPointer(methodType, fnPtr, authInfo, signature);
+    return FunctionPointer::createSigned(methodType, fnPtr, authInfo,
+                                         signature);
   }
   case ClassMetadataLayout::MethodInfo::Kind::DirectImpl: {
     auto fnPtr = llvm::ConstantExpr::getBitCast(methodInfo.getDirectImpl(),

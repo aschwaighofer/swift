@@ -2604,7 +2604,8 @@ void IRGenSILFunction::visitDifferentiabilityWitnessFunctionInst(
   diffWitness =
       Builder.CreateBitCast(diffWitness, signature.getType()->getPointerTo());
 
-  setLoweredFunctionPointer(i, FunctionPointer(fnType, diffWitness, signature));
+  setLoweredFunctionPointer(
+      i, FunctionPointer::createUnsigned(fnType, diffWitness, signature));
 }
 
 FunctionPointer::Kind irgen::classifyFunctionPointerKind(SILFunction *fn) {
@@ -3925,8 +3926,8 @@ void IRGenSILFunction::visitEndApply(BeginApplyInst *i, bool isAbort) {
   auto pointerAuth = PointerAuthInfo::emit(*this, schemaAndEntity.first,
                                            coroutine.Buffer.getAddress(),
                                            schemaAndEntity.second);
-  FunctionPointer callee(i->getOrigCalleeType(), continuation, pointerAuth,
-                         sig);
+  auto callee = FunctionPointer::createSigned(i->getOrigCalleeType(),
+                                              continuation, pointerAuth, sig);
 
   Builder.CreateCall(callee, {
     coroutine.Buffer.getAddress(),
@@ -5867,6 +5868,18 @@ void IRGenSILFunction::visitEndUnpairedAccessInst(EndUnpairedAccessInst *i) {
 void IRGenSILFunction::visitConvertFunctionInst(swift::ConvertFunctionInst *i) {
   // This instruction is specified to be a no-op.
   Explosion temp = getLoweredExplosion(i->getOperand());
+
+  auto fnType = i->getType().castTo<SILFunctionType>();
+  if (temp.size() == 1 &&
+      fnType->getRepresentation() != SILFunctionType::Representation::Block) {
+    auto *fn = temp.claimNext();
+    Explosion res;
+    auto sig = IGM.getSignature(fnType);
+    res.add(Builder.CreateBitCast(fn, sig.getType()->getPointerTo()));
+    setLoweredExplosion(i, res);
+    return;
+  }
+
   setLoweredExplosion(i, temp);
 }
 
@@ -6143,7 +6156,7 @@ void IRGenSILFunction::visitThinToThickFunctionInst(
   // Take the incoming function pointer and add a null context pointer to it.
   Explosion from = getLoweredExplosion(i->getOperand());
   Explosion to;
-  to.add(from.claimNext());
+  to.add(Builder.CreateBitCast(from.claimNext(), IGM.FunctionPtrTy));
   if (i->getType().castTo<SILFunctionType>()->isNoEscape())
     to.add(llvm::ConstantPointerNull::get(IGM.OpaquePtrTy));
   else
@@ -7041,7 +7054,7 @@ void IRGenSILFunction::visitSuperMethodInst(swift::SuperMethodInst *i) {
     auto authInfo =
       PointerAuthInfo::emit(*this, schema, /*storageAddress=*/nullptr, method);
 
-    FunctionPointer fn(methodType, fnPtr, authInfo, sig);
+    auto fn = FunctionPointer::createSigned(methodType, fnPtr, authInfo, sig);
 
     setLoweredFunctionPointer(i, fn);
     return;
@@ -7104,7 +7117,7 @@ void IRGenSILFunction::visitClassMethodInst(swift::ClassMethodInst *i) {
     }
 
     auto sig = IGM.getSignature(methodType);
-    FunctionPointer fn(methodType, fnPtr, sig);
+    auto fn = FunctionPointer::createUnsigned(methodType, fnPtr, sig);
 
     setLoweredFunctionPointer(i, fn);
     return;

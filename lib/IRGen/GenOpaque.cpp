@@ -433,8 +433,8 @@ static FunctionPointer emitLoadOfValueWitnessFunction(IRGenFunction &IGF,
                                     IGF.getOptions().PointerAuth.ValueWitnesses,
                                         slot, index);
 
-  return FunctionPointer(FunctionPointer::Kind::Function, witness, authInfo,
-                         signature);
+  return FunctionPointer::createSigned(FunctionPointer::Kind::Function, witness,
+                                       authInfo, signature);
 }
 
 /// Given a type metadata pointer, load one of the function
@@ -480,8 +480,8 @@ IRGenFunction::emitValueWitnessFunctionRef(SILType type,
       assert(discriminator && "no saved discriminator for value witness fn!");
       authInfo = PointerAuthInfo(schema.getKey(), discriminator);
     }
-    return FunctionPointer(FunctionPointer::Kind::Function, witness, authInfo,
-                           signature);
+    return FunctionPointer::createSigned(FunctionPointer::Kind::Function,
+                                         witness, authInfo, signature);
   }
   
   auto vwtable = emitValueWitnessTableRef(type, &metadataSlot);

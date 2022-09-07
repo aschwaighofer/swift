@@ -19,8 +19,8 @@
 #include "swift/ABI/MetadataValues.h"
 #include "swift/AST/ASTContext.h"
 #include "swift/AST/GenericEnvironment.h"
-#include "swift/Runtime/Config.h"
 #include "swift/IRGen/Linking.h"
+#include "swift/Runtime/Config.h"
 #include "swift/SIL/SILModule.h"
 #include "swift/SIL/SILType.h"
 #include "clang/AST/ASTContext.h"
@@ -29,6 +29,7 @@
 #include "clang/CodeGen/CodeGenABITypes.h"
 #include "clang/CodeGen/ModuleBuilder.h"
 #include "llvm/IR/GlobalPtrAuthInfo.h"
+#include "llvm/IR/GlobalValue.h"
 #include "llvm/Support/Compiler.h"
 
 #include "CallEmission.h"
@@ -2474,10 +2475,15 @@ public:
     PointerAuthInfo codeAuthInfo = CurCallee.getFunctionPointer()
                                        .getAuthInfo()
                                        .getCorrespondingCodeAuthInfo();
-    return FunctionPointer(
-        FunctionPointer::Kind::Function, calleeFunction, codeAuthInfo,
+    auto awaitSig =
         Signature::forAsyncAwait(IGF.IGM, getCallee().getOrigFunctionType(),
-                                 getCallee().getFunctionPointer().getKind()));
+                                 getCallee().getFunctionPointer().getKind());
+    auto awaitEntrySig =
+        Signature::forAsyncEntry(IGF.IGM, getCallee().getOrigFunctionType(),
+                                 getCallee().getFunctionPointer().getKind());
+
+    return FunctionPointer::createForAsyncCall(
+        calleeFunction, codeAuthInfo, awaitSig, awaitEntrySig.getType());
   }
 
   SILType getParameterType(unsigned index) override {
@@ -4954,8 +4960,8 @@ Callee irgen::getBlockPointerCallee(IRGenFunction &IGF,
                                         invokeFnPtrAddr.getAddress(),
                                         info.OrigFnType);
 
-  FunctionPointer fn(FunctionPointer::Kind::Function, invokeFnPtr, authInfo,
-                     sig);
+  auto fn = FunctionPointer::createSigned(FunctionPointer::Kind::Function,
+                                          invokeFnPtr, authInfo, sig);
 
   return Callee(std::move(info), fn, blockPtr);
 }
@@ -4967,7 +4973,8 @@ Callee irgen::getSwiftFunctionPointerCallee(
   auto authInfo =
     PointerAuthInfo::forFunctionPointer(IGF.IGM, calleeInfo.OrigFnType);
 
-  FunctionPointer fn(calleeInfo.OrigFnType, fnPtr, authInfo, sig);
+  auto fn = FunctionPointer::createSigned(calleeInfo.OrigFnType, fnPtr,
+                                          authInfo, sig);
   if (castOpaqueToRefcountedContext) {
     assert(dataPtr && dataPtr->getType() == IGF.IGM.OpaquePtrTy &&
            "Expecting trivial closure context");
@@ -4983,7 +4990,8 @@ Callee irgen::getCFunctionPointerCallee(IRGenFunction &IGF,
   auto authInfo =
     PointerAuthInfo::forFunctionPointer(IGF.IGM, calleeInfo.OrigFnType);
 
-  FunctionPointer fn(FunctionPointer::Kind::Function, fnPtr, authInfo, sig);
+  auto fn = FunctionPointer::createSigned(FunctionPointer::Kind::Function,
+                                          fnPtr, authInfo, sig);
 
   return Callee(std::move(calleeInfo), fn);
 }
@@ -5109,8 +5117,8 @@ void irgen::emitAsyncReturn(
   }
 
   auto sig = emitCastOfFunctionPointer(IGF, fnVal, fnType, true);
-  FunctionPointer fnPtr(FunctionPointer::Kind::Function, fnVal,
-                        PointerAuthInfo(), sig);
+  auto fnPtr = FunctionPointer::createUnsigned(FunctionPointer::Kind::Function,
+                                               fnVal, sig);
 
   SmallVector<llvm::Value*, 4> Args;
   // Get the current async context.
@@ -5201,10 +5209,9 @@ IRGenFunction::getFunctionPointerForResumeIntrinsic(llvm::Value *resume) {
                                   llvm::Attribute::SwiftAsync);
   auto signature =
       Signature(fnTy, attrs, IGM.SwiftAsyncCC);
-  auto fnPtr = FunctionPointer(
+  auto fnPtr = FunctionPointer::createUnsigned(
       FunctionPointer::Kind::Function,
-      Builder.CreateBitOrPointerCast(resume, fnTy->getPointerTo()),
-      PointerAuthInfo(), signature);
+      Builder.CreateBitOrPointerCast(resume, fnTy->getPointerTo()), signature);
   return fnPtr;
 }
 
@@ -5247,8 +5254,9 @@ irgen::getFunctionPointerForDispatchCall(IRGenModule &IGM,
       IGM.VoidTy, fn.getSignature().getType()->params(), false /*vaargs*/);
   auto signature =
       Signature(fnTy, fn.getSignature().getAttributes(), IGM.SwiftAsyncCC);
-  auto fnPtr = FunctionPointer(FunctionPointer::Kind::Function,
-                               fn.getRawPointer(), fn.getAuthInfo(), signature);
+  auto fnPtr = FunctionPointer::createSigned(FunctionPointer::Kind::Function,
+                                             fn.getRawPointer(),
+                                             fn.getAuthInfo(), signature);
   return fnPtr;
 }
 
@@ -5284,4 +5292,25 @@ void irgen::forwardAsyncCallResult(IRGenFunction &IGF,
     nativeResults = nativeResultsStorage;
   }
   emitAsyncReturn(IGF, layout, fnType, nativeResults);
+}
+
+llvm::FunctionType *FunctionPointer::getFunctionType() const {
+  // Read the function type off the global or else from the Signature.
+  if (auto *constant = dyn_cast<llvm::Constant>(Value)) {
+    auto *gv = dyn_cast<llvm::GlobalValue>(Value);
+    if (!gv) {
+      assert(Value->getType()->getPointerElementType() == Sig.getType());
+      return Sig.getType();
+    }
+    assert(Value->getType()->getPointerElementType() == gv->getValueType());
+    return cast<llvm::FunctionType>(gv->getValueType());
+  }
+
+  if (awaitSignature) {
+    assert(Value->getType()->getPointerElementType() == awaitSignature);
+    return cast<llvm::FunctionType>(awaitSignature);
+  }
+
+  assert(Value->getType()->getPointerElementType() == Sig.getType());
+  return Sig.getType();
 }

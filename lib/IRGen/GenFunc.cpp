@@ -1159,7 +1159,7 @@ public:
   llvm::CallInst *createCall(FunctionPointer &fnPtr) override {
     PointerAuthInfo newAuthInfo =
         fnPtr.getAuthInfo().getCorrespondingCodeAuthInfo();
-    auto newFnPtr = FunctionPointer(
+    auto newFnPtr = FunctionPointer::createSigned(
         FunctionPointer::Kind::Function, fnPtr.getPointer(subIGF), newAuthInfo,
         Signature::forAsyncAwait(subIGF.IGM, origType,
                                  FunctionPointerKind::defaultAsync()));
@@ -1658,7 +1658,7 @@ static llvm::Value *emitPartialApplicationForwarder(IRGenModule &IGM,
       if (staticFnPtr->getPointer(subIGF)->getType() != fnTy) {
         auto fnPtr = staticFnPtr->getPointer(subIGF);
         fnPtr = subIGF.Builder.CreateBitCast(fnPtr, fnTy);
-        return FunctionPointer(origType, fnPtr, origSig);
+        return FunctionPointer::createUnsigned(origType, fnPtr, origSig);
       }
       return *staticFnPtr;
     }
@@ -1680,10 +1680,10 @@ static llvm::Value *emitPartialApplicationForwarder(IRGenModule &IGM,
     // It comes out of the context as an i8*. Cast to the function type.
     fnPtr = subIGF.Builder.CreateBitCast(fnPtr, fnTy);
 
-    return FunctionPointer(origType->isAsync()
-                               ? FunctionPointer::Kind::AsyncFunctionPointer
-                               : FunctionPointer::Kind::Function,
-                           fnPtr, authInfo, origSig);
+    return FunctionPointer::createSigned(
+        origType->isAsync() ? FunctionPointer::Kind::AsyncFunctionPointer
+                            : FunctionPointer::Kind::Function,
+        fnPtr, authInfo, origSig);
   }();
 
   if (origType->isAsync())
@@ -2396,8 +2396,8 @@ IRGenFunction::createAsyncDispatchFn(const FunctionPointer &fnPtr,
       ((bool)originalAuthInfo)
           ? PointerAuthInfo(fnPtr.getAuthInfo().getKey(), discriminatorArg)
           : originalAuthInfo;
-  auto callee = FunctionPointer(fnPtr.getKind(), fnPtrArg, newAuthInfo,
-                                fnPtr.getSignature());
+  auto callee = FunctionPointer::createSigned(
+      fnPtr.getKind(), fnPtrArg, newAuthInfo, fnPtr.getSignature());
   auto call = Builder.CreateCall(callee, callArgs);
   call->setTailCallKind(IGM.AsyncTailCallKind);
   Builder.CreateRetVoid();

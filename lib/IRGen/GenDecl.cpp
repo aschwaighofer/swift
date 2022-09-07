@@ -2820,18 +2820,17 @@ void IRGenModule::createReplaceableProlog(IRGenFunction &IGF, SILFunction *f) {
     auto authInfo = PointerAuthInfo::emit(IGF, schema, fnPtrAddr, authEntity);
     auto *fnType = signature.getType()->getPointerTo();
     auto *realReplFn = Builder.CreateBitCast(ReplFn, fnType);
-    auto asyncFnPtr =
-        FunctionPointer(silFunctionType, realReplFn, authInfo, signature);
+    auto asyncFnPtr = FunctionPointer::createSigned(silFunctionType, realReplFn,
+                                                    authInfo, signature);
     // We never emit a function that uses special conventions, so we
     // can just use the default async kind.
     FunctionPointerKind fpKind =
         FunctionPointerKind::AsyncFunctionPointer;
     PointerAuthInfo codeAuthInfo =
         asyncFnPtr.getAuthInfo().getCorrespondingCodeAuthInfo();
-    auto newFnPtr = FunctionPointer(
+    auto newFnPtr = FunctionPointer::createSigned(
         FunctionPointer::Kind::Function, asyncFnPtr.getPointer(IGF),
-        codeAuthInfo,
-        Signature::forAsyncAwait(IGM, silFunctionType, fpKind));
+        codeAuthInfo, Signature::forAsyncAwait(IGM, silFunctionType, fpKind));
     SmallVector<llvm::Value *, 16> forwardedArgs;
     for (auto &arg : IGF.CurFn->args())
       forwardedArgs.push_back(&arg);
@@ -2946,7 +2945,8 @@ void IRGenModule::createReplaceableProlog(IRGenFunction &IGF, SILFunction *f) {
     auto authInfo = PointerAuthInfo::emit(IGF, schema, fnPtrAddr, authEntity);
 
     auto *Res = IGF.Builder.CreateCall(
-        FunctionPointer(silFunctionType, realReplFn, authInfo, signature)
+        FunctionPointer::createSigned(silFunctionType, realReplFn, authInfo,
+                                      signature)
             .getAsFunction(IGF),
         forwardedArgs);
     if (Res->getCallingConv() == llvm::CallingConv::SwiftTail &&
@@ -3012,10 +3012,10 @@ static void emitDynamicallyReplaceableThunk(IRGenModule &IGM,
                         ? PointerAuthEntity(keyEntity.getSILFunction())
                         : PointerAuthEntity::Special::TypeDescriptor;
   auto authInfo = PointerAuthInfo::emit(IGF, schema, fnPtrAddr, authEntity);
-  auto *Res =
-      IGF.Builder.CreateCall(FunctionPointer(FunctionPointer::Kind::Function,
-                                             typeFnPtr, authInfo, signature),
-                             forwardedArgs);
+  auto *Res = IGF.Builder.CreateCall(
+      FunctionPointer::createSigned(FunctionPointer::Kind::Function, typeFnPtr,
+                                    authInfo, signature),
+      forwardedArgs);
 
   Res->setTailCall();
   if (implFn->getReturnType()->isVoidTy())
@@ -3135,7 +3135,7 @@ void IRGenModule::emitDynamicReplacementOriginalFunctionThunk(SILFunction *f) {
       IGF, schema, fnPtrAddr,
       PointerAuthEntity(f->getDynamicallyReplacedFunction()));
   auto *Res = IGF.Builder.CreateCall(
-      FunctionPointer(fnType, typeFnPtr, authInfo, signature)
+      FunctionPointer::createSigned(fnType, typeFnPtr, authInfo, signature)
           .getAsFunction(IGF),
       forwardedArgs);
   Res->setTailCall();

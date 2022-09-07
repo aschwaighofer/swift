@@ -69,7 +69,8 @@ FunctionPointer irgen::emitPointerAuthResign(IRGenFunction &IGF,
                                           const PointerAuthInfo &newAuthInfo) {
   llvm::Value *fnPtr = emitPointerAuthResign(IGF, fn.getRawPointer(),
                                              fn.getAuthInfo(), newAuthInfo);
-  return FunctionPointer(fn.getKind(), fnPtr, newAuthInfo, fn.getSignature());
+  return FunctionPointer::createSigned(fn.getKind(), fnPtr, newAuthInfo,
+                                       fn.getSignature());
 }
 
 llvm::Value *irgen::emitPointerAuthResign(IRGenFunction &IGF,
