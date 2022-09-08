@@ -664,9 +664,9 @@ void SignatureExpansion::expandCoroutineResult(bool forContinuation) {
 
     // TODO: should we use some sort of real layout here instead of
     // trusting LLVM's?
-    components.back() =
-      llvm::StructType::get(IGM.getLLVMContext(), overflowTypes)
-        ->getPointerTo();
+    CoroInfo.indirectResultsType =
+        llvm::StructType::get(IGM.getLLVMContext(), overflowTypes);
+    components.back() = CoroInfo.indirectResultsType->getPointerTo();
   }
 
   ResultIRType = components.size() == 1
@@ -2938,7 +2938,7 @@ llvm::CallInst *IRBuilder::CreateCall(const FunctionPointer &fn,
   }
 
   assert(!isTrapIntrinsic(fn.getRawPointer()) && "Use CreateNonMergeableTrap");
-  uto fnTy = cast<llvm::FunctionType>(fn.getFunctionType());
+  auto fnTy = cast<llvm::FunctionType>(fn.getFunctionType());
   llvm::CallInst *call =
       IRBuilderBase::CreateCall(fnTy, fn.getRawPointer(), args, bundles);
 
@@ -3051,8 +3051,8 @@ void CallEmission::emitYieldsToExplosion(Explosion &out) {
   if (!rawReturnValues.empty()) {
     // Extract the indirect yield buffer.
     auto indirectPointer = rawReturnValues.claimNext();
-    auto indirectStructTy = cast<llvm::StructType>(
-      indirectPointer->getType()->getPointerElementType());
+    auto indirectStructTy =
+        cast<llvm::StructType>(coroInfo.indirectResultsType);
     auto layout = IGF.IGM.DataLayout.getStructLayout(indirectStructTy);
     Address indirectBuffer(indirectPointer, indirectStructTy,
                            Alignment(layout->getAlignment().value()));
@@ -3135,8 +3135,19 @@ void CallEmission::emitToExplosion(Explosion &out, bool isOutlined) {
     if (isNoReturnCFunction) {
       auto fnType = getCallee().getFunctionPointer().getFunctionType();
       assert(fnType->getNumParams() > 0);
-      auto resultTy = fnType->getParamType(0)->getPointerElementType();
+      // The size of the return buffer should not matter since the callee is not
+      // returning but lets try our best to use the right size.
+      llvm::Type *resultTy = IGF.IGM.Int8Ty;
+      auto func = dyn_cast<llvm::Function>(
+          getCallee().getFunctionPointer().getRawPointer());
+      if (func && func->hasParamAttribute(0, llvm::Attribute::StructRet)) {
+        resultTy = func->getParamStructRetType(0);
+      }
       auto temp = IGF.createAlloca(resultTy, Alignment(), "indirect.result");
+      if (IGF.IGM.getLLVMContext().supportsTypedPointers()) {
+        temp = IGF.Builder.CreateElementBitCast(
+            temp, fnType->getParamType(0)->getPointerElementType());
+      }
       emitToMemory(temp, substResultTI, isOutlined);
       return;
     }
@@ -4182,9 +4193,7 @@ llvm::Value *irgen::emitYield(IRGenFunction &IGF,
   Optional<Address> indirectBuffer;
   Size indirectBufferSize;
   if (!indirectComponents.empty()) {
-    auto bufferStructTy = cast<llvm::StructType>(
-      resultStructTy->getElementType(resultStructTy->getNumElements() - 1)
-                    ->getPointerElementType());
+    auto bufferStructTy = coroInfo.indirectResultsType;
     auto layout = IGF.IGM.DataLayout.getStructLayout(bufferStructTy);
     indirectBuffer = IGF.createAlloca(
         bufferStructTy, Alignment(layout->getAlignment().value()));

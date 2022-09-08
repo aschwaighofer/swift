@@ -84,6 +84,7 @@ public:
   /// The number of yield components that are returned directly in the
   /// coroutine return value.
   unsigned NumDirectYieldComponents = 0;
+  llvm::StructType *indirectResultsType = nullptr;
 };
 
 namespace {
