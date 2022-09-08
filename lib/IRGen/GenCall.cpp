@@ -1426,9 +1426,12 @@ void SignatureExpansion::expandExternalSignatureTypes() {
         IGM.addSwiftErrorAttributes(Attrs, getCurParamIndex());
         break;
       case clang::ParameterABI::SwiftIndirectResult: {
-        auto *coercedTy = AI.getCoerceToType();
+        auto &param = params[i - clangToSwiftParamOffset];
+        auto paramTy = getSILFuncConventions().getSILType(
+            param, IGM.getMaximalTypeExpansionContext());
+        auto &paramTI = cast<FixedTypeInfo>(IGM.getTypeInfo(paramTy));
         addIndirectResultAttributes(IGM, Attrs, getCurParamIndex(), claimSRet(),
-                                    coercedTy->getPointerElementType());
+                                    paramTI.getStorageType());
         break;
       }
       }
@@ -2102,8 +2105,7 @@ std::pair<llvm::Value *, llvm::Value *> irgen::getAsyncFunctionAndSize(
     // Otherwise, extract the function pointer from the async FP structure.
     } else {
       llvm::Value *addrPtr = IGF.Builder.CreateStructGEP(
-          getAFPPtr()->getType()->getScalarType()->getPointerElementType(),
-          getAFPPtr(), 0);
+          IGF.IGM.AsyncFunctionPointerTy, getAFPPtr(), 0);
       fn = IGF.emitLoadOfCompactFunctionPointer(
           Address(addrPtr, IGF.IGM.RelativeAddressTy,
                   IGF.IGM.getPointerAlignment()),
@@ -2123,8 +2125,7 @@ std::pair<llvm::Value *, llvm::Value *> irgen::getAsyncFunctionAndSize(
       size = llvm::ConstantInt::get(IGF.IGM.Int32Ty, staticSize->getValue());
     } else {
       auto *sizePtr = IGF.Builder.CreateStructGEP(
-          getAFPPtr()->getType()->getScalarType()->getPointerElementType(),
-          getAFPPtr(), 1);
+          IGF.IGM.AsyncFunctionPointerTy, getAFPPtr(), 1);
       size = IGF.Builder.CreateLoad(sizePtr, IGF.IGM.Int32Ty,
                                     IGF.IGM.getPointerAlignment());
     }
@@ -2795,14 +2796,14 @@ void CallEmission::emitToUnmappedMemory(Address result) {
   SILFunctionConventions FnConv(CurCallee.getSubstFunctionType(),
                                 IGF.getSILModule());
 
-  llvm::Type *storageTy = Args[0]->getType()->getPointerElementType();;
+  llvm::Type *storageTy = result.getElementType();
   if (FnConv.getNumIndirectSILResults() == 1) {
     for (auto indirectResultType : FnConv.getIndirectSILResultTypes(
              IGF.IGM.getMaximalTypeExpansionContext())) {
       bool isFixedSize =
           isa<FixedTypeInfo>(IGF.IGM.getTypeInfo(indirectResultType));
-      storageTy = isFixedSize ? IGF.IGM.getStorageType(indirectResultType)
-                              : IGF.IGM.OpaqueTy;
+      storageTy =
+          isFixedSize ? IGF.IGM.getStorageType(indirectResultType) : storageTy;
     }
   }
   addIndirectResultAttributes(IGF.IGM, CurCallee.getMutableAttributes(), 0,
@@ -2903,22 +2904,22 @@ llvm::CallInst *CallEmission::emitCallSite() {
 }
 
 static llvm::AttributeList
-fixUpTypesInByValAndStructRetAttributes(llvm::FunctionType *fnType,
-                                        llvm::AttributeList attrList) {
+assertTypesInByValAndStructRetAttributes(llvm::FunctionType *fnType,
+                                         llvm::AttributeList attrList) {
   auto &context = fnType->getContext();
-  for (unsigned i = 0; i < fnType->getNumParams(); ++i) {
-    auto paramTy = fnType->getParamType(i);
-    auto attrListIndex = llvm::AttributeList::FirstArgIndex + i;
-    if (attrList.hasParamAttr(i, llvm::Attribute::StructRet) &&
-        paramTy->getPointerElementType() != attrList.getParamStructRetType(i))
-      attrList = attrList.replaceAttributeTypeAtIndex(
-          context, attrListIndex, llvm::Attribute::StructRet,
-          paramTy->getPointerElementType());
-    if (attrList.hasParamAttr(i, llvm::Attribute::ByVal) &&
-        paramTy->getPointerElementType() != attrList.getParamByValType(i))
-      attrList = attrList.replaceAttributeTypeAtIndex(
-          context, attrListIndex, llvm::Attribute::ByVal,
-          paramTy->getPointerElementType());
+  if (context.supportsTypedPointers()) {
+    for (unsigned i = 0; i < fnType->getNumParams(); ++i) {
+      auto paramTy = fnType->getParamType(i);
+      if (attrList.hasParamAttr(i, llvm::Attribute::StructRet) &&
+          paramTy->getPointerElementType() !=
+              attrList.getParamStructRetType(i)) {
+        assert(false && "Mismatched structret attribute");
+      }
+      if (attrList.hasParamAttr(i, llvm::Attribute::ByVal) &&
+          paramTy->getPointerElementType() != attrList.getParamByValType(i)) {
+        assert(false && "Mismatched byval attribute");
+      }
+    }
   }
   return attrList;
 }
@@ -2937,8 +2938,7 @@ llvm::CallInst *IRBuilder::CreateCall(const FunctionPointer &fn,
   }
 
   assert(!isTrapIntrinsic(fn.getRawPointer()) && "Use CreateNonMergeableTrap");
-  auto fnTy = cast<llvm::FunctionType>(
-      fn.getRawPointer()->getType()->getPointerElementType());
+  uto fnTy = cast<llvm::FunctionType>(fn.getFunctionType());
   llvm::CallInst *call =
       IRBuilderBase::CreateCall(fnTy, fn.getRawPointer(), args, bundles);
 
@@ -2949,12 +2949,12 @@ llvm::CallInst *IRBuilder::CreateCall(const FunctionPointer &fn,
     for (unsigned argIndex = 0; argIndex < func->arg_size(); ++argIndex) {
       if (func->hasParamAttribute(argIndex, llvm::Attribute::StructRet)) {
         llvm::AttrBuilder builder(func->getContext());
-        builder.addStructRetAttr(nullptr);
+        builder.addStructRetAttr(func->getParamStructRetType(argIndex));
         attrs = attrs.addParamAttributes(func->getContext(), argIndex, builder);
       }
     }
   }
-  call->setAttributes(fixUpTypesInByValAndStructRetAttributes(fnTy, attrs));
+  call->setAttributes(assertTypesInByValAndStructRetAttributes(fnTy, attrs));
   call->setCallingConv(fn.getCallingConv());
   return call;
 }

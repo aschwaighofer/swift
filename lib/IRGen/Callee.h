@@ -338,7 +338,8 @@ namespace irgen {
         : kind(kind), Value(value), SecondaryValue(secondaryValue),
           AuthInfo(authInfo), Sig(signature), awaitSignature(awaitSignature) {
       // The function pointer should have function type.
-      assert(value->getType()->getPointerElementType()->isFunctionTy());
+      assert(!value->getContext().supportsTypedPointers() ||
+             value->getType()->getPointerElementType()->isFunctionTy());
       // TODO: maybe assert similarity to signature.getType()?
       if (authInfo) {
         if (kind == Kind::Function) {

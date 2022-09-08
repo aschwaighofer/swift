@@ -456,8 +456,7 @@ void irgen::emitBuiltinCall(IRGenFunction &IGF, const BuiltinInfo &Builtin,
 
     llvm::SmallVector<llvm::Value *, 2> Indices(2, NameGEP->getOperand(1));
     NameGEP = llvm::ConstantExpr::getGetElementPtr(
-        ((llvm::PointerType *)FuncNamePtr->getType())->getPointerElementType(),
-        FuncNamePtr, makeArrayRef(Indices));
+        FuncNamePtr->getValueType(), FuncNamePtr, makeArrayRef(Indices));
 
     // Replace the placeholder value with the new GEP.
     Explosion replacement;
@@ -957,11 +956,8 @@ if (Builtin.ID == BuiltinValueKind::id) { \
 
     // Handle the arbitrary-precision truncate specially.
     if (isa<BuiltinIntegerLiteralType>(FromType)) {
-      emitIntegerLiteralCheckedTrunc(IGF, args,
-                                     cast<llvm::StructType>(FromTy)
-                                         ->getElementType(0)
-                                         ->getPointerElementType(),
-                                     ToTy, Signed, out);
+      emitIntegerLiteralCheckedTrunc(IGF, args, IGF.IGM.SizeTy, ToTy, Signed,
+                                     out);
       return;
     }
 
