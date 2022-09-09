@@ -732,11 +732,9 @@ void IRGenModule::emitRuntimeRegistration() {
     llvm::Constant *protocols = emitSwiftProtocols(/*asContiguousArray*/ true);
 
     llvm::Constant *beginIndices[] = {
-      llvm::ConstantInt::get(Int32Ty, 0),
-      llvm::ConstantInt::get(Int32Ty, 0),
+        llvm::ConstantInt::get(Int32Ty, 0),
+        llvm::ConstantInt::get(Int32Ty, 0),
     };
-    assert(llvm::ArrayType::get(ProtocolRecordTy, SwiftProtocols.size()) ==
-           protocols->getType()->getPointerElementType());
     auto protocolRecordsTy =
         llvm::ArrayType::get(ProtocolRecordTy, SwiftProtocols.size());
     auto begin = llvm::ConstantExpr::getGetElementPtr(protocolRecordsTy,
@@ -758,16 +756,16 @@ void IRGenModule::emitRuntimeRegistration() {
       llvm::ConstantInt::get(Int32Ty, 0),
       llvm::ConstantInt::get(Int32Ty, 0),
     };
+    auto protocolRecordsTy =
+        llvm::ArrayType::get(RelativeAddressTy, ProtocolConformances.size());
     auto begin = llvm::ConstantExpr::getGetElementPtr(
-        conformances->getType()->getPointerElementType(),
-        conformances, beginIndices);
+        protocolRecordsTy, conformances, beginIndices);
     llvm::Constant *endIndices[] = {
       llvm::ConstantInt::get(Int32Ty, 0),
       llvm::ConstantInt::get(Int32Ty, ProtocolConformances.size()),
     };
-    auto end = llvm::ConstantExpr::getGetElementPtr(
-        conformances->getType()->getPointerElementType(),
-        conformances, endIndices);
+    auto end = llvm::ConstantExpr::getGetElementPtr(protocolRecordsTy,
+                                                    conformances, endIndices);
 
     RegIGF.Builder.CreateCall(getRegisterProtocolConformancesFn(), {begin, end});
   }
@@ -780,14 +778,16 @@ void IRGenModule::emitRuntimeRegistration() {
       llvm::ConstantInt::get(Int32Ty, 0),
       llvm::ConstantInt::get(Int32Ty, 0),
     };
-    auto begin = llvm::ConstantExpr::getGetElementPtr(
-        records->getType()->getPointerElementType(), records, beginIndices);
+    auto typemetadataRecordsTy = llvm::ArrayType::get(
+        TypeMetadataRecordTy, RuntimeResolvableTypes.size());
+    auto begin = llvm::ConstantExpr::getGetElementPtr(typemetadataRecordsTy,
+                                                      records, beginIndices);
     llvm::Constant *endIndices[] = {
       llvm::ConstantInt::get(Int32Ty, 0),
       llvm::ConstantInt::get(Int32Ty, RuntimeResolvableTypes.size()),
     };
-    auto end = llvm::ConstantExpr::getGetElementPtr(
-        records->getType()->getPointerElementType(), records, endIndices);
+    auto end = llvm::ConstantExpr::getGetElementPtr(typemetadataRecordsTy,
+                                                    records, endIndices);
 
     RegIGF.Builder.CreateCall(getRegisterTypeMetadataRecordsFn(), {begin, end});
   }
