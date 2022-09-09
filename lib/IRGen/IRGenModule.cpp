@@ -898,6 +898,20 @@ bool IRGenModule::isStandardLibrary() const {
   return ::isStandardLibrary(Module);
 }
 
+llvm::FunctionType *swift::getRuntimeFnType(llvm::Module &Module,
+                                           llvm::ArrayRef<llvm::Type*> retTypes,
+                                           llvm::ArrayRef<llvm::Type*> argTypes) {
+  llvm::Type *retTy;
+  if (retTypes.size() == 1)
+    retTy = *retTypes.begin();
+  else
+    retTy = llvm::StructType::get(Module.getContext(),
+                                  {retTypes.begin(), retTypes.end()},
+                                  /*packed*/ false);
+  return llvm::FunctionType::get(retTy, {argTypes.begin(), argTypes.end()},
+                                 /*isVararg*/ false);
+}
+
 llvm::Constant *swift::getRuntimeFn(llvm::Module &Module,
                       llvm::Constant *&cache,
                       const char *name,
@@ -1039,7 +1053,11 @@ void IRGenModule::registerRuntimeEffect(ArrayRef<RuntimeEffect> effect,
     return getRuntimeFn(Module, ID##Fn, #NAME, CC,                             \
                         AVAILABILITY(this->Context),                           \
                         RETURNS, ARGS, ATTRS, this);                           \
+  }\
+  llvm::FunctionType *IRGenModule::get##ID##FnType() { \
+      return getRuntimeFnType(Module, RETURNS, ARGS); \
   }
+
 
 #include "swift/Runtime/RuntimeFunctions.def"
 

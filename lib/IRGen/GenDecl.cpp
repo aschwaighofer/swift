@@ -1755,7 +1755,7 @@ static llvm::GlobalVariable *getChainEntryForDynamicReplacement(
     llvm::Constant *indices[] = {llvm::ConstantInt::get(IGM.Int32Ty, 0),
                                  llvm::ConstantInt::get(IGM.Int32Ty, 0)};
     auto *storageAddr = llvm::ConstantExpr::getInBoundsGetElementPtr(
-        linkEntry->getType()->getPointerElementType(), linkEntry, indices);
+        IGM.DynamicReplacementLinkEntryTy, linkEntry, indices);
     bool isAsyncFunction =
         entity.hasSILFunction() && entity.getSILFunction()->isAsync();
     auto &schema =
@@ -2053,8 +2053,7 @@ void IRGenModule::emitVTableStubs() {
       stub->setCallingConv(DefaultCC);
       auto *entry = llvm::BasicBlock::Create(getLLVMContext(), "entry", stub);
       auto *errorFunc = getDeletedMethodErrorFn();
-      llvm::CallInst::Create(cast<llvm::FunctionType>(
-                                 errorFunc->getType()->getPointerElementType()),
+      llvm::CallInst::Create(getDeletedMethodErrorFnType(),
                              errorFunc, ArrayRef<llvm::Value *>(), "", entry);
       new llvm::UnreachableInst(getLLVMContext(), entry);
     }
@@ -2264,10 +2263,6 @@ LinkInfo LinkInfo::get(const UniversalLinkageInfo &linkInfo, StringRef name,
   return result;
 }
 
-static bool isPointerTo(llvm::Type *ptrTy, llvm::Type *objTy) {
-  return cast<llvm::PointerType>(ptrTy)->getPointerElementType() == objTy;
-}
-
 /// Get or create an LLVM function with these linkage rules.
 llvm::Function *irgen::createFunction(IRGenModule &IGM, LinkInfo &linkInfo,
                                       const Signature &signature,
@@ -2278,7 +2273,7 @@ llvm::Function *irgen::createFunction(IRGenModule &IGM, LinkInfo &linkInfo,
 
   llvm::Function *existing = IGM.Module.getFunction(name);
   if (existing) {
-    if (isPointerTo(existing->getType(), signature.getType()))
+    if (existing->getValueType() == signature.getType())
       return cast<llvm::Function>(existing);
 
     IGM.error(SourceLoc(),
@@ -2326,7 +2321,7 @@ llvm::GlobalVariable *swift::irgen::createVariable(
   llvm::GlobalValue *existingValue = IGM.Module.getNamedGlobal(name);
   if (existingValue) {
     auto existingVar = dyn_cast<llvm::GlobalVariable>(existingValue);
-    if (existingVar && isPointerTo(existingVar->getType(), storageType))
+    if (existingVar && existingVar->getValueType() == storageType)
       return existingVar;
 
     IGM.error(SourceLoc(),
@@ -2375,7 +2370,7 @@ swift::irgen::createLinkerDirectiveVariable(IRGenModule &IGM, StringRef name) {
   llvm::GlobalValue *existingValue = IGM.Module.getNamedGlobal(name);
   if (existingValue) {
     auto existingVar = dyn_cast<llvm::GlobalVariable>(existingValue);
-    if (existingVar && isPointerTo(existingVar->getType(), storageType))
+    if (existingVar && existingVar->getValueType() == storageType)
       return existingVar;
 
     IGM.error(SourceLoc(),
@@ -2643,7 +2638,7 @@ Address IRGenModule::getAddrOfSILGlobalVariable(SILGlobalVariable *var,
     // Return the address of the initialized object itself (and not the address
     // to a reference to it).
     addr = llvm::ConstantExpr::getGetElementPtr(
-      gvar->getType()->getPointerElementType(), gvar, Indices);
+      gvar->getValueType(), gvar, Indices);
   }
 
   addr = llvm::ConstantExpr::getBitCast(
