@@ -28,6 +28,7 @@ namespace irgen {
 /// Layout information for class types.
 class ClassTypeInfo : public HeapTypeInfo<ClassTypeInfo> {
   ClassDecl *TheClass;
+  mutable llvm::StructType *classLayoutType;
 
   // The resilient layout of the class, without making any assumptions
   // that violate resilience boundaries. This is used to allocate
@@ -47,9 +48,10 @@ class ClassTypeInfo : public HeapTypeInfo<ClassTypeInfo> {
 public:
   ClassTypeInfo(llvm::PointerType *irType, Size size, SpareBitVector spareBits,
                 Alignment align, ClassDecl *theClass,
-                ReferenceCounting refcount)
+                ReferenceCounting refcount, llvm::StructType *classLayoutType)
       : HeapTypeInfo(irType, size, std::move(spareBits), align),
-        TheClass(theClass), Refcount(refcount) {}
+        TheClass(theClass), classLayoutType(classLayoutType),
+        Refcount(refcount) {}
 
   ReferenceCounting getReferenceCounting() const { return Refcount; }
 

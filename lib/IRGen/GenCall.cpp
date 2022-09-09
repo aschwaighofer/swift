@@ -2910,15 +2910,14 @@ assertTypesInByValAndStructRetAttributes(llvm::FunctionType *fnType,
   if (context.supportsTypedPointers()) {
     for (unsigned i = 0; i < fnType->getNumParams(); ++i) {
       auto paramTy = fnType->getParamType(i);
-      if (attrList.hasParamAttr(i, llvm::Attribute::StructRet) &&
-          paramTy->getPointerElementType() !=
-              attrList.getParamStructRetType(i)) {
-        assert(false && "Mismatched structret attribute");
-      }
-      if (attrList.hasParamAttr(i, llvm::Attribute::ByVal) &&
-          paramTy->getPointerElementType() != attrList.getParamByValType(i)) {
-        assert(false && "Mismatched byval attribute");
-      }
+      assert(
+          !attrList.hasParamAttr(i, llvm::Attribute::StructRet) ||
+          llvm::cast<llvm::PointerType>(paramTy)->isOpaqueOrPointeeTypeMatches(
+              attrList.getParamStructRetType(i)));
+      assert(
+          !attrList.hasParamAttr(i, llvm::Attribute::ByVal) ||
+          llvm::cast<llvm::PointerType>(paramTy)->isOpaqueOrPointeeTypeMatches(
+              attrList.getParamByValType(i)));
     }
   }
   return attrList;
@@ -4955,9 +4954,8 @@ Callee irgen::getBlockPointerCallee(IRGenFunction &IGF,
   auto castBlockPtr = IGF.Builder.CreateBitCast(blockPtr, blockPtrTy);
 
   // Extract the invocation pointer for blocks.
-  auto blockStructTy = blockPtrTy->getPointerElementType();
   llvm::Value *invokeFnPtrPtr =
-    IGF.Builder.CreateStructGEP(blockStructTy, castBlockPtr, 3);
+      IGF.Builder.CreateStructGEP(IGF.IGM.ObjCBlockStructTy, castBlockPtr, 3);
   Address invokeFnPtrAddr(invokeFnPtrPtr, IGF.IGM.FunctionPtrTy,
                           IGF.IGM.getPointerAlignment());
   llvm::Value *invokeFnPtr = IGF.Builder.CreateLoad(invokeFnPtrAddr);
@@ -5047,9 +5045,8 @@ llvm::Value *FunctionPointer::getPointer(IRGenFunction &IGF) const {
     }
     auto *descriptorPtr =
         IGF.Builder.CreateBitCast(fnPtr, IGF.IGM.AsyncFunctionPointerPtrTy);
-    auto *addrPtr = IGF.Builder.CreateStructGEP(
-        descriptorPtr->getType()->getScalarType()->getPointerElementType(),
-        descriptorPtr, 0);
+    auto *addrPtr = IGF.Builder.CreateStructGEP(IGF.IGM.AsyncFunctionPointerTy,
+                                                descriptorPtr, 0);
     auto *result = IGF.emitLoadOfCompactFunctionPointer(
         Address(addrPtr, IGF.IGM.RelativeAddressTy,
                 IGF.IGM.getPointerAlignment()),
@@ -5308,18 +5305,22 @@ llvm::FunctionType *FunctionPointer::getFunctionType() const {
   if (auto *constant = dyn_cast<llvm::Constant>(Value)) {
     auto *gv = dyn_cast<llvm::GlobalValue>(Value);
     if (!gv) {
-      assert(Value->getType()->getPointerElementType() == Sig.getType());
+      assert(llvm::cast<llvm::PointerType>(Value->getType())
+                 ->isOpaqueOrPointeeTypeMatches(Sig.getType()));
       return Sig.getType();
     }
-    assert(Value->getType()->getPointerElementType() == gv->getValueType());
+    assert(llvm::cast<llvm::PointerType>(Value->getType())
+               ->isOpaqueOrPointeeTypeMatches(gv->getValueType()));
     return cast<llvm::FunctionType>(gv->getValueType());
   }
 
   if (awaitSignature) {
-    assert(Value->getType()->getPointerElementType() == awaitSignature);
+    assert(llvm::cast<llvm::PointerType>(Value->getType())
+               ->isOpaqueOrPointeeTypeMatches(awaitSignature));
     return cast<llvm::FunctionType>(awaitSignature);
   }
 
-  assert(Value->getType()->getPointerElementType() == Sig.getType());
+  assert(llvm::cast<llvm::PointerType>(Value->getType())
+             ->isOpaqueOrPointeeTypeMatches(Sig.getType()));
   return Sig.getType();
 }

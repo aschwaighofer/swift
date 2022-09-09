@@ -735,14 +735,18 @@ void IRGenModule::emitRuntimeRegistration() {
       llvm::ConstantInt::get(Int32Ty, 0),
       llvm::ConstantInt::get(Int32Ty, 0),
     };
-    auto begin = llvm::ConstantExpr::getGetElementPtr(
-        protocols->getType()->getPointerElementType(), protocols, beginIndices);
+    assert(llvm::ArrayType::get(ProtocolRecordTy, SwiftProtocols.size()) ==
+           protocols->getType()->getPointerElementType());
+    auto protocolRecordsTy =
+        llvm::ArrayType::get(ProtocolRecordTy, SwiftProtocols.size());
+    auto begin = llvm::ConstantExpr::getGetElementPtr(protocolRecordsTy,
+                                                      protocols, beginIndices);
     llvm::Constant *endIndices[] = {
       llvm::ConstantInt::get(Int32Ty, 0),
       llvm::ConstantInt::get(Int32Ty, SwiftProtocols.size()),
     };
-    auto end = llvm::ConstantExpr::getGetElementPtr(
-        protocols->getType()->getPointerElementType() , protocols, endIndices);
+    auto end = llvm::ConstantExpr::getGetElementPtr(protocolRecordsTy,
+                                                    protocols, endIndices);
 
     RegIGF.Builder.CreateCall(getRegisterProtocolsFn(), {begin, end});
   }
