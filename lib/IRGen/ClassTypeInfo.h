@@ -57,6 +57,8 @@ public:
 
   ClassDecl *getClass() const { return TheClass; }
 
+  llvm::Type *getClassLayoutType() const { return classLayoutType; }
+
   const ClassLayout &getClassLayout(IRGenModule &IGM, SILType type,
                                     bool forBackwardDeployment) const;
 

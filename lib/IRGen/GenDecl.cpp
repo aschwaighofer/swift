@@ -55,6 +55,7 @@
 #include "llvm/Transforms/Utils/ModuleUtils.h"
 
 #include "Callee.h"
+#include "ClassTypeInfo.h"
 #include "ConformanceDescription.h"
 #include "ConstantBuilder.h"
 #include "Explosion.h"
@@ -2560,7 +2561,7 @@ Address IRGenModule::getAddrOfSILGlobalVariable(SILGlobalVariable *var,
     storageType = Layout->getType();
     fixedSize = Layout->getSize();
     fixedAlignment = Layout->getAlignment();
-    castStorageToType = cast<FixedTypeInfo>(ti).getStorageType();
+    castStorageToType = cast<ClassTypeInfo>(ti).getStorageType();
     assert(fixedAlignment >= TargetInfo.HeapObjectAlignment);
   } else if (ti.isFixedSize(expansion)) {
     // Allocate static storage.
@@ -2645,7 +2646,8 @@ Address IRGenModule::getAddrOfSILGlobalVariable(SILGlobalVariable *var,
       addr,
       castStorageToType ? castStorageToType : storageType->getPointerTo());
   if (castStorageToType)
-    storageType = castStorageToType->getPointerElementType();
+    storageType = cast<ClassTypeInfo>(ti).getClassLayoutType();
+
   return Address(addr, storageType, Alignment(gvar->getAlignment()));
 }
 
