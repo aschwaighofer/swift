@@ -1167,66 +1167,46 @@ public:
                                            atomicity); \
     (void)e.claim(getNumStoredProtocols()); \
   }
-#define NEVER_LOADABLE_CHECKED_REF_STORAGE(Name, name, ...) \
-  NEVER_LOADABLE_CHECKED_REF_STORAGE_HELPER(Name, name) \
-  const TypeInfo * \
-  create##Name##StorageType(TypeConverter &TC, \
-                            bool isOptional) const override { \
-    auto spareBits = BitPatternBuilder(TC.IGM.Triple.isLittleEndian()); \
-    auto ref = TC.IGM.getReferenceStorageSpareBits( \
-                                                   ReferenceOwnership::Name, \
-                                                   Refcounting); \
-    spareBits.append(ref); \
-    for (unsigned i = 0, e = getNumStoredProtocols(); i != e; ++i) { \
-      spareBits.append(TC.IGM.getWitnessTablePtrSpareBits()); \
-    } \
-    auto storageTy = buildReferenceStorageType(TC.IGM, \
-                              TC.IGM.Name##ReferencePtrTy->getPointerElementType()); \
-    return AddressOnly##Name##ClassExistentialTypeInfo::create( \
-                                                 getStoredProtocols(), \
-                                                 storageTy, \
-                                                 spareBits.build(), \
-                                                 getFixedSize(), \
-                                                 getFixedAlignment(), \
-                                                 Refcounting, \
-                                                 isOptional); \
+#define NEVER_LOADABLE_CHECKED_REF_STORAGE(Name, name, ...)                    \
+  NEVER_LOADABLE_CHECKED_REF_STORAGE_HELPER(Name, name)                        \
+  const TypeInfo *create##Name##StorageType(TypeConverter &TC,                 \
+                                            bool isOptional) const override {  \
+    auto spareBits = BitPatternBuilder(TC.IGM.Triple.isLittleEndian());        \
+    auto ref = TC.IGM.getReferenceStorageSpareBits(ReferenceOwnership::Name,   \
+                                                   Refcounting);               \
+    spareBits.append(ref);                                                     \
+    for (unsigned i = 0, e = getNumStoredProtocols(); i != e; ++i) {           \
+      spareBits.append(TC.IGM.getWitnessTablePtrSpareBits());                  \
+    }                                                                          \
+    auto storageTy =                                                           \
+        buildReferenceStorageType(TC.IGM, TC.IGM.Name##ReferenceStructTy);     \
+    return AddressOnly##Name##ClassExistentialTypeInfo::create(                \
+        getStoredProtocols(), storageTy, spareBits.build(), getFixedSize(),    \
+        getFixedAlignment(), Refcounting, isOptional);                         \
   }
-#define SOMETIMES_LOADABLE_CHECKED_REF_STORAGE(Name, name, ...) \
-  NEVER_LOADABLE_CHECKED_REF_STORAGE_HELPER(Name, name) \
-  ALWAYS_LOADABLE_CHECKED_REF_STORAGE_HELPER(Name, name) \
-  const TypeInfo * \
-  create##Name##StorageType(TypeConverter &TC, \
-                            bool isOptional) const override { \
-    auto ref = TC.IGM.getReferenceStorageSpareBits( \
-                                                   ReferenceOwnership::Name, \
-                                                   Refcounting); \
-    auto spareBits = BitPatternBuilder(TC.IGM.Triple.isLittleEndian()); \
-    spareBits.append(ref); \
-    for (unsigned i = 0, e = getNumStoredProtocols(); i != e; ++i) { \
-      spareBits.append(TC.IGM.getWitnessTablePtrSpareBits()); \
-    } \
-    auto storageTy = buildReferenceStorageType(TC.IGM, \
-                              TC.IGM.Name##ReferencePtrTy->getPointerElementType()); \
-    if (TC.IGM.isLoadableReferenceAddressOnly(Refcounting)) { \
-      return AddressOnly##Name##ClassExistentialTypeInfo::create( \
-                                                   getStoredProtocols(), \
-                                                   storageTy, \
-                                                   spareBits.build(), \
-                                                   getFixedSize(), \
-                                                   getFixedAlignment(), \
-                                                   Refcounting, \
-                                                   isOptional); \
-    } else { \
-      return Loadable##Name##ClassExistentialTypeInfo::create( \
-                                                   getStoredProtocols(), \
-                                                   getValueType(), \
-                                                   storageTy, \
-                                                   spareBits.build(), \
-                                                   getFixedSize(), \
-                                                   getFixedAlignment(), \
-                                                   Refcounting, \
-                                                   isOptional); \
-    } \
+#define SOMETIMES_LOADABLE_CHECKED_REF_STORAGE(Name, name, ...)                \
+  NEVER_LOADABLE_CHECKED_REF_STORAGE_HELPER(Name, name)                        \
+  ALWAYS_LOADABLE_CHECKED_REF_STORAGE_HELPER(Name, name)                       \
+  const TypeInfo *create##Name##StorageType(TypeConverter &TC,                 \
+                                            bool isOptional) const override {  \
+    auto ref = TC.IGM.getReferenceStorageSpareBits(ReferenceOwnership::Name,   \
+                                                   Refcounting);               \
+    auto spareBits = BitPatternBuilder(TC.IGM.Triple.isLittleEndian());        \
+    spareBits.append(ref);                                                     \
+    for (unsigned i = 0, e = getNumStoredProtocols(); i != e; ++i) {           \
+      spareBits.append(TC.IGM.getWitnessTablePtrSpareBits());                  \
+    }                                                                          \
+    auto storageTy =                                                           \
+        buildReferenceStorageType(TC.IGM, TC.IGM.Name##ReferenceStructTy);     \
+    if (TC.IGM.isLoadableReferenceAddressOnly(Refcounting)) {                  \
+      return AddressOnly##Name##ClassExistentialTypeInfo::create(              \
+          getStoredProtocols(), storageTy, spareBits.build(), getFixedSize(),  \
+          getFixedAlignment(), Refcounting, isOptional);                       \
+    } else {                                                                   \
+      return Loadable##Name##ClassExistentialTypeInfo::create(                 \
+          getStoredProtocols(), getValueType(), storageTy, spareBits.build(),  \
+          getFixedSize(), getFixedAlignment(), Refcounting, isOptional);       \
+    }                                                                          \
   }
 #define ALWAYS_LOADABLE_CHECKED_REF_STORAGE(Name, name, ...) \
   ALWAYS_LOADABLE_CHECKED_REF_STORAGE_HELPER(Name, name) \

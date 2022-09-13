@@ -664,7 +664,8 @@ public:
   llvm::StructType *RefCountedStructTy;/// %swift.refcounted = type { ... }
   Size RefCountedStructSize;           /// sizeof(%swift.refcounted)
   llvm::PointerType *RefCountedPtrTy;  /// %swift.refcounted*
-#define CHECKED_REF_STORAGE(Name, ...) \
+#define CHECKED_REF_STORAGE(Name, ...)                                         \
+  llvm::StructType *Name##ReferenceStructTy;                                   \
   llvm::PointerType *Name##ReferencePtrTy; /// %swift. #name _reference*
 #include "swift/AST/ReferenceStorage.def"
   llvm::Constant *RefCountedNull;      /// %swift.refcounted* null

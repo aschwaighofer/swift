@@ -263,9 +263,10 @@ IRGenModule::IRGenModule(IRGenerator &irgen,
   RefCountedNull = llvm::ConstantPointerNull::get(RefCountedPtrTy);
 
   // For now, references storage types are just pointers.
-#define CHECKED_REF_STORAGE(Name, name, ...) \
-  Name##ReferencePtrTy = \
-    createStructPointerType(*this, "swift." #name, { RefCountedPtrTy });
+#define CHECKED_REF_STORAGE(Name, name, ...)                                   \
+  Name##ReferenceStructTy =                                                    \
+      createStructType(*this, "swift." #name, {RefCountedPtrTy});              \
+  Name##ReferencePtrTy = Name##ReferenceStructTy->getPointerTo(0);
 #include "swift/AST/ReferenceStorage.def"
 
   // A type metadata record is the structure pointed to by the canonical
