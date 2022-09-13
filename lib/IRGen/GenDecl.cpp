@@ -2774,9 +2774,8 @@ void IRGenModule::createReplaceableProlog(IRGenFunction &IGF, SILFunction *f) {
   llvm::Constant *indices[] = {llvm::ConstantInt::get(Int32Ty, 0),
                                llvm::ConstantInt::get(Int32Ty, 0)};
 
-  auto *fnPtrAddr =
-      llvm::ConstantExpr::getInBoundsGetElementPtr(
-        linkEntry->getType()->getPointerElementType(), linkEntry, indices);
+  auto *fnPtrAddr = llvm::ConstantExpr::getInBoundsGetElementPtr(
+      linkEntry->getValueType(), linkEntry, indices);
 
   auto *ReplAddr =
     llvm::ConstantExpr::getPointerBitCastOrAddrSpaceCast(fnPtrAddr,
@@ -2991,9 +2990,8 @@ static void emitDynamicallyReplaceableThunk(IRGenModule &IGM,
   llvm::Constant *indices[] = {llvm::ConstantInt::get(IGM.Int32Ty, 0),
                                llvm::ConstantInt::get(IGM.Int32Ty, 0)};
 
-  auto *fnPtrAddr =
-      llvm::ConstantExpr::getInBoundsGetElementPtr(
-        linkEntry->getType()->getPointerElementType(), linkEntry, indices);
+  auto *fnPtrAddr = llvm::ConstantExpr::getInBoundsGetElementPtr(
+      linkEntry->getValueType(), linkEntry, indices);
   auto *fnPtr = IGF.Builder.CreateLoad(
       Address(fnPtrAddr, IGM.FunctionPtrTy, IGM.getPointerAlignment()));
   auto *typeFnPtr = IGF.Builder.CreateBitOrPointerCast(fnPtr, implFn->getType());
@@ -3111,10 +3109,9 @@ void IRGenModule::emitDynamicReplacementOriginalFunctionThunk(SILFunction *f) {
   llvm::Constant *indices[] = {llvm::ConstantInt::get(Int32Ty, 0),
                                llvm::ConstantInt::get(Int32Ty, 0)};
 
-  auto *fnPtrAddr =
-    llvm::ConstantExpr::getPointerBitCastOrAddrSpaceCast(
-      llvm::ConstantExpr::getInBoundsGetElementPtr(
-        linkEntry->getType()->getPointerElementType(), linkEntry, indices),
+  auto *fnPtrAddr = llvm::ConstantExpr::getPointerBitCastOrAddrSpaceCast(
+      llvm::ConstantExpr::getInBoundsGetElementPtr(linkEntry->getValueType(),
+                                                   linkEntry, indices),
       FunctionPtrTy->getPointerTo());
 
   auto *OrigFn =
@@ -3155,8 +3152,9 @@ llvm::Constant *swift::irgen::emitCXXConstructorThunkIfNeeded(
     const clang::CXXConstructorDecl *ctor, StringRef name,
     llvm::Constant *ctorAddress) {
   llvm::FunctionType *assumedFnType = signature.getType();
+  auto *clangFunc = cast<llvm::Function>(ctorAddress->stripPointerCasts());
   llvm::FunctionType *ctorFnType =
-      cast<llvm::FunctionType>(ctorAddress->getType()->getPointerElementType());
+      cast<llvm::FunctionType>(clangFunc->getValueType());
 
   if (assumedFnType == ctorFnType) {
     return ctorAddress;
