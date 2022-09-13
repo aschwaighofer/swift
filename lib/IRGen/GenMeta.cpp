@@ -968,7 +968,8 @@ namespace {
             auto *descriptor =
               B.getAddrOfCurrentPosition(
                 IGM.ProtocolRequirementStructTy);
-            IGM.defineMethodDescriptor(func, Proto, descriptor);
+            IGM.defineMethodDescriptor(func, Proto, descriptor,
+                                       IGM.ProtocolRequirementStructTy);
           }
         }
 
@@ -1844,7 +1845,8 @@ namespace {
       // Define the method descriptor to point to the current position in the
       // nominal type descriptor, if it has a well-defined symbol name.
       IGM.defineMethodDescriptor(fn, Type,
-                      B.getAddrOfCurrentPosition(IGM.MethodDescriptorStructTy));
+                      B.getAddrOfCurrentPosition(IGM.MethodDescriptorStructTy),
+                      IGM.MethodDescriptorStructTy);
 
       if (IGM.getOptions().VirtualFunctionElimination) {
         auto offset = B.getNextOffsetFromGlobal() +

@@ -2351,7 +2351,7 @@ llvm::Constant *IRGenModule::emitObjCResilientClassStub(
   if (isPublic) {
     entity = LinkEntity::forObjCResilientClassStub(
         D, TypeMetadataAddress::AddressPoint);
-    defineAlias(entity, objcStub);
+    defineAlias(entity, objcStub, ObjCResilientClassStubTy);
   }
 
   return objcStub;

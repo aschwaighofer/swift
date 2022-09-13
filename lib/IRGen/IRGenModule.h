@@ -1509,11 +1509,13 @@ public:
   void emitMethodLookupFunction(ClassDecl *classDecl);
 
   llvm::GlobalValue *defineAlias(LinkEntity entity,
-                                 llvm::Constant *definition);
+                                 llvm::Constant *definition,
+                                 llvm::Type *typeOfDefinitionValue);
 
   llvm::GlobalValue *defineMethodDescriptor(SILDeclRef declRef,
                                             NominalTypeDecl *nominalDecl,
-                                            llvm::Constant *definition);
+                                            llvm::Constant *definition,
+                                            llvm::Type *typeOfDefinitionValue);
   llvm::Constant *getAddrOfMethodDescriptor(SILDeclRef declRef,
                                             ForDefinition_t forDefinition);
   void emitNonoverriddenMethodDescriptor(const SILVTable *VTable,
@@ -1723,12 +1725,12 @@ public:
 
   llvm::Constant *
   emitRelativeReference(ConstantReference target,
-                        llvm::Constant *base,
+                        llvm::GlobalValue *base,
                         ArrayRef<unsigned> baseIndices);
 
   llvm::Constant *
   emitDirectRelativeReference(llvm::Constant *target,
-                              llvm::Constant *base,
+                              llvm::GlobalValue *base,
                               ArrayRef<unsigned> baseIndices);
 
   /// Mark a global variable as true-const by putting it in the text section of

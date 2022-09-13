@@ -3810,7 +3810,7 @@ IRGenModule::getTypeEntityReference(GenericTypeDecl *decl) {
 /// (appearing at gep (0, indices) of `base`) and `target`.
 llvm::Constant *
 IRGenModule::emitRelativeReference(ConstantReference target,
-                                   llvm::Constant *base,
+                                   llvm::GlobalValue *base,
                                    ArrayRef<unsigned> baseIndices) {
   llvm::Constant *relativeAddr =
     emitDirectRelativeReference(target.getValue(), base, baseIndices);
@@ -3832,7 +3832,8 @@ IRGenModule::emitRelativeReference(ConstantReference target,
 /// current translation unit.
 llvm::Constant *
 IRGenModule::emitDirectRelativeReference(llvm::Constant *target,
-                                         llvm::Constant *base,
+                                         llvm::GlobalValue *base,
+                                         //llvm::Constant *base,
                                          ArrayRef<unsigned> baseIndices) {
   // Convert the target to an integer.
   auto targetAddr = llvm::ConstantExpr::getPtrToInt(target, SizeTy);
@@ -3846,7 +3847,7 @@ IRGenModule::emitDirectRelativeReference(llvm::Constant *target,
   // Drill down to the appropriate address in the base, then convert
   // that to an integer.
   auto baseElt = llvm::ConstantExpr::getInBoundsGetElementPtr(
-                       base->getType()->getPointerElementType(), base, indices);
+                       base->getValueType(), base, indices);
   auto baseAddr = llvm::ConstantExpr::getPtrToInt(baseElt, SizeTy);
 
   // The relative address is the difference between those.
@@ -4633,15 +4634,17 @@ IRGenModule::getAddrOfTypeMetadataSingletonInitializationCache(
 
   // Zero-initialize if we're asking for a definition.
   if (forDefinition) {
-    cast<llvm::GlobalVariable>(variable)->setInitializer(
-      llvm::Constant::getNullValue(variable->getType()->getPointerElementType()));
+    auto globalVar = cast<llvm::GlobalVariable>(variable);
+    globalVar->setInitializer(
+      llvm::Constant::getNullValue(globalVar->getValueType()));
   }
 
   return variable;
 }
 
 llvm::GlobalValue *IRGenModule::defineAlias(LinkEntity entity,
-                                            llvm::Constant *definition) {
+                                            llvm::Constant *definition,
+                                            llvm::Type *typeOfValue) {
   // Check for an existing forward declaration of the alias.
   auto &entry = GlobalVars[entity];
   llvm::GlobalValue *existingVal = nullptr;
@@ -4654,7 +4657,7 @@ llvm::GlobalValue *IRGenModule::defineAlias(LinkEntity entity,
   LinkInfo link = LinkInfo::get(*this, entity, ForDefinition);
   auto *ptrTy = cast<llvm::PointerType>(definition->getType());
   auto *alias = llvm::GlobalAlias::create(
-      ptrTy->getPointerElementType(), ptrTy->getAddressSpace(), link.getLinkage(),
+      typeOfValue, ptrTy->getAddressSpace(), link.getLinkage(),
       link.getName(), definition, &Module);
   ApplyIRLinkage({link.getLinkage(), link.getVisibility(), link.getDLLStorage()})
       .to(alias);
@@ -4774,7 +4777,7 @@ llvm::GlobalValue *IRGenModule::defineTypeMetadata(
   // For concrete metadata, declare the alias to its address point.
   auto directEntity = LinkEntity::forTypeMetadata(
       concreteType, TypeMetadataAddress::AddressPoint);
-  return defineAlias(directEntity, addr);
+  return defineAlias(directEntity, addr, TypeMetadataStructTy);
 }
 
 /// Fetch the declaration of the (possibly uninitialized) metadata for a type.
@@ -5096,7 +5099,7 @@ llvm::GlobalValue *IRGenModule::defineProtocolRequirementsBaseDescriptor(
                                                 ProtocolDecl *proto,
                                                 llvm::Constant *definition) {
   auto entity = LinkEntity::forProtocolRequirementsBaseDescriptor(proto);
-  return defineAlias(entity, definition);
+  return defineAlias(entity, definition, entity.getDefaultDeclarationType(*this));
 }
 
 llvm::Constant *IRGenModule::getAddrOfAssociatedTypeDescriptor(
@@ -5110,7 +5113,7 @@ llvm::GlobalValue *IRGenModule::defineAssociatedTypeDescriptor(
                                                  AssociatedTypeDecl *assocType,
                                                  llvm::Constant *definition) {
   auto entity = LinkEntity::forAssociatedTypeDescriptor(assocType);
-  return defineAlias(entity, definition);
+  return defineAlias(entity, definition, entity.getDefaultDeclarationType(*this));
 }
 
 llvm::Constant *IRGenModule::getAddrOfAssociatedConformanceDescriptor(
@@ -5123,7 +5126,7 @@ llvm::GlobalValue *IRGenModule::defineAssociatedConformanceDescriptor(
                                             AssociatedConformance conformance,
                                             llvm::Constant *definition) {
   auto entity = LinkEntity::forAssociatedConformanceDescriptor(conformance);
-  return defineAlias(entity, definition);
+  return defineAlias(entity, definition, entity.getDefaultDeclarationType(*this));
 }
 
 llvm::Constant *IRGenModule::getAddrOfBaseConformanceDescriptor(
@@ -5136,7 +5139,7 @@ llvm::GlobalValue *IRGenModule::defineBaseConformanceDescriptor(
                                             BaseConformance conformance,
                                             llvm::Constant *definition) {
   auto entity = LinkEntity::forBaseConformanceDescriptor(conformance);
-  return defineAlias(entity, definition);
+  return defineAlias(entity, definition, entity.getDefaultDeclarationType(*this));
 }
 
 llvm::Constant *IRGenModule::getAddrOfProtocolConformanceDescriptor(

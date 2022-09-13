@@ -419,9 +419,10 @@ IRGenModule::getSILFunctionForAsyncFunctionPointer(llvm::Constant *afp) {
 
 llvm::GlobalValue *IRGenModule::defineMethodDescriptor(SILDeclRef declRef,
                                                        NominalTypeDecl *nominalDecl,
-                                                       llvm::Constant *definition) {
+                                                       llvm::Constant *definition,
+                                                       llvm::Type *typeOfDefinitionValue) {
   auto entity = LinkEntity::forMethodDescriptor(declRef);
-  return defineAlias(entity, definition);
+  return defineAlias(entity, definition, typeOfDefinitionValue);
 }
 
 /// Get or create a method descriptor variable.
