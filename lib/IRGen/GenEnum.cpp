@@ -5410,15 +5410,15 @@ namespace {
           auto tagBits = IGF.Builder.CreateLShr(indexValue,
               llvm::ConstantInt::get(IGM.Int32Ty, CommonSpareBits.count()));
           auto tagAddr = projectExtraTagBitsForExtraInhabitants(IGF, dest);
-          tagBits = IGF.Builder.CreateZExtOrTrunc(tagBits,
-                      tagAddr.getAddress()->getType()->getPointerElementType());
+          tagBits =
+              IGF.Builder.CreateZExtOrTrunc(tagBits, tagAddr.getElementType());
           IGF.Builder.CreateStore(tagBits, tagAddr);
         }
       } else {
         // Only need to store the tag value.
         auto tagAddr = projectExtraTagBitsForExtraInhabitants(IGF, dest);
-        indexValue = IGF.Builder.CreateZExtOrTrunc(indexValue,
-                      tagAddr.getAddress()->getType()->getPointerElementType());
+        indexValue =
+            IGF.Builder.CreateZExtOrTrunc(indexValue, tagAddr.getElementType());
         IGF.Builder.CreateStore(indexValue, tagAddr);
       }
     }
@@ -6857,7 +6857,7 @@ const TypeInfo *TypeConverter::convertEnumType(TypeBase *key, CanType type,
 
   // Resilient enum types lower down to the same opaque type.
   if (IGM.isResilient(theEnum, ResilienceExpansion::Maximal))
-    storageType = cast<llvm::StructType>(IGM.OpaquePtrTy->getPointerElementType());
+    storageType = cast<llvm::StructType>(IGM.OpaqueTy);
   else
     storageType = IGM.createNominalType(type);
 
