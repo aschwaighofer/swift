@@ -417,10 +417,9 @@ IRGenModule::getSILFunctionForAsyncFunctionPointer(llvm::Constant *afp) {
   return nullptr;
 }
 
-llvm::GlobalValue *IRGenModule::defineMethodDescriptor(SILDeclRef declRef,
-                                                       NominalTypeDecl *nominalDecl,
-                                                       llvm::Constant *definition,
-                                                       llvm::Type *typeOfDefinitionValue) {
+llvm::GlobalValue *IRGenModule::defineMethodDescriptor(
+    SILDeclRef declRef, NominalTypeDecl *nominalDecl,
+    llvm::Constant *definition, llvm::Type *typeOfDefinitionValue) {
   auto entity = LinkEntity::forMethodDescriptor(declRef);
   return defineAlias(entity, definition, typeOfDefinitionValue);
 }

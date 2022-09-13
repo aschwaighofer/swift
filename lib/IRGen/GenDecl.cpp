@@ -3833,7 +3833,7 @@ IRGenModule::emitRelativeReference(ConstantReference target,
 llvm::Constant *
 IRGenModule::emitDirectRelativeReference(llvm::Constant *target,
                                          llvm::GlobalValue *base,
-                                         //llvm::Constant *base,
+                                         // llvm::Constant *base,
                                          ArrayRef<unsigned> baseIndices) {
   // Convert the target to an integer.
   auto targetAddr = llvm::ConstantExpr::getPtrToInt(target, SizeTy);
@@ -3847,7 +3847,7 @@ IRGenModule::emitDirectRelativeReference(llvm::Constant *target,
   // Drill down to the appropriate address in the base, then convert
   // that to an integer.
   auto baseElt = llvm::ConstantExpr::getInBoundsGetElementPtr(
-                       base->getValueType(), base, indices);
+      base->getValueType(), base, indices);
   auto baseAddr = llvm::ConstantExpr::getPtrToInt(baseElt, SizeTy);
 
   // The relative address is the difference between those.
@@ -4636,7 +4636,7 @@ IRGenModule::getAddrOfTypeMetadataSingletonInitializationCache(
   if (forDefinition) {
     auto globalVar = cast<llvm::GlobalVariable>(variable);
     globalVar->setInitializer(
-      llvm::Constant::getNullValue(globalVar->getValueType()));
+        llvm::Constant::getNullValue(globalVar->getValueType()));
   }
 
   return variable;
@@ -4656,9 +4656,9 @@ llvm::GlobalValue *IRGenModule::defineAlias(LinkEntity entity,
 
   LinkInfo link = LinkInfo::get(*this, entity, ForDefinition);
   auto *ptrTy = cast<llvm::PointerType>(definition->getType());
-  auto *alias = llvm::GlobalAlias::create(
-      typeOfValue, ptrTy->getAddressSpace(), link.getLinkage(),
-      link.getName(), definition, &Module);
+  auto *alias = llvm::GlobalAlias::create(typeOfValue, ptrTy->getAddressSpace(),
+                                          link.getLinkage(), link.getName(),
+                                          definition, &Module);
   ApplyIRLinkage({link.getLinkage(), link.getVisibility(), link.getDLLStorage()})
       .to(alias);
 
@@ -4770,8 +4770,8 @@ llvm::GlobalValue *IRGenModule::defineTypeMetadata(
   llvm::Constant *indices[] = {
       llvm::ConstantInt::get(Int32Ty, 0),
       llvm::ConstantInt::get(Int32Ty, adjustmentIndex)};
-  auto addr = llvm::ConstantExpr::getInBoundsGetElementPtr(
-    var->getType()->getPointerElementType(), var, indices);
+  auto addr = llvm::ConstantExpr::getInBoundsGetElementPtr(var->getValueType(),
+                                                           var, indices);
   addr = llvm::ConstantExpr::getBitCast(addr, TypeMetadataPtrTy);
 
   // For concrete metadata, declare the alias to its address point.
@@ -4865,13 +4865,15 @@ IRGenModule::getAddrOfTypeMetadata(CanType concreteType,
                                      Alignment(1));
 
   ConstantReference addr;
-
+  llvm::Type *typeOfValue = nullptr;
   if (fullMetadata && !foreign) {
     addr = getAddrOfLLVMVariable(*entity, ConstantInit(), DbgTy, refKind,
                                  /*overrideDeclType=*/nullptr);
+    typeOfValue = entity->getDefaultDeclarationType(*this);
   } else {
     addr = getAddrOfLLVMVariable(*entity, ConstantInit(), DbgTy, refKind,
                                  /*overrideDeclType=*/defaultVarTy);
+    typeOfValue = defaultVarTy;
   }
 
   if (auto *GV = dyn_cast<llvm::GlobalVariable>(addr.getValue()))
@@ -4880,8 +4882,9 @@ IRGenModule::getAddrOfTypeMetadata(CanType concreteType,
   // FIXME: MC breaks when emitting alias references on some platforms
   // (rdar://problem/22450593 ). Work around this by referring to the aliasee
   // instead.
-  if (auto alias = dyn_cast<llvm::GlobalAlias>(addr.getValue()))
+  if (auto alias = dyn_cast<llvm::GlobalAlias>(addr.getValue())) {
     addr = ConstantReference(alias->getAliasee(), addr.isIndirect());
+  }
 
   // Adjust if necessary.
   if (adjustmentIndex) {
@@ -4889,10 +4892,8 @@ IRGenModule::getAddrOfTypeMetadata(CanType concreteType,
       llvm::ConstantInt::get(Int32Ty, 0),
       llvm::ConstantInt::get(Int32Ty, adjustmentIndex)
     };
-    addr = ConstantReference(
-             llvm::ConstantExpr::getInBoundsGetElementPtr(
-               addr.getValue()->getType()->getPointerElementType(),
-                                    addr.getValue(), indices),
+    addr = ConstantReference(llvm::ConstantExpr::getInBoundsGetElementPtr(
+                                 typeOfValue, addr.getValue(), indices),
                              addr.isIndirect());
   }
   
@@ -5099,7 +5100,8 @@ llvm::GlobalValue *IRGenModule::defineProtocolRequirementsBaseDescriptor(
                                                 ProtocolDecl *proto,
                                                 llvm::Constant *definition) {
   auto entity = LinkEntity::forProtocolRequirementsBaseDescriptor(proto);
-  return defineAlias(entity, definition, entity.getDefaultDeclarationType(*this));
+  return defineAlias(entity, definition,
+                     entity.getDefaultDeclarationType(*this));
 }
 
 llvm::Constant *IRGenModule::getAddrOfAssociatedTypeDescriptor(
@@ -5113,7 +5115,8 @@ llvm::GlobalValue *IRGenModule::defineAssociatedTypeDescriptor(
                                                  AssociatedTypeDecl *assocType,
                                                  llvm::Constant *definition) {
   auto entity = LinkEntity::forAssociatedTypeDescriptor(assocType);
-  return defineAlias(entity, definition, entity.getDefaultDeclarationType(*this));
+  return defineAlias(entity, definition,
+                     entity.getDefaultDeclarationType(*this));
 }
 
 llvm::Constant *IRGenModule::getAddrOfAssociatedConformanceDescriptor(
@@ -5126,7 +5129,8 @@ llvm::GlobalValue *IRGenModule::defineAssociatedConformanceDescriptor(
                                             AssociatedConformance conformance,
                                             llvm::Constant *definition) {
   auto entity = LinkEntity::forAssociatedConformanceDescriptor(conformance);
-  return defineAlias(entity, definition, entity.getDefaultDeclarationType(*this));
+  return defineAlias(entity, definition,
+                     entity.getDefaultDeclarationType(*this));
 }
 
 llvm::Constant *IRGenModule::getAddrOfBaseConformanceDescriptor(
@@ -5139,7 +5143,8 @@ llvm::GlobalValue *IRGenModule::defineBaseConformanceDescriptor(
                                             BaseConformance conformance,
                                             llvm::Constant *definition) {
   auto entity = LinkEntity::forBaseConformanceDescriptor(conformance);
-  return defineAlias(entity, definition, entity.getDefaultDeclarationType(*this));
+  return defineAlias(entity, definition,
+                     entity.getDefaultDeclarationType(*this));
 }
 
 llvm::Constant *IRGenModule::getAddrOfProtocolConformanceDescriptor(

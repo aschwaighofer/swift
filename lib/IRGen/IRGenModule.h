@@ -1508,8 +1508,7 @@ public:
                                                 ForDefinition_t forDefinition);
   void emitMethodLookupFunction(ClassDecl *classDecl);
 
-  llvm::GlobalValue *defineAlias(LinkEntity entity,
-                                 llvm::Constant *definition,
+  llvm::GlobalValue *defineAlias(LinkEntity entity, llvm::Constant *definition,
                                  llvm::Type *typeOfDefinitionValue);
 
   llvm::GlobalValue *defineMethodDescriptor(SILDeclRef declRef,
@@ -1723,15 +1722,13 @@ public:
   ConstantReference
   getAddrOfLLVMVariableOrGOTEquivalent(LinkEntity entity);
 
-  llvm::Constant *
-  emitRelativeReference(ConstantReference target,
-                        llvm::GlobalValue *base,
-                        ArrayRef<unsigned> baseIndices);
+  llvm::Constant *emitRelativeReference(ConstantReference target,
+                                        llvm::GlobalValue *base,
+                                        ArrayRef<unsigned> baseIndices);
 
-  llvm::Constant *
-  emitDirectRelativeReference(llvm::Constant *target,
-                              llvm::GlobalValue *base,
-                              ArrayRef<unsigned> baseIndices);
+  llvm::Constant *emitDirectRelativeReference(llvm::Constant *target,
+                                              llvm::GlobalValue *base,
+                                              ArrayRef<unsigned> baseIndices);
 
   /// Mark a global variable as true-const by putting it in the text section of
   /// the binary.
