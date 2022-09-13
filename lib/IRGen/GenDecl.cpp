@@ -3417,13 +3417,13 @@ llvm::Constant *IRGenModule::getOrCreateGOTEquivalent(llvm::Constant *global,
   return gotEquivalent;
 }
 
-static llvm::Constant *getElementBitCast(llvm::Constant *ptr,
+static llvm::Constant *getElementBitCast(llvm::GlobalValue *ptr,
                                          llvm::Type *newEltType) {
-  auto ptrType = cast<llvm::PointerType>(ptr->getType());
-  if (ptrType->getPointerElementType() == newEltType) {
+  if (ptr->getValueType() == newEltType) {
     return ptr;
   } else {
-    auto newPtrType = newEltType->getPointerTo(ptrType->getAddressSpace());
+    auto newPtrType = newEltType->getPointerTo(
+        cast<llvm::PointerType>(ptr->getType())->getAddressSpace());
     return llvm::ConstantExpr::getBitCast(ptr, newPtrType);
   }
 }
@@ -3535,7 +3535,7 @@ IRGenModule::getAddrOfLLVMVariable(LinkEntity entity,
     // Otherwise, we have a previous declaration or definition which
     // we need to ensure has the right type.
     } else {
-      return getElementBitCast(entry, defaultType);
+      return getElementBitCast(existing, defaultType);
     }
   }
 
