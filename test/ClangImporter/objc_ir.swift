@@ -129,7 +129,6 @@ class Impl: FooProto, AnotherProto {
 
 // CHECK-LABEL: define hidden swiftcc %swift.type* @"$s7objc_ir27protocolCompositionMetatype1pSo12AnotherProto_So03FooG0pXpAA4ImplC_tF"(%T7objc_ir4ImplC* %0) {{.*}} {
 func protocolCompositionMetatype(p: Impl) -> (FooProto & AnotherProto).Type {
-  // CHECK: = getelementptr inbounds %T7objc_ir4ImplC, %T7objc_ir4ImplC* %0, i32 0, i32 0, i32 0
   // CHECK-NOT: {{retain|release}}
   // CHECK: [[RAW_RESULT:%.+]] = call i8* @processComboType(i8* {{%.+}})
   // CHECK: [[CASTED_RESULT:%.+]] = bitcast i8* [[RAW_RESULT]] to %objc_class*
@@ -142,7 +141,6 @@ func protocolCompositionMetatype(p: Impl) -> (FooProto & AnotherProto).Type {
 
 // CHECK-LABEL: define hidden swiftcc %swift.type* @"$s7objc_ir28protocolCompositionMetatype21pSo12AnotherProto_So03FooG0pXpAA4ImplC_tF"(%T7objc_ir4ImplC* %0) {{.*}} {
 func protocolCompositionMetatype2(p: Impl) -> (FooProto & AnotherProto).Type {
-  // CHECK: = getelementptr inbounds %T7objc_ir4ImplC, %T7objc_ir4ImplC* %0, i32 0, i32 0, i32 0
   // CHECK-NOT: {{retain|release}}
   // CHECK: [[RAW_RESULT:%.+]] = call i8* @processComboType2(i8* {{%.+}})
   // CHECK: [[CASTED_RESULT:%.+]] = bitcast i8* [[RAW_RESULT]] to %objc_class*

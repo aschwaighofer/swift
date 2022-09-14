@@ -309,6 +309,18 @@ public:
     setCallingConvUsingCallee(Call);
     return Call;
   }
+  llvm::CallInst *CreateCallWithoutDbgLoc(llvm::FunctionType *FTy,
+                                          llvm::Constant *Callee,
+                                          ArrayRef<llvm::Value *> Args,
+                                          const Twine &Name = "",
+                                          llvm::MDNode *FPMathTag = nullptr) {
+    // assert((!DebugInfo || getCurrentDebugLocation()) && "no debugloc on
+    // call");
+    assert(!isTrapIntrinsic(Callee) && "Use CreateNonMergeableTrap");
+    auto Call = IRBuilderBase::CreateCall(FTy, Callee, Args, Name, FPMathTag);
+    setCallingConvUsingCallee(Call);
+    return Call;
+  }
 
   llvm::CallInst *CreateCall(llvm::Constant *Callee,
                              ArrayRef<llvm::Value *> Args,
