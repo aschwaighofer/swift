@@ -619,7 +619,7 @@ namespace {
                              IGF.IGM.DataLayout);
       src = IGF.coerceValue(src, callee->getFunctionType()->getParamType(1),
                             IGF.IGM.DataLayout);
-      IGF.Builder.CreateCall(callee, {dest, src});
+      IGF.Builder.CreateCall(callee->getFunctionType(), callee, {dest, src});
     }
 
   public:
