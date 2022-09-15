@@ -1873,7 +1873,8 @@ void IRGenerator::emitDynamicReplacements() {
             origFuncTypes[i]->getDecl()));
     llvm::Constant *newFnPtr = llvm::ConstantExpr::getBitCast(
         IGM.getAddrOfOpaqueTypeDescriptorAccessFunction(
-            newFuncTypes[i]->getDecl(), NotForDefinition, false).getDirectPointer(),
+               newFuncTypes[i]->getDecl(), NotForDefinition, false)
+            .getDirectPointer(),
         IGM.Int8PtrTy);
     auto replacement = replacementsArray.beginStruct();
     replacement.addRelativeAddress(keyRef);   // tagged relative reference.
@@ -3046,13 +3047,15 @@ void IRGenModule::emitOpaqueTypeDescriptorAccessor(OpaqueTypeDecl *opaque) {
       return;
   }
 
-  auto accessor =
-      getAddrOfOpaqueTypeDescriptorAccessFunction(opaque, ForDefinition, false).getDirectPointer();
+  auto accessor = cast<llvm::Function>(
+      getAddrOfOpaqueTypeDescriptorAccessFunction(opaque, ForDefinition, false)
+          .getDirectPointer());
 
   if (isNativeDynamic) {
     auto thunk = accessor;
-    auto impl = getAddrOfOpaqueTypeDescriptorAccessFunction(
-        opaque, ForDefinition, true).getDirectPointer();
+    auto impl = cast<llvm::Function>(
+        getAddrOfOpaqueTypeDescriptorAccessFunction(opaque, ForDefinition, true)
+            .getDirectPointer());
     auto varEntity = LinkEntity::forOpaqueTypeDescriptorAccessorVar(opaque);
     auto keyEntity = LinkEntity::forOpaqueTypeDescriptorAccessorKey(opaque);
 

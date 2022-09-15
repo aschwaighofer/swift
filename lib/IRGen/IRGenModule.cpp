@@ -1048,35 +1048,36 @@ void IRGenModule::registerRuntimeEffect(ArrayRef<RuntimeEffect> effect,
 #define NO_ATTRS {}
 #define EFFECT(...) { __VA_ARGS__ }
 
-#define FUNCTION_IMPL(ID, NAME, CC, AVAILABILITY, RETURNS, ARGS, ATTRS, EFFECT)\
+#define FUNCTION_IMPL(ID, NAME, CC, AVAILABILITY, RETURNS, ARGS, ATTRS,        \
+                      EFFECT)                                                  \
   llvm::Constant *IRGenModule::get##ID##Fn() {                                 \
     using namespace RuntimeConstants;                                          \
     registerRuntimeEffect(EFFECT, #NAME);                                      \
     return getRuntimeFn(Module, ID##Fn, #NAME, CC,                             \
-                        AVAILABILITY(this->Context),                           \
-                        RETURNS, ARGS, ATTRS, this);                           \
-  }\
-  FunctionPointer IRGenModule::get##ID##FunctionPointer() {\
+                        AVAILABILITY(this->Context), RETURNS, ARGS, ATTRS,     \
+                        this);                                                 \
+  }                                                                            \
+  FunctionPointer IRGenModule::get##ID##FunctionPointer() {                    \
     using namespace RuntimeConstants;                                          \
-    auto fn = get##ID##Fn(); \
-    auto fnTy = get##ID##FnType(); \
-    llvm::AttributeList attrs; \
-    SmallVector<llvm::Attribute::AttrKind, 8> theAttrs(ATTRS); \
-    for (auto Attr : theAttrs) { \
-      if (isReturnAttribute(Attr)) \
-        attrs = attrs.addRetAttribute(getLLVMContext(), Attr); \
-      else if (isReturnedAttribute(Attr)) \
-        attrs = attrs.addParamAttribute(getLLVMContext(), 0, Attr);  \
-      else \
-        attrs = attrs.addFnAttribute(getLLVMContext(), Attr); \
-    } \
-    auto sig = Signature(fnTy, attrs, CC); \
-    return FunctionPointer::forDirect(FunctionPointer::Kind::Function, fn, nullptr, sig);\
-  }\
-  llvm::FunctionType *IRGenModule::get##ID##FnType() { \
-      return getRuntimeFnType(Module, RETURNS, ARGS); \
+    auto fn = get##ID##Fn();                                                   \
+    auto fnTy = get##ID##FnType();                                             \
+    llvm::AttributeList attrs;                                                 \
+    SmallVector<llvm::Attribute::AttrKind, 8> theAttrs(ATTRS);                 \
+    for (auto Attr : theAttrs) {                                               \
+      if (isReturnAttribute(Attr))                                             \
+        attrs = attrs.addRetAttribute(getLLVMContext(), Attr);                 \
+      else if (isReturnedAttribute(Attr))                                      \
+        attrs = attrs.addParamAttribute(getLLVMContext(), 0, Attr);            \
+      else                                                                     \
+        attrs = attrs.addFnAttribute(getLLVMContext(), Attr);                  \
+    }                                                                          \
+    auto sig = Signature(fnTy, attrs, CC);                                     \
+    return FunctionPointer::forDirect(FunctionPointer::Kind::Function, fn,     \
+                                      nullptr, sig);                           \
+  }                                                                            \
+  llvm::FunctionType *IRGenModule::get##ID##FnType() {                         \
+    return getRuntimeFnType(Module, RETURNS, ARGS);                            \
   }
-
 
 #include "swift/Runtime/RuntimeFunctions.def"
 

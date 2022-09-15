@@ -410,9 +410,9 @@ llvm::Value *irgen::emitDynamicTypeOfOpaqueArchetype(IRGenFunction &IGF,
   llvm::Value *metadata =
     emitArchetypeTypeMetadataRef(IGF, archetype, MetadataState::Complete)
       .getMetadata();
-  return IGF.Builder.CreateCall(IGF.IGM.getGetDynamicTypeFunctionPointer(),
-                                {addr.getAddress(), metadata,
-                                 llvm::ConstantInt::get(IGF.IGM.Int1Ty, 0)});
+  return IGF.Builder.CreateCall(
+      IGF.IGM.getGetDynamicTypeFunctionPointer(),
+      {addr.getAddress(), metadata, llvm::ConstantInt::get(IGF.IGM.Int1Ty, 0)});
 }
 
 static void

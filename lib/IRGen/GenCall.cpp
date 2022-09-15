@@ -186,7 +186,7 @@ void IRGenFunction::setupAsync(unsigned asyncContextIndex) {
 }
 
 llvm::Value *IRGenFunction::getAsyncTask() {
-  auto call = Builder.CreateCall(IGM.getGetCurrentTaskFn(), {});
+  auto call = Builder.CreateCall(IGM.getGetCurrentTaskFunctionPointer(), {});
   call->setDoesNotThrow();
   call->setCallingConv(IGM.SwiftCC);
   return call;
@@ -212,9 +212,12 @@ llvm::CallInst *IRGenFunction::emitSuspendAsyncCall(
         Builder.CreateExtractValue(id, asyncContextIndex);
     calleeContext =
         Builder.CreateBitOrPointerCast(calleeContext, IGM.Int8PtrTy);
-    llvm::Constant *projectFn =
-        cast<llvm::Constant>(args[2])->stripPointerCasts();
-    llvm::Value *context = Builder.CreateCall(projectFn, {calleeContext});
+    llvm::Function *projectFn = cast<llvm::Function>(
+        (cast<llvm::Constant>(args[2])->stripPointerCasts()));
+    auto *fnTy = projectFn->getFunctionType();
+
+    llvm::Value *context =
+        Builder.CreateCallWithoutDbgLoc(fnTy, projectFn, {calleeContext});
     storeCurrentAsyncContext(context);
   }
 
@@ -4075,7 +4078,8 @@ void irgen::emitTaskCancel(IRGenFunction &IGF, llvm::Value *task) {
     task = IGF.Builder.CreateBitCast(task, IGF.IGM.SwiftTaskPtrTy);
   }
 
-  auto *call = IGF.Builder.CreateCall(IGF.IGM.getTaskCancelFn(), {task});
+  auto *call =
+      IGF.Builder.CreateCall(IGF.IGM.getTaskCancelFunctionPointer(), {task});
   call->setDoesNotThrow();
   call->setCallingConv(IGF.IGM.SwiftCC);
 }
@@ -4116,11 +4120,8 @@ llvm::Value *irgen::emitTaskCreate(
 
   assert(futureResultType && "no future?!");
   llvm::CallInst *result = IGF.Builder.CreateCall(
-    IGF.IGM.getTaskCreateFn(),
-    {flags,
-     taskOptions,
-     futureResultType,
-     taskFunction, localContextInfo});
+      IGF.IGM.getTaskCreateFunctionPointer(),
+      {flags, taskOptions, futureResultType, taskFunction, localContextInfo});
   result->setDoesNotThrow();
   result->setCallingConv(IGF.IGM.SwiftCC);
 
@@ -5224,7 +5225,8 @@ IRGenFunction::getFunctionPointerForResumeIntrinsic(llvm::Value *resume) {
 Address irgen::emitAutoDiffCreateLinearMapContext(
     IRGenFunction &IGF, llvm::Value *topLevelSubcontextSize) {
   auto *call = IGF.Builder.CreateCall(
-      IGF.IGM.getAutoDiffCreateLinearMapContextFn(), {topLevelSubcontextSize});
+      IGF.IGM.getAutoDiffCreateLinearMapContextFunctionPointer(),
+      {topLevelSubcontextSize});
   call->setDoesNotThrow();
   call->setCallingConv(IGF.IGM.SwiftCC);
   return Address(call, IGF.IGM.RefCountedStructTy,
@@ -5234,7 +5236,7 @@ Address irgen::emitAutoDiffCreateLinearMapContext(
 Address irgen::emitAutoDiffProjectTopLevelSubcontext(
     IRGenFunction &IGF, Address context) {
   auto *call = IGF.Builder.CreateCall(
-      IGF.IGM.getAutoDiffProjectTopLevelSubcontextFn(),
+      IGF.IGM.getAutoDiffProjectTopLevelSubcontextFunctionPointer(),
       {context.getAddress()});
   call->setDoesNotThrow();
   call->setCallingConv(IGF.IGM.SwiftCC);
@@ -5244,7 +5246,7 @@ Address irgen::emitAutoDiffProjectTopLevelSubcontext(
 Address irgen::emitAutoDiffAllocateSubcontext(
     IRGenFunction &IGF, Address context, llvm::Value *size) {
   auto *call = IGF.Builder.CreateCall(
-      IGF.IGM.getAutoDiffAllocateSubcontextFn(),
+      IGF.IGM.getAutoDiffAllocateSubcontextFunctionPointer(),
       {context.getAddress(), size});
   call->setDoesNotThrow();
   call->setCallingConv(IGF.IGM.SwiftCC);

@@ -921,7 +921,7 @@ void irgen::emitClassDeallocation(IRGenFunction &IGF,
     if (rootActorClass->isDefaultActor(IGF.IGM.getSwiftModule(),
                                        ResilienceExpansion::Maximal)) {
       selfValue = emitCastToHeapObject(IGF, selfValue);
-      IGF.Builder.CreateCall(IGF.IGM.getDefaultActorDeallocateFn(),
+      IGF.Builder.CreateCall(IGF.IGM.getDefaultActorDeallocateFunctionPointer(),
                              {selfValue});
       return;
     }
@@ -931,8 +931,9 @@ void irgen::emitClassDeallocation(IRGenFunction &IGF,
         rootActorClass->isResilient(IGF.IGM.getSwiftModule(),
                                     ResilienceExpansion::Maximal)) {
       selfValue = emitCastToHeapObject(IGF, selfValue);
-      IGF.Builder.CreateCall(IGF.IGM.getDefaultActorDeallocateResilientFn(),
-                             {selfValue});
+      IGF.Builder.CreateCall(
+          IGF.IGM.getDefaultActorDeallocateResilientFunctionPointer(),
+          {selfValue});
       return;
     }
 
@@ -2748,8 +2749,6 @@ static llvm::Value *emitVTableSlotLoad(IRGenFunction &IGF, Address slot,
   if (IGF.IGM.getOptions().VirtualFunctionElimination) {
     // For LLVM IR VFE, emit a @llvm.type.checked.load with the type of the
     // method.
-    llvm::Function *checkedLoadIntrinsic = llvm::Intrinsic::getDeclaration(
-        &IGF.IGM.Module, llvm::Intrinsic::type_checked_load);
     auto slotAsPointer = IGF.Builder.CreateElementBitCast(slot, IGF.IGM.Int8Ty);
     auto typeId = typeIdForMethod(IGF.IGM, method);
 
@@ -2763,8 +2762,8 @@ static llvm::Value *emitVTableSlotLoad(IRGenFunction &IGF, Address slot,
 
     // TODO/FIXME: Using @llvm.type.checked.load loses the "invariant" marker
     // which could mean redundant loads don't get removed.
-    llvm::Value *checkedLoad =
-        IGF.Builder.CreateCall(checkedLoadIntrinsic, args);
+    llvm::Value *checkedLoad = IGF.Builder.CreateIntrinsicCall(
+        llvm::Intrinsic::type_checked_load, args);
     auto fnPtr = IGF.Builder.CreateExtractValue(checkedLoad, 0);
     return IGF.Builder.CreateBitCast(fnPtr,
                                      signature.getType()->getPointerTo());

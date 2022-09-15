@@ -351,6 +351,10 @@ namespace irgen {
     }
 
   public:
+    FunctionPointer()
+        : kind(FunctionPointer::Kind::Function), Value(nullptr),
+          SecondaryValue(nullptr) {}
+
     static FunctionPointer createForAsyncCall(llvm::Value *value,
                                               PointerAuthInfo authInfo,
                                               const Signature &signature,
