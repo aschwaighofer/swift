@@ -1873,7 +1873,7 @@ void IRGenerator::emitDynamicReplacements() {
             origFuncTypes[i]->getDecl()));
     llvm::Constant *newFnPtr = llvm::ConstantExpr::getBitCast(
         IGM.getAddrOfOpaqueTypeDescriptorAccessFunction(
-            newFuncTypes[i]->getDecl(), NotForDefinition, false),
+            newFuncTypes[i]->getDecl(), NotForDefinition, false).getDirectPointer(),
         IGM.Int8PtrTy);
     auto replacement = replacementsArray.beginStruct();
     replacement.addRelativeAddress(keyRef);   // tagged relative reference.
@@ -3047,12 +3047,12 @@ void IRGenModule::emitOpaqueTypeDescriptorAccessor(OpaqueTypeDecl *opaque) {
   }
 
   auto accessor =
-      getAddrOfOpaqueTypeDescriptorAccessFunction(opaque, ForDefinition, false);
+      getAddrOfOpaqueTypeDescriptorAccessFunction(opaque, ForDefinition, false).getDirectPointer();
 
   if (isNativeDynamic) {
     auto thunk = accessor;
     auto impl = getAddrOfOpaqueTypeDescriptorAccessFunction(
-        opaque, ForDefinition, true);
+        opaque, ForDefinition, true).getDirectPointer();
     auto varEntity = LinkEntity::forOpaqueTypeDescriptorAccessorVar(opaque);
     auto keyEntity = LinkEntity::forOpaqueTypeDescriptorAccessorKey(opaque);
 
@@ -4465,25 +4465,29 @@ IRGenModule::getAddrOfTypeMetadataAccessFunction(CanType type,
 }
 
 /// Fetch the opaque type descriptor access function.
-llvm::Function *IRGenModule::getAddrOfOpaqueTypeDescriptorAccessFunction(
+FunctionPointer IRGenModule::getAddrOfOpaqueTypeDescriptorAccessFunction(
     OpaqueTypeDecl *decl, ForDefinition_t forDefinition, bool implementation) {
   IRGen.noteUseOfOpaqueTypeDescriptor(decl);
 
   LinkEntity entity =
       implementation ? LinkEntity::forOpaqueTypeDescriptorAccessorImpl(decl)
                      : LinkEntity::forOpaqueTypeDescriptorAccessor(decl);
+
+  auto fnType = llvm::FunctionType::get(OpaqueTypeDescriptorPtrTy, {}, false);
+  Signature signature(fnType, llvm::AttributeList(), SwiftCC);
+
   llvm::Function *&entry = GlobalFuncs[entity];
   if (entry) {
     if (forDefinition)
       updateLinkageForDefinition(*this, entry, entity);
-    return entry;
+    return FunctionPointer::forDirect(FunctionPointer::Kind::Function, entry,
+                                      nullptr, signature);
   }
 
-  auto fnType = llvm::FunctionType::get(OpaqueTypeDescriptorPtrTy, {}, false);
-  Signature signature(fnType, llvm::AttributeList(), SwiftCC);
   LinkInfo link = LinkInfo::get(*this, entity, forDefinition);
   entry = createFunction(*this, link, signature);
-  return entry;
+  return FunctionPointer::forDirect(FunctionPointer::Kind::Function, entry,
+                                    nullptr, signature);
 }
 
 /// Fetch the type metadata access function for the given generic type.

@@ -352,8 +352,8 @@ void irgen::emitBuiltinCall(IRGenFunction &IGF, const BuiltinInfo &Builtin,
   if (Builtin.ID == BuiltinValueKind::InitializeDefaultActor ||
       Builtin.ID == BuiltinValueKind::DestroyDefaultActor) {
     auto fn = Builtin.ID == BuiltinValueKind::InitializeDefaultActor
-                ? IGF.IGM.getDefaultActorInitializeFn()
-                : IGF.IGM.getDefaultActorDestroyFn();
+                ? IGF.IGM.getDefaultActorInitializeFunctionPointer()
+                : IGF.IGM.getDefaultActorDestroyFunctionPointer();
     auto actor = args.claimNext();
     actor = IGF.Builder.CreateBitCast(actor, IGF.IGM.RefCountedPtrTy);
     auto call = IGF.Builder.CreateCall(fn, {actor});
@@ -495,7 +495,7 @@ void irgen::emitBuiltinCall(IRGenFunction &IGF, const BuiltinInfo &Builtin,
     SmallVector<llvm::Value*, 8> IRArgs;
     for (unsigned i = 0, e = FT->getNumParams(); i != e; ++i)
       IRArgs.push_back(args.claimNext());
-    llvm::Value *TheCall = IGF.Builder.CreateCall(F, IRArgs);
+    llvm::Value *TheCall = IGF.Builder.CreateIntrinsicCall((llvm::Intrinsic::ID)IID, ArgTys, IRArgs);
 
     if (!TheCall->getType()->isVoidTy())
       extractScalarResults(IGF, TheCall->getType(), TheCall, out);
@@ -544,10 +544,8 @@ void irgen::emitBuiltinCall(IRGenFunction &IGF, const BuiltinInfo &Builtin,
 
 #define BUILTIN_RUNTIME_CALL(id, name, attrs)                                  \
   if (Builtin.ID == BuiltinValueKind::id) {                                    \
-    auto *fn = cast<llvm::Function>(IGF.IGM.get##id##Fn());                    \
+    auto fn = IGF.IGM.get##id##FunctionPointer();                             \
     llvm::CallInst *call = IGF.Builder.CreateCall(fn, args.claimNext());       \
-    call->setCallingConv(fn->getCallingConv());                                \
-    call->setAttributes(fn->getAttributes());                                  \
     return out.add(call);                                                      \
   }
 
@@ -562,7 +560,7 @@ if (Builtin.ID == BuiltinValueKind::id) { \
   IRArgs.push_back(args.claimNext()); \
   IRArgs.push_back(args.claimNext()); \
   args.claimNext();\
-  llvm::Value *TheCall = IGF.Builder.CreateCall(F, IRArgs); \
+  llvm::Value *TheCall = IGF.Builder.CreateCall(cast<llvm::FunctionType>(F->getValueType()), F, IRArgs); \
   extractScalarResults(IGF, TheCall->getType(), TheCall, out);  \
   return; \
 }
@@ -598,7 +596,7 @@ if (Builtin.ID == BuiltinValueKind::id) { \
     // the error return register. We also have to pass a fake context
     // argument due to how swiftcc works in clang.
   
-    auto *fn = cast<llvm::Function>(IGF.IGM.getWillThrowFn());
+    auto fn = IGF.IGM.getWillThrowFunctionPointer();
     auto error = args.claimNext();
     auto errorTy = IGF.IGM.Context.getErrorExistentialType();
     auto errorBuffer = IGF.getCalleeErrorResultSlot(
@@ -1064,7 +1062,7 @@ if (Builtin.ID == BuiltinValueKind::id) { \
     
     // Emit the runtime "once" call.
     auto call
-      = IGF.Builder.CreateCall(IGF.IGM.getOnceFn(), {PredPtr, FnCode, Context});
+      = IGF.Builder.CreateCall(IGF.IGM.getOnceFunctionPointer(), {PredPtr, FnCode, Context});
     call->setCallingConv(IGF.IGM.DefaultCC);
     
     // If we emitted the "done" check inline, join the branches.
@@ -1271,7 +1269,7 @@ if (Builtin.ID == BuiltinValueKind::id) { \
         llvm::MaybeAlign(IGF.IGM.getAtomicBoolAlignment().getValue()));
     entrypointArgs[6] = llvm::ConstantExpr::getBitCast(flag, IGF.IGM.Int8PtrTy);
 
-    IGF.Builder.CreateCall(IGF.IGM.getSwift3ImplicitObjCEntrypointFn(),
+    IGF.Builder.CreateCall(IGF.IGM.getSwift3ImplicitObjCEntrypointFunctionPointer(),
                            entrypointArgs);
     return;
   }

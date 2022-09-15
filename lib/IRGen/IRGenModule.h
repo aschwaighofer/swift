@@ -1752,7 +1752,7 @@ public:
   getGlobalForDynamicallyReplaceableThunk(LinkEntity &entity, llvm::Type *type,
                                           ForDefinition_t forDefinition);
 
-  llvm::Function *getAddrOfOpaqueTypeDescriptorAccessFunction(
+  FunctionPointer getAddrOfOpaqueTypeDescriptorAccessFunction(
       OpaqueTypeDecl *decl, ForDefinition_t forDefinition, bool implementation);
 
   void createReplaceableProlog(IRGenFunction &IGF, SILFunction *f);
