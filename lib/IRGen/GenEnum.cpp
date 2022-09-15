@@ -672,8 +672,8 @@ namespace {
       auto payloadLayout = emitTypeLayoutRef(IGF, payloadTy, collector);
       auto flags = emitEnumLayoutFlags(IGF.IGM, isVWTMutable);
       IGF.Builder.CreateCall(
-                    IGF.IGM.getInitEnumMetadataSingleCaseFn(),
-                    {metadata, flags, payloadLayout});
+          IGF.IGM.getInitEnumMetadataSingleCaseFunctionPointer(),
+          {metadata, flags, payloadLayout});
 
       // Pre swift-5.1 runtimes were missing the initialization of the
       // the extraInhabitantCount field. Do it here instead.
@@ -2574,8 +2574,9 @@ namespace {
           copyEnumFunction = emitCopyEnumFunction(IGM, loweredType);
         Explosion tmp;
         fillExplosionForOutlinedCall(IGF, src, tmp);
-        llvm::CallInst *call =
-            IGF.Builder.CreateCall(copyEnumFunction, tmp.getAll());
+        llvm::CallInst *call = IGF.Builder.CreateCallWithoutDbgLoc(
+            copyEnumFunction->getFunctionType(), copyEnumFunction,
+            tmp.getAll());
         call->setCallingConv(IGM.DefaultCC);
         // Copy to the new explosion.
         dest.add(tmp.claimAll());
@@ -2641,8 +2642,9 @@ namespace {
           consumeEnumFunction = emitConsumeEnumFunction(IGM, loweredType);
         Explosion tmp;
         fillExplosionForOutlinedCall(IGF, src, tmp);
-        llvm::CallInst *call =
-            IGF.Builder.CreateCall(consumeEnumFunction, tmp.claimAll());
+        llvm::CallInst *call = IGF.Builder.CreateCallWithoutDbgLoc(
+            consumeEnumFunction->getFunctionType(), consumeEnumFunction,
+            tmp.claimAll());
         call->setCallingConv(IGM.DefaultCC);
         return;
       }
@@ -3173,8 +3175,8 @@ namespace {
                                                   ElementsWithNoPayload.size());
       auto flags = emitEnumLayoutFlags(IGM, isVWTMutable);
       IGF.Builder.CreateCall(
-                    IGM.getInitEnumMetadataSinglePayloadFn(),
-                    {metadata, flags, payloadLayout, emptyCasesVal});
+          IGM.getInitEnumMetadataSinglePayloadFunctionPointer(),
+          {metadata, flags, payloadLayout, emptyCasesVal});
     }
 
     /// \group Extra inhabitants
@@ -3856,8 +3858,9 @@ namespace {
     loadDynamicTag(IRGenFunction &IGF, Address addr, SILType T) const {
       addr = IGF.Builder.CreateElementBitCast(addr, IGM.OpaqueTy);
       auto metadata = IGF.emitTypeMetadataRef(T.getASTType());
-      auto call = IGF.Builder.CreateCall(IGM.getGetEnumCaseMultiPayloadFn(),
-                                         {addr.getAddress(), metadata});
+      auto call = IGF.Builder.CreateCall(
+          IGM.getGetEnumCaseMultiPayloadFunctionPointer(),
+          {addr.getAddress(), metadata});
       call->setDoesNotThrow();
       call->addFnAttr(llvm::Attribute::ReadOnly);
 
@@ -4566,8 +4569,9 @@ namespace {
           copyEnumFunction = emitCopyEnumFunction(IGM, loweredType);
         Explosion tmp;
         fillExplosionForOutlinedCall(IGF, src, tmp);
-        llvm::CallInst *call =
-            IGF.Builder.CreateCall(copyEnumFunction, tmp.getAll());
+        llvm::CallInst *call = IGF.Builder.CreateCallWithoutDbgLoc(
+            copyEnumFunction->getFunctionType(), copyEnumFunction,
+            tmp.getAll());
         call->setCallingConv(IGM.DefaultCC);
         dest.add(tmp.claimAll());
         return;
@@ -4625,8 +4629,9 @@ namespace {
           consumeEnumFunction = emitConsumeEnumFunction(IGM, loweredType);
         Explosion tmp;
         fillExplosionForOutlinedCall(IGF, src, tmp);
-        llvm::CallInst *call =
-            IGF.Builder.CreateCall(consumeEnumFunction, tmp.claimAll());
+        llvm::CallInst *call = IGF.Builder.CreateCallWithoutDbgLoc(
+            consumeEnumFunction->getFunctionType(), consumeEnumFunction,
+            tmp.claimAll());
         call->setCallingConv(IGM.DefaultCC);
         return;
       }
@@ -5106,10 +5111,10 @@ namespace {
       // Invoke the runtime to store the tag.
       enumAddr = IGF.Builder.CreateElementBitCast(enumAddr, IGM.OpaqueTy);
       auto metadata = IGF.emitTypeMetadataRef(T.getASTType());
-      
+
       auto call = IGF.Builder.CreateCall(
-                                     IGM.getStoreEnumTagMultiPayloadFn(),
-                                     {enumAddr.getAddress(), metadata, tag});
+          IGM.getStoreEnumTagMultiPayloadFunctionPointer(),
+          {enumAddr.getAddress(), metadata, tag});
       call->setDoesNotThrow();
     }
 
@@ -5238,9 +5243,9 @@ namespace {
                                                    ElementsWithPayload.size());
 
       auto flags = emitEnumLayoutFlags(IGM, isVWTMutable);
-      IGF.Builder.CreateCall(IGM.getInitEnumMetadataMultiPayloadFn(),
-                             {metadata, flags, numPayloadsVal,
-                              payloadLayoutArray});
+      IGF.Builder.CreateCall(
+          IGM.getInitEnumMetadataMultiPayloadFunctionPointer(),
+          {metadata, flags, numPayloadsVal, payloadLayoutArray});
     }
 
     /// \group Extra inhabitants
