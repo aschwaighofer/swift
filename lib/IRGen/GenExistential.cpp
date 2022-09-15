@@ -796,14 +796,13 @@ namespace {
 #undef REF_STORAGE_HELPER
 } // end anonymous namespace
 
-
-static llvm::Constant *getAssignBoxedOpaqueExistentialBufferFunction(
+static llvm::Function *getAssignBoxedOpaqueExistentialBufferFunction(
     IRGenModule &IGM, OpaqueExistentialLayout existLayout);
 
-static llvm::Constant *getDestroyBoxedOpaqueExistentialBufferFunction(
+static llvm::Function *getDestroyBoxedOpaqueExistentialBufferFunction(
     IRGenModule &IGM, OpaqueExistentialLayout existLayout);
 
-static llvm::Constant *
+static llvm::Function *
 getProjectBoxedOpaqueExistentialFunction(IRGenFunction &IGF,
                                          OpenedExistentialAccess accessKind,
                                          OpaqueExistentialLayout existLayout);
@@ -861,8 +860,8 @@ public:
     auto *type = IGF.IGM.getExistentialPtrTy(getLayout().getNumTables());
     auto *destAddr = IGF.Builder.CreateBitCast(dest.getAddress(), type);
     auto *srcAddr = IGF.Builder.CreateBitCast(src.getAddress(), type);
-    auto call =
-        IGF.Builder.CreateCall(fn, {destAddr, srcAddr});
+    auto call = IGF.Builder.CreateCallWithoutDbgLoc(fn->getFunctionType(), fn,
+                                                    {destAddr, srcAddr});
     call->setCallingConv(IGF.IGM.DefaultCC);
     call->setDoesNotThrow();
     return;
@@ -925,7 +924,8 @@ public:
     auto *addr = IGF.Builder.CreateBitCast(
         buffer.getAddress(),
         IGF.IGM.getExistentialPtrTy(getLayout().getNumTables()));
-    auto call = IGF.Builder.CreateCall(fn, {addr});
+    auto call =
+        IGF.Builder.CreateCallWithoutDbgLoc(fn->getFunctionType(), fn, {addr});
     call->setCallingConv(IGF.IGM.DefaultCC);
     call->setDoesNotThrow();
     return;
@@ -1643,10 +1643,9 @@ ContainedAddress irgen::emitBoxedExistentialProjection(IRGenFunction &IGF,
   Address out = IGF.createAlloca(IGF.IGM.OpenedErrorTripleTy,
                                  IGF.IGM.getPointerAlignment(),
                                  "project_error_out");
-  
-  IGF.Builder.CreateCall(IGF.IGM.getGetErrorValueFn(), {box,
-                         scratch.getAddress(),
-                         out.getAddress()});
+
+  IGF.Builder.CreateCall(IGF.IGM.getGetErrorValueFunctionPointer(),
+                         {box, scratch.getAddress(), out.getAddress()});
   // Load the 'out' values.
   auto &projectedTI = IGF.getTypeInfoForLowered(projectedType);
   auto projectedPtrAddr = IGF.Builder.CreateStructGEP(out, 0, Size(0));
@@ -1702,11 +1701,12 @@ OwnedAddress irgen::emitBoxedExistentialContainerAllocation(IRGenFunction &IGF,
   // Call the runtime to allocate the box.
   // TODO: When there's a store or copy_addr immediately into the box, peephole
   // it into the initializer parameter to allocError.
-  auto result = IGF.Builder.CreateCall(IGF.IGM.getAllocErrorFn(),
-                         {srcMetadata, witness,
-                           llvm::ConstantPointerNull::get(IGF.IGM.OpaquePtrTy),
-                           llvm::ConstantInt::get(IGF.IGM.Int1Ty, 0)});
-  
+  auto result = IGF.Builder.CreateCall(
+      IGF.IGM.getAllocErrorFunctionPointer(),
+      {srcMetadata, witness,
+       llvm::ConstantPointerNull::get(IGF.IGM.OpaquePtrTy),
+       llvm::ConstantInt::get(IGF.IGM.Int1Ty, 0)});
+
   // Extract the box and value address from the result.
   auto box = IGF.Builder.CreateExtractValue(result, 0);
   auto addr = IGF.Builder.CreateExtractValue(result, 1);
@@ -1732,8 +1732,9 @@ void irgen::emitBoxedExistentialContainerDeallocation(IRGenFunction &IGF,
 
   auto box = container.claimNext();
   auto srcMetadata = IGF.emitTypeMetadataRef(valueType);
-  
-  IGF.Builder.CreateCall(IGF.IGM.getDeallocErrorFn(), {box, srcMetadata});
+
+  IGF.Builder.CreateCall(IGF.IGM.getDeallocErrorFunctionPointer(),
+                         {box, srcMetadata});
 }
 
 /// Emit a class existential container from a class instance value
@@ -1868,16 +1869,15 @@ void irgen::emitMetatypeOfOpaqueExistential(IRGenFunction &IGF, Address buffer,
       IGF.IGM.getExistentialPtrTy(existLayout.getNumTables()));
   auto *projectFunc = getProjectBoxedOpaqueExistentialFunction(
       IGF, OpenedExistentialAccess::Immutable, existLayout);
-  auto *addrOfValue =
-      IGF.Builder.CreateCall(projectFunc, {addr, metadata});
+  auto *addrOfValue = IGF.Builder.CreateCallWithoutDbgLoc(
+      projectFunc->getFunctionType(), projectFunc, {addr, metadata});
   addrOfValue->setCallingConv(IGF.IGM.DefaultCC);
   addrOfValue->setDoesNotThrow();
   object = addrOfValue;
 
-  llvm::Value *dynamicType =
-    IGF.Builder.CreateCall(IGF.IGM.getGetDynamicTypeFn(),
-                           {object, metadata,
-                            llvm::ConstantInt::get(IGF.IGM.Int1Ty, 1)});
+  llvm::Value *dynamicType = IGF.Builder.CreateCall(
+      IGF.IGM.getGetDynamicTypeFunctionPointer(),
+      {object, metadata, llvm::ConstantInt::get(IGF.IGM.Int1Ty, 1)});
   out.add(dynamicType);
 
   // Get the witness tables.
@@ -1901,9 +1901,8 @@ void irgen::emitMetatypeOfBoxedExistential(IRGenFunction &IGF, Explosion &value,
                                      IGF.IGM.getPointerAlignment(),
                                      "project_error_out");
 
-  IGF.Builder.CreateCall(IGF.IGM.getGetErrorValueFn(), {box,
-                         scratchAddr.getAddress(),
-                         outAddr.getAddress()});
+  IGF.Builder.CreateCall(IGF.IGM.getGetErrorValueFunctionPointer(),
+                         {box, scratchAddr.getAddress(), outAddr.getAddress()});
 
   auto projectedPtrAddr = IGF.Builder.CreateStructGEP(outAddr, 0, Size(0));
   auto projectedPtr = IGF.Builder.CreateLoad(projectedPtrAddr);
@@ -1912,10 +1911,9 @@ void irgen::emitMetatypeOfBoxedExistential(IRGenFunction &IGF, Explosion &value,
                                                   IGF.IGM.getPointerSize());
   auto metadata = IGF.Builder.CreateLoad(metadataAddr);
 
-  auto dynamicType =
-    IGF.Builder.CreateCall(IGF.IGM.getGetDynamicTypeFn(),
-                           {projectedPtr, metadata,
-                            llvm::ConstantInt::get(IGF.IGM.Int1Ty, 1)});
+  auto dynamicType = IGF.Builder.CreateCall(
+      IGF.IGM.getGetDynamicTypeFunctionPointer(),
+      {projectedPtr, metadata, llvm::ConstantInt::get(IGF.IGM.Int1Ty, 1)});
 
   auto witnessAddr = IGF.Builder.CreateStructGEP(outAddr, 2,
                                                  2 * IGF.IGM.getPointerSize());
@@ -1965,7 +1963,7 @@ void irgen::emitMetatypeOfMetatype(IRGenFunction &IGF, Explosion &value,
   auto tablesAndValue = baseTI.getWitnessTablesAndValue(value);
 
   llvm::Value *dynamicType = IGF.Builder.CreateCall(
-                    IGF.IGM.getGetMetatypeMetadataFn(), tablesAndValue.second);
+      IGF.IGM.getGetMetatypeMetadataFunctionPointer(), tablesAndValue.second);
   out.add(dynamicType);
   out.add(tablesAndValue.first);
 }
@@ -2063,7 +2061,7 @@ static Address castToOpaquePtr(IRGenFunction &IGF, Address addr) {
       IGF.IGM.OpaqueTy, addr.getAlignment());
 }
 
-static llvm::Constant *getAllocateBoxedOpaqueExistentialBufferFunction(
+static llvm::Function *getAllocateBoxedOpaqueExistentialBufferFunction(
     IRGenModule &IGM, OpaqueExistentialLayout existLayout) {
 
   llvm::Type *argTys[] = {IGM.getExistentialPtrTy(existLayout.getNumTables())};
@@ -2076,8 +2074,9 @@ static llvm::Constant *getAllocateBoxedOpaqueExistentialBufferFunction(
       << "__swift_allocate_boxed_opaque_existential_"
       << existLayout.getNumTables();
 
-  return IGM.getOrCreateHelperFunction(
-      fnName, IGM.OpaquePtrTy, argTys, [&](IRGenFunction &IGF) {
+  return cast<llvm::Function>(IGM.getOrCreateHelperFunction(
+      fnName, IGM.OpaquePtrTy, argTys,
+      [&](IRGenFunction &IGF) {
         auto it = IGF.CurFn->arg_begin();
         Address existentialContainer(
             &*(it++), IGF.IGM.getExistentialType(existLayout.getNumTables()),
@@ -2115,8 +2114,8 @@ static llvm::Constant *getAllocateBoxedOpaqueExistentialBufferFunction(
                       existLayout.getAlignment(IGF.IGM)));
           IGF.Builder.CreateRet(addressInBox);
         }
-
-      }, true /*noinline*/);
+      },
+      true /*noinline*/));
 }
 
 Address irgen::emitAllocateBoxedOpaqueExistentialBuffer(
@@ -2154,15 +2153,15 @@ Address irgen::emitAllocateBoxedOpaqueExistentialBuffer(
   auto *existentialAddr = IGF.Builder.CreateBitCast(
       existentialContainer.getAddress(),
       IGF.IGM.getExistentialPtrTy(existLayout.getNumTables()));
-  auto *call =
-      IGF.Builder.CreateCall(allocateFun, {existentialAddr});
+  auto *call = IGF.Builder.CreateCallWithoutDbgLoc(
+      allocateFun->getFunctionType(), allocateFun, {existentialAddr});
   call->setCallingConv(IGF.IGM.DefaultCC);
   call->setDoesNotThrow();
   auto addressOfValue = IGF.Builder.CreateBitCast(call, valuePointerType);
   return valueTI.getAddressForPointer(addressOfValue);
 }
 
-static llvm::Constant *getDeallocateBoxedOpaqueExistentialBufferFunction(
+static llvm::Function *getDeallocateBoxedOpaqueExistentialBufferFunction(
     IRGenModule &IGM, OpaqueExistentialLayout existLayout) {
 
   llvm::Type *argTys[] = {IGM.getExistentialPtrTy(existLayout.getNumTables())};
@@ -2175,8 +2174,9 @@ static llvm::Constant *getDeallocateBoxedOpaqueExistentialBufferFunction(
       << "__swift_deallocate_boxed_opaque_existential_"
       << existLayout.getNumTables();
 
-  return IGM.getOrCreateHelperFunction(
-      fnName, IGM.VoidTy, argTys, [&](IRGenFunction &IGF) {
+  return cast<llvm::Function>(IGM.getOrCreateHelperFunction(
+      fnName, IGM.VoidTy, argTys,
+      [&](IRGenFunction &IGF) {
         auto &Builder = IGF.Builder;
         auto it = IGF.CurFn->arg_begin();
         Address existentialContainer(
@@ -2233,7 +2233,8 @@ static llvm::Constant *getDeallocateBoxedOpaqueExistentialBufferFunction(
             alignmentMask);
         // We are done. Return.
         Builder.CreateRetVoid();
-      }, true /*noinline*/);
+      },
+      true /*noinline*/));
 }
 
 void irgen::emitDeallocateBoxedOpaqueExistentialBuffer(
@@ -2249,13 +2250,14 @@ void irgen::emitDeallocateBoxedOpaqueExistentialBuffer(
   auto *bufferAddr = IGF.Builder.CreateBitCast(
       existentialContainer.getAddress(),
       IGF.IGM.getExistentialPtrTy(existLayout.getNumTables()));
-  auto *call = IGF.Builder.CreateCall(deallocateFun, {bufferAddr});
+  auto *call = IGF.Builder.CreateCallWithoutDbgLoc(
+      deallocateFun->getFunctionType(), deallocateFun, {bufferAddr});
   call->setCallingConv(IGF.IGM.DefaultCC);
   call->setDoesNotThrow();
   return;
 }
 
-static llvm::Constant *
+static llvm::Function *
 getProjectBoxedOpaqueExistentialFunction(IRGenFunction &IGF,
                                          OpenedExistentialAccess accessKind,
                                          OpaqueExistentialLayout existLayout) {
@@ -2274,8 +2276,9 @@ getProjectBoxedOpaqueExistentialFunction(IRGenFunction &IGF,
               : "__swift_mutable_project_boxed_opaque_existential_")
       << existLayout.getNumTables();
 
-  return IGM.getOrCreateHelperFunction(
-      fnName, IGM.OpaquePtrTy, argTys, [&](IRGenFunction &IGF) {
+  return cast<llvm::Function>(IGM.getOrCreateHelperFunction(
+      fnName, IGM.OpaquePtrTy, argTys,
+      [&](IRGenFunction &IGF) {
         auto &Builder = IGF.Builder;
         auto &IGM = IGF.IGM;
         auto it = IGF.CurFn->arg_begin();
@@ -2337,7 +2340,8 @@ getProjectBoxedOpaqueExistentialFunction(IRGenFunction &IGF,
             metadata, alignmentMask, box, objectAddr);
 
         IGF.Builder.CreateRet(objectAddr);
-      }, true /*noinline*/);
+      },
+      true /*noinline*/));
 }
 
 Address irgen::emitOpaqueBoxedExistentialProjection(
@@ -2394,8 +2398,8 @@ Address irgen::emitOpaqueBoxedExistentialProjection(
   auto *bufferAddr = IGF.Builder.CreateBitCast(
       base.getAddress(),
       IGF.IGM.getExistentialPtrTy(layout.getNumTables()));
-  auto *addrOfValue =
-      IGF.Builder.CreateCall(projectFunc, {bufferAddr, metadata});
+  auto *addrOfValue = IGF.Builder.CreateCallWithoutDbgLoc(
+      projectFunc->getFunctionType(), projectFunc, {bufferAddr, metadata});
   addrOfValue->setCallingConv(IGF.IGM.DefaultCC);
   addrOfValue->setDoesNotThrow();
 
@@ -2421,7 +2425,7 @@ static void initBufferWithCopyOfReference(IRGenFunction &IGF,
                                   existLayout.getAlignment(IGF.IGM)));
 }
 
-static llvm::Constant *getAssignBoxedOpaqueExistentialBufferFunction(
+static llvm::Function *getAssignBoxedOpaqueExistentialBufferFunction(
     IRGenModule &IGM, OpaqueExistentialLayout existLayout) {
 
   llvm::Type *argTys[] = {IGM.getExistentialPtrTy(existLayout.getNumTables()),
@@ -2435,8 +2439,9 @@ static llvm::Constant *getAssignBoxedOpaqueExistentialBufferFunction(
       << "__swift_assign_boxed_opaque_existential_"
       << existLayout.getNumTables();
 
-  return IGM.getOrCreateHelperFunction(
-      fnName, IGM.VoidTy, argTys, [&](IRGenFunction &IGF) {
+  return cast<llvm::Function>(IGM.getOrCreateHelperFunction(
+      fnName, IGM.VoidTy, argTys,
+      [&](IRGenFunction &IGF) {
         auto it = IGF.CurFn->arg_begin();
         auto boxTy = IGM.getExistentialType(existLayout.getNumTables());
         Address dest(&*(it++), boxTy, getFixedBufferAlignment(IGM));
@@ -2641,10 +2646,11 @@ static llvm::Constant *getAssignBoxedOpaqueExistentialBufferFunction(
 
         Builder.emitBlock(doneBB);
         Builder.CreateRetVoid();
-      }, true /*noinline*/);
+      },
+      true /*noinline*/));
 }
 
-static llvm::Constant *getDestroyBoxedOpaqueExistentialBufferFunction(
+static llvm::Function *getDestroyBoxedOpaqueExistentialBufferFunction(
     IRGenModule &IGM, OpaqueExistentialLayout existLayout) {
 
   llvm::Type *argTys[] = {IGM.getExistentialPtrTy(existLayout.getNumTables())};
@@ -2654,8 +2660,9 @@ static llvm::Constant *getDestroyBoxedOpaqueExistentialBufferFunction(
       << "__swift_destroy_boxed_opaque_existential_"
       << existLayout.getNumTables();
 
-  return IGM.getOrCreateHelperFunction(
-      fnName, IGM.VoidTy, argTys, [&](IRGenFunction &IGF) {
+  return cast<llvm::Function>(IGM.getOrCreateHelperFunction(
+      fnName, IGM.VoidTy, argTys,
+      [&](IRGenFunction &IGF) {
         auto &Builder = IGF.Builder;
         auto it = IGF.CurFn->arg_begin();
         auto boxTy = IGM.getExistentialType(existLayout.getNumTables());
@@ -2696,5 +2703,6 @@ static llvm::Constant *getDestroyBoxedOpaqueExistentialBufferFunction(
 
           Builder.CreateRetVoid();
         }
-      }, true /*noinline*/);
+      },
+      true /*noinline*/));
 }
