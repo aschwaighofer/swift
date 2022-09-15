@@ -99,10 +99,10 @@ class CategoryInitializerVisitor
   IRGenFunction &IGF;
   IRGenModule &IGM = IGF.IGM;
   IRBuilder &Builder = IGF.Builder;
-  
-  llvm::Constant *class_replaceMethod;
-  llvm::Constant *class_addProtocol;
-  
+
+  FunctionPointer class_replaceMethod;
+  FunctionPointer class_addProtocol;
+
   llvm::Value *classMetadata;
   llvm::Constant *metaclassMetadata;
   
@@ -110,8 +110,8 @@ public:
   CategoryInitializerVisitor(IRGenFunction &IGF, ExtensionDecl *ext)
     : IGF(IGF)
   {
-    class_replaceMethod = IGM.getClassReplaceMethodFn();
-    class_addProtocol = IGM.getClassAddProtocolFn();
+    class_replaceMethod = IGM.getClassReplaceMethodFunctionPointer();
+    class_addProtocol = IGM.getClassAddProtocolFunctionPointer();
 
     CanType origTy = ext->getSelfNominalTypeDecl()
         ->getDeclaredType()->getCanonicalType();
@@ -160,9 +160,9 @@ public:
     
     // When generating JIT'd code, we need to call sel_registerName() to force
     // the runtime to unique the selector.
-    llvm::Value *sel = Builder.CreateCall(IGM.getObjCSelRegisterNameFn(),
-                                          descriptor.selectorRef);
-    
+    llvm::Value *sel = Builder.CreateCall(
+        IGM.getObjCSelRegisterNameFunctionPointer(), descriptor.selectorRef);
+
     llvm::Value *args[] = {
       method->isStatic() ? metaclassMetadata : classMetadata,
       sel,
@@ -183,8 +183,8 @@ public:
 
     // When generating JIT'd code, we need to call sel_registerName() to force
     // the runtime to unique the selector.
-    llvm::Value *sel = Builder.CreateCall(IGM.getObjCSelRegisterNameFn(),
-                                          descriptor.selectorRef);
+    llvm::Value *sel = Builder.CreateCall(
+        IGM.getObjCSelRegisterNameFunctionPointer(), descriptor.selectorRef);
 
     llvm::Value *args[] = {
       classMetadata,
@@ -214,8 +214,8 @@ public:
     auto descriptor = emitObjCGetterDescriptorParts(IGM, prop);
     // When generating JIT'd code, we need to call sel_registerName() to force
     // the runtime to unique the selector.
-    llvm::Value *sel = Builder.CreateCall(IGM.getObjCSelRegisterNameFn(),
-                                          descriptor.selectorRef);
+    llvm::Value *sel = Builder.CreateCall(
+        IGM.getObjCSelRegisterNameFunctionPointer(), descriptor.selectorRef);
     auto theClass = prop->isStatic() ? metaclassMetadata : classMetadata;
     llvm::Value *getterArgs[] =
       {theClass, sel, descriptor.impl, descriptor.typeEncoding};
@@ -223,7 +223,7 @@ public:
 
     if (prop->isSettable(prop->getDeclContext())) {
       auto descriptor = emitObjCSetterDescriptorParts(IGM, prop);
-      sel = Builder.CreateCall(IGM.getObjCSelRegisterNameFn(),
+      sel = Builder.CreateCall(IGM.getObjCSelRegisterNameFunctionPointer(),
                                descriptor.selectorRef);
       llvm::Value *setterArgs[] =
         {theClass, sel, descriptor.impl, descriptor.typeEncoding};
@@ -239,15 +239,15 @@ public:
     auto descriptor = emitObjCGetterDescriptorParts(IGM, subscript);
     // When generating JIT'd code, we need to call sel_registerName() to force
     // the runtime to unique the selector.
-    llvm::Value *sel = Builder.CreateCall(IGM.getObjCSelRegisterNameFn(),
-                                          descriptor.selectorRef);
+    llvm::Value *sel = Builder.CreateCall(
+        IGM.getObjCSelRegisterNameFunctionPointer(), descriptor.selectorRef);
     llvm::Value *getterArgs[] =
       {classMetadata, sel, descriptor.impl, descriptor.typeEncoding};
     Builder.CreateCall(class_replaceMethod, getterArgs);
 
     if (subscript->supportsMutation()) {
       auto descriptor = emitObjCSetterDescriptorParts(IGM, subscript);
-      sel = Builder.CreateCall(IGM.getObjCSelRegisterNameFn(),
+      sel = Builder.CreateCall(IGM.getObjCSelRegisterNameFunctionPointer(),
                                descriptor.selectorRef);
       llvm::Value *setterArgs[] =
         {classMetadata, sel, descriptor.impl, descriptor.typeEncoding};
@@ -265,23 +265,22 @@ class ObjCProtocolInitializerVisitor
   IRGenModule &IGM = IGF.IGM;
   IRBuilder &Builder = IGF.Builder;
 
-  llvm::Constant *objc_getProtocol,
-                 *objc_allocateProtocol,
-                 *objc_registerProtocol,
-                 *protocol_addMethodDescription,
-                 *protocol_addProtocol;
-  
+  FunctionPointer objc_getProtocol, objc_allocateProtocol,
+      objc_registerProtocol, protocol_addMethodDescription,
+      protocol_addProtocol;
+
   llvm::Value *NewProto = nullptr;
   
 public:
   ObjCProtocolInitializerVisitor(IRGenFunction &IGF)
     : IGF(IGF)
   {
-    objc_getProtocol = IGM.getGetObjCProtocolFn();
-    objc_allocateProtocol = IGM.getAllocateObjCProtocolFn();
-    objc_registerProtocol = IGM.getRegisterObjCProtocolFn();
-    protocol_addMethodDescription = IGM.getProtocolAddMethodDescriptionFn();
-    protocol_addProtocol = IGM.getProtocolAddProtocolFn();
+    objc_getProtocol = IGM.getGetObjCProtocolFunctionPointer();
+    objc_allocateProtocol = IGM.getAllocateObjCProtocolFunctionPointer();
+    objc_registerProtocol = IGM.getRegisterObjCProtocolFunctionPointer();
+    protocol_addMethodDescription =
+        IGM.getProtocolAddMethodDescriptionFunctionPointer();
+    protocol_addProtocol = IGM.getProtocolAddProtocolFunctionPointer();
   }
   
   void visitMembers(ProtocolDecl *proto) {
@@ -359,8 +358,8 @@ public:
     
     // When generating JIT'd code, we need to call sel_registerName() to force
     // the runtime to unique the selector.
-    llvm::Value *sel = Builder.CreateCall(IGM.getObjCSelRegisterNameFn(),
-                                          descriptor.selectorRef);
+    llvm::Value *sel = Builder.CreateCall(
+        IGM.getObjCSelRegisterNameFunctionPointer(), descriptor.selectorRef);
 
     llvm::Value *args[] = {
       NewProto, sel, descriptor.typeEncoding,
@@ -385,8 +384,8 @@ public:
     auto descriptor = emitObjCGetterDescriptorParts(IGM, prop);
     // When generating JIT'd code, we need to call sel_registerName() to force
     // the runtime to unique the selector.
-    llvm::Value *sel = Builder.CreateCall(IGM.getObjCSelRegisterNameFn(),
-                                          descriptor.selectorRef);
+    llvm::Value *sel = Builder.CreateCall(
+        IGM.getObjCSelRegisterNameFunctionPointer(), descriptor.selectorRef);
     llvm::Value *getterArgs[] = {
       NewProto, sel, descriptor.typeEncoding,
       // required?
@@ -400,7 +399,7 @@ public:
     
     if (prop->isSettable(nullptr)) {
       auto descriptor = emitObjCSetterDescriptorParts(IGM, prop);
-      sel = Builder.CreateCall(IGM.getObjCSelRegisterNameFn(),
+      sel = Builder.CreateCall(IGM.getObjCSelRegisterNameFunctionPointer(),
                                descriptor.selectorRef);
       llvm::Value *setterArgs[] = {
         NewProto, sel, descriptor.typeEncoding,
@@ -683,7 +682,7 @@ void IRGenModule::emitRuntimeRegistration() {
     Builder.llvm::IRBuilderBase::SetInsertPoint(EntryBB, IP);
     if (DebugInfo && !Context.LangOpts.DebuggerSupport)
       DebugInfo->setEntryPointLoc(Builder);
-    Builder.CreateCall(RegistrationFunction, {});
+    Builder.CreateCall(fnTy, RegistrationFunction, {});
   }
   
   IRGenFunction RegIGF(*this, RegistrationFunction);
@@ -747,7 +746,8 @@ void IRGenModule::emitRuntimeRegistration() {
     auto end = llvm::ConstantExpr::getGetElementPtr(protocolRecordsTy,
                                                     protocols, endIndices);
 
-    RegIGF.Builder.CreateCall(getRegisterProtocolsFn(), {begin, end});
+    RegIGF.Builder.CreateCall(getRegisterProtocolsFunctionPointer(),
+                              {begin, end});
   }
 
   // Register Swift protocol conformances if we added any.
@@ -768,7 +768,8 @@ void IRGenModule::emitRuntimeRegistration() {
     auto end = llvm::ConstantExpr::getGetElementPtr(protocolRecordsTy,
                                                     conformances, endIndices);
 
-    RegIGF.Builder.CreateCall(getRegisterProtocolConformancesFn(), {begin, end});
+    RegIGF.Builder.CreateCall(getRegisterProtocolConformancesFunctionPointer(),
+                              {begin, end});
   }
 
   if (!RuntimeResolvableTypes.empty()) {
@@ -790,13 +791,15 @@ void IRGenModule::emitRuntimeRegistration() {
     auto end = llvm::ConstantExpr::getGetElementPtr(typemetadataRecordsTy,
                                                     records, endIndices);
 
-    RegIGF.Builder.CreateCall(getRegisterTypeMetadataRecordsFn(), {begin, end});
+    RegIGF.Builder.CreateCall(getRegisterTypeMetadataRecordsFunctionPointer(),
+                              {begin, end});
   }
 
   // Register Objective-C classes and extensions we added.
   if (ObjCInterop) {
     for (llvm::WeakTrackingVH &ObjCClass : ObjCClasses) {
-      RegIGF.Builder.CreateCall(getInstantiateObjCClassFn(), {ObjCClass});
+      RegIGF.Builder.CreateCall(getInstantiateObjCClassFunctionPointer(),
+                                {ObjCClass});
     }
 
     for (ExtensionDecl *ext : ObjCCategoryDecls) {
@@ -2012,7 +2015,8 @@ void IRGenerator::emitObjCActorsNeedingSuperclassSwizzle() {
   auto swiftNativeNSObjectName =
       IGM->getAddrOfGlobalString("SwiftNativeNSObject");
   auto swiftNativeNSObjectClass = RegisterIGF.Builder.CreateCall(
-      RegisterIGF.IGM.getObjCGetRequiredClassFn(), swiftNativeNSObjectName);
+      RegisterIGF.IGM.getObjCGetRequiredClassFunctionPointer(),
+      swiftNativeNSObjectName);
 
   for (ClassDecl *CD : ObjCActorsNeedingSuperclassSwizzle) {
     // The @objc actor class.
@@ -2022,8 +2026,8 @@ void IRGenerator::emitObjCActorsNeedingSuperclassSwizzle() {
 
     // Set its superclass to SwiftNativeNSObject.
     RegisterIGF.Builder.CreateCall(
-        RegisterIGF.IGM.getSetSuperclassFn(),
-        { classRef, swiftNativeNSObjectClass});
+        RegisterIGF.IGM.getSetSuperclassFunctionPointer(),
+        {classRef, swiftNativeNSObjectClass});
   }
   RegisterIGF.Builder.CreateRetVoid();
 
@@ -2800,8 +2804,8 @@ void IRGenModule::createReplaceableProlog(IRGenFunction &IGF, SILFunction *f) {
     hasReplFn = IGF.Builder.CreateICmpEQ(lhs, FnAddr);
   } else {
     // Call swift_getFunctionReplacement to check which function to call.
-    auto *callRTFunc =
-        IGF.Builder.CreateCall(getGetReplacementFn(), {ReplAddr, FnAddr});
+    auto *callRTFunc = IGF.Builder.CreateCall(
+        getGetReplacementFunctionPointer(), {ReplAddr, FnAddr});
     callRTFunc->setDoesNotThrow();
     ReplFn = callRTFunc;
     hasReplFn = IGF.Builder.CreateICmpEQ(ReplFn,
@@ -3117,8 +3121,8 @@ void IRGenModule::emitDynamicReplacementOriginalFunctionThunk(SILFunction *f) {
                                                    linkEntry, indices),
       FunctionPtrTy->getPointerTo());
 
-  auto *OrigFn =
-      IGF.Builder.CreateCall(getGetOrigOfReplaceableFn(), {fnPtrAddr});
+  auto *OrigFn = IGF.Builder.CreateCall(
+      getGetOrigOfReplaceableFunctionPointer(), {fnPtrAddr});
 
   OrigFn->setDoesNotThrow();
 

@@ -51,7 +51,7 @@ llvm::Value *irgen::emitDistributedActorInitializeRemote(
                                              /*forBackwardDeployment=*/false);
   llvm::Type *destType = classLayout.getType()->getPointerTo();
 
-  auto fn = IGF.IGM.getDistributedActorInitializeRemoteFn();
+  auto fn = IGF.IGM.getDistributedActorInitializeRemoteFunctionPointer();
   actorMetatype =
       IGF.Builder.CreateBitCast(actorMetatype, IGF.IGM.TypeMetadataPtrTy);
 
@@ -509,7 +509,7 @@ void DistributedAccessor::decodeArgument(unsigned argumentIdx,
 void DistributedAccessor::lookupWitnessTables(
     llvm::Value *value, ArrayRef<ProtocolDecl *> protocols,
     Explosion &witnessTables) {
-  auto conformsToProtocol = IGM.getConformsToProtocolFn();
+  auto conformsToProtocol = IGM.getConformsToProtocolFunctionPointer();
 
   for (auto *protocol : protocols) {
     auto *protocolDescriptor = IGM.getAddrOfProtocolDescriptor(protocol);
