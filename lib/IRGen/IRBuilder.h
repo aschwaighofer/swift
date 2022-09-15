@@ -322,20 +322,6 @@ public:
     return Call;
   }
 
-  llvm::CallInst *CreateCall(llvm::Constant *Callee,
-                             ArrayRef<llvm::Value *> Args,
-                             const Twine &Name = "",
-                             llvm::MDNode *FPMathTag = nullptr) {
-    // assert((!DebugInfo || getCurrentDebugLocation()) && "no debugloc on
-    // call");
-    assert(!isTrapIntrinsic(Callee) && "Use CreateNonMergeableTrap");
-    auto Call = IRBuilderBase::CreateCall(
-        cast<llvm::FunctionType>(Callee->getType()->getPointerElementType()),
-        Callee, Args, Name, FPMathTag);
-    setCallingConvUsingCallee(Call);
-    return Call;
-  }
-
   llvm::CallInst *CreateCall(const FunctionPointer &fn,
                              ArrayRef<llvm::Value *> args);
 
