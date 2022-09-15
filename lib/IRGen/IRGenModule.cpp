@@ -707,8 +707,6 @@ IRGenModule::~IRGenModule() {
   delete &Types;
 }
 
-static bool isReturnAttribute(llvm::Attribute::AttrKind Attr);
-
 // Explicitly listing these constants is an unfortunate compromise for
 // making the database file much more compact.
 //
@@ -1020,6 +1018,9 @@ llvm::Constant *IRGenModule::getDeletedAsyncMethodErrorAsyncFunctionPointer() {
       LinkEntity::forKnownAsyncFunctionPointer("swift_deletedAsyncMethodError")).getValue();
 }
 
+static bool isReturnAttribute(llvm::Attribute::AttrKind Attr);
+static bool isReturnedAttribute(llvm::Attribute::AttrKind Attr);
+
 #ifdef CHECK_RUNTIME_EFFECT_ANALYSIS
 void IRGenModule::registerRuntimeEffect(ArrayRef<RuntimeEffect> effect,
                                          const char *funcName) {
@@ -1054,6 +1055,23 @@ void IRGenModule::registerRuntimeEffect(ArrayRef<RuntimeEffect> effect,
     return getRuntimeFn(Module, ID##Fn, #NAME, CC,                             \
                         AVAILABILITY(this->Context),                           \
                         RETURNS, ARGS, ATTRS, this);                           \
+  }\
+  FunctionPointer IRGenModule::get##ID##FunctionPointer() {\
+    using namespace RuntimeConstants;                                          \
+    auto fn = get##ID##Fn(); \
+    auto fnTy = get##ID##FnType(); \
+    llvm::AttributeList attrs; \
+    SmallVector<llvm::Attribute::AttrKind, 8> theAttrs(ATTRS); \
+    for (auto Attr : theAttrs) { \
+      if (isReturnAttribute(Attr)) \
+        attrs = attrs.addRetAttribute(getLLVMContext(), Attr); \
+      else if (isReturnedAttribute(Attr)) \
+        attrs = attrs.addParamAttribute(getLLVMContext(), 0, Attr);  \
+      else \
+        attrs = attrs.addFnAttribute(getLLVMContext(), Attr); \
+    } \
+    auto sig = Signature(fnTy, attrs, CC); \
+    return FunctionPointer::forDirect(FunctionPointer::Kind::Function, fn, nullptr, sig);\
   }\
   llvm::FunctionType *IRGenModule::get##ID##FnType() { \
       return getRuntimeFnType(Module, RETURNS, ARGS); \

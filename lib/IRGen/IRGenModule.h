@@ -18,6 +18,7 @@
 #ifndef SWIFT_IRGEN_IRGENMODULE_H
 #define SWIFT_IRGEN_IRGENMODULE_H
 
+#include "Callee.h"
 #include "IRGen.h"
 #include "SwiftTargetInfo.h"
 #include "TypeLayout.h"
@@ -1394,6 +1395,7 @@ private:
 #define FUNCTION_ID(Id)             \
 public:                             \
   llvm::Constant *get##Id##Fn();    \
+  FunctionPointer get##Id##FunctionPointer();\
   llvm::FunctionType *get##Id##FnType();    \
 private:                            \
   llvm::Constant *Id##Fn = nullptr;
