@@ -2797,11 +2797,10 @@ static void emitInitializeFieldOffsetVector(IRGenFunction &IGF,
     case ClassMetadataStrategy::Resilient:
     case ClassMetadataStrategy::Singleton:
       // Call swift_initClassMetadata().
-      dependency =
-        IGF.Builder.CreateCall(IGM.getInitClassMetadata2Fn(),
-                               {metadata,
-                                IGM.getSize(Size(uintptr_t(flags))),
-                                numFieldsV, fields.getAddress(), fieldVector});
+      dependency = IGF.Builder.CreateCall(
+          IGM.getInitClassMetadata2FunctionPointer(),
+          {metadata, IGM.getSize(Size(uintptr_t(flags))), numFieldsV,
+           fields.getAddress(), fieldVector});
       break;
 
     case ClassMetadataStrategy::Update:
@@ -2811,11 +2810,10 @@ static void emitInitializeFieldOffsetVector(IRGenFunction &IGF,
       // Call swift_updateClassMetadata(). Note that the static metadata
       // already references the superclass in this case, but we still want
       // to ensure the superclass metadata is initialized first.
-      dependency =
-        IGF.Builder.CreateCall(IGM.getUpdateClassMetadata2Fn(),
-                               {metadata,
-                                IGM.getSize(Size(uintptr_t(flags))),
-                                numFieldsV, fields.getAddress(), fieldVector});
+      dependency = IGF.Builder.CreateCall(
+          IGM.getUpdateClassMetadata2FunctionPointer(),
+          {metadata, IGM.getSize(Size(uintptr_t(flags))), numFieldsV,
+           fields.getAddress(), fieldVector});
       break;
 
     case ClassMetadataStrategy::Fixed:
@@ -2836,7 +2834,7 @@ static void emitInitializeFieldOffsetVector(IRGenFunction &IGF,
       flags |= StructLayoutFlags::IsVWTMutable;
 
     // Call swift_initStructMetadata().
-    IGF.Builder.CreateCall(IGM.getInitStructMetadataFn(),
+    IGF.Builder.CreateCall(IGM.getInitStructMetadataFunctionPointer(),
                            {metadata, IGM.getSize(Size(uintptr_t(flags))),
                             numFieldsV, fields.getAddress(), fieldVector});
   }
@@ -3226,8 +3224,8 @@ createSingletonInitializationMetadataAccessFunction(IRGenModule &IGM,
     llvm::Value *descriptor =
       IGF.IGM.getAddrOfTypeContextDescriptor(typeDecl, RequireMetadata);
     auto responsePair =
-      IGF.Builder.CreateCall(IGF.IGM.getGetSingletonMetadataFn(),
-                             {request.get(IGF), descriptor});
+        IGF.Builder.CreateCall(IGF.IGM.getGetSingletonMetadataFunctionPointer(),
+                               {request.get(IGF), descriptor});
     return MetadataResponse::handle(IGF, request, responsePair);
   });
 }
@@ -4122,9 +4120,9 @@ namespace {
         descriptor = emitPointerAuthSign(IGF, descriptor, authInfo);
       }
 
-      auto metadata =
-        IGF.Builder.CreateCall(IGM.getAllocateGenericClassMetadataFn(),
-                               {descriptor, arguments, templatePointer});
+      auto metadata = IGF.Builder.CreateCall(
+          IGM.getAllocateGenericClassMetadataFunctionPointer(),
+          {descriptor, arguments, templatePointer});
 
       return metadata;
     }
@@ -4821,9 +4819,9 @@ namespace {
         descriptor = emitPointerAuthSign(IGF, descriptor, authInfo);
       }
 
-      return IGF.Builder.CreateCall(IGM.getAllocateGenericValueMetadataFn(),
-                                    {descriptor, arguments, templatePointer,
-                                     extraSizeV});
+      return IGF.Builder.CreateCall(
+          IGM.getAllocateGenericValueMetadataFunctionPointer(),
+          {descriptor, arguments, templatePointer, extraSizeV});
     }
 
     void flagUnfilledFieldOffset() {
@@ -5223,10 +5221,9 @@ namespace {
         descriptor = emitPointerAuthSign(IGF, descriptor, authInfo);
       }
 
-      return
-        IGF.Builder.CreateCall(IGM.getAllocateGenericValueMetadataFn(),
-                               {descriptor, arguments, templatePointer,
-                                extraSizeV});
+      return IGF.Builder.CreateCall(
+          IGM.getAllocateGenericValueMetadataFunctionPointer(),
+          {descriptor, arguments, templatePointer, extraSizeV});
     }
 
     bool hasTrailingFlags() {
@@ -5362,7 +5359,8 @@ llvm::Value *IRGenFunction::emitObjCSelectorRefLoad(StringRef selector) {
   // the runtime to unique the selector. For non-JIT'd code, the linker will
   // do it for us.
   if (IGM.IRGen.Opts.UseJIT) {
-    loadSel = Builder.CreateCall(IGM.getObjCSelRegisterNameFn(), loadSel);
+    loadSel = Builder.CreateCall(IGM.getObjCSelRegisterNameFunctionPointer(),
+                                 loadSel);
   }
 
   return loadSel;
@@ -5420,8 +5418,9 @@ namespace {
                                                   DynamicMetadataRequest request,
                                                 llvm::Constant *cacheVariable) {
         auto candidate = IGF.IGM.getAddrOfTypeMetadata(type);
-        auto call = IGF.Builder.CreateCall(IGF.IGM.getGetForeignTypeMetadataFn(),
-                                           {request.get(IGF), candidate});
+        auto call = IGF.Builder.CreateCall(
+            IGF.IGM.getGetForeignTypeMetadataFunctionPointer(),
+            {request.get(IGF), candidate});
         call->addFnAttr(llvm::Attribute::NoUnwind);
         call->addFnAttr(llvm::Attribute::ReadNone);
 

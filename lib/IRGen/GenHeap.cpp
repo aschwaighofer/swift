@@ -367,7 +367,7 @@ void irgen::emitDeallocateHeapObject(IRGenFunction &IGF,
                                      llvm::Value *alignMask) {
   // FIXME: We should call a fast deallocator for heap objects with
   // known size.
-  IGF.Builder.CreateCall(IGF.IGM.getDeallocObjectFn(),
+  IGF.Builder.CreateCall(IGF.IGM.getDeallocObjectFunctionPointer(),
                          {object, size, alignMask});
 }
 
@@ -375,7 +375,7 @@ void emitDeallocateUninitializedHeapObject(IRGenFunction &IGF,
                                            llvm::Value *object,
                                            llvm::Value *size,
                                            llvm::Value *alignMask) {
-  IGF.Builder.CreateCall(IGF.IGM.getDeallocUninitializedObjectFn(),
+  IGF.Builder.CreateCall(IGF.IGM.getDeallocUninitializedObjectFunctionPointer(),
                          {object, size, alignMask});
 }
 
@@ -385,7 +385,7 @@ void irgen::emitDeallocateClassInstance(IRGenFunction &IGF,
                                         llvm::Value *alignMask) {
   // FIXME: We should call a fast deallocator for heap objects with
   // known size.
-  IGF.Builder.CreateCall(IGF.IGM.getDeallocClassInstanceFn(),
+  IGF.Builder.CreateCall(IGF.IGM.getDeallocClassInstanceFunctionPointer(),
                          {object, size, alignMask});
 }
 
@@ -396,8 +396,9 @@ void irgen::emitDeallocatePartialClassInstance(IRGenFunction &IGF,
                                                llvm::Value *alignMask) {
   // FIXME: We should call a fast deallocator for heap objects with
   // known size.
-  IGF.Builder.CreateCall(IGF.IGM.getDeallocPartialClassInstanceFn(),
-                         {object, metadata, size, alignMask});
+  IGF.Builder.CreateCall(
+      IGF.IGM.getDeallocPartialClassInstanceFunctionPointer(),
+      {object, metadata, size, alignMask});
 }
 
 /// Create the destructor function for a layout.
@@ -958,8 +959,9 @@ void IRGenFunction::emitNativeStrongRetain(llvm::Value *value,
 
   // Emit the call.
   llvm::CallInst *call = Builder.CreateCall(
-      (atomicity == Atomicity::Atomic) ? IGM.getNativeStrongRetainFn()
-                                       : IGM.getNativeNonAtomicStrongRetainFn(),
+      (atomicity == Atomicity::Atomic)
+          ? IGM.getNativeStrongRetainFunctionPointer()
+          : IGM.getNativeNonAtomicStrongRetainFunctionPointer(),
       value);
   call->setDoesNotThrow();
   call->addParamAttr(0, llvm::Attribute::Returned);
@@ -1253,28 +1255,26 @@ llvm::Constant *IRGenModule::getFixLifetimeFn() {
   return fixLifetime;
 }
 
-llvm::Constant *IRGenModule::getFixedClassInitializationFn() {
+FunctionPointer IRGenModule::getFixedClassInitializationFn() {
   if (FixedClassInitializationFn)
     return *FixedClassInitializationFn;
   
   // If ObjC interop is disabled, we don't need to do fixed class
   // initialization.
-  llvm::Constant *fn;
-  if (!ObjCInterop) {
-    fn = nullptr;
-  } else {
+  FunctionPointer fn;
+  if (ObjCInterop) {
     // In new enough ObjC runtimes, objc_opt_self provides a direct fast path
     // to realize a class.
     if (getAvailabilityContext()
          .isContainedIn(Context.getSwift51Availability())) {
-      fn = getObjCOptSelfFn();
+      fn = getObjCOptSelfFunctionPointer();
     }
     // Otherwise, the Swift runtime always provides a `get
     else {
-      fn = getGetInitializedObjCClassFn();
+      fn = getGetInitializedObjCClassFunctionPointer();
     }
   }
-  
+
   FixedClassInitializationFn = fn;
   return fn;
 }
@@ -1346,35 +1346,36 @@ llvm::Value *IRGenFunction::emitLoadRefcountedPtr(Address addr,
 
 llvm::Value *IRGenFunction::
 emitIsUniqueCall(llvm::Value *value, SourceLoc loc, bool isNonNull) {
-  llvm::Constant *fn;
+  FunctionPointer fn;
   bool nonObjC = !IGM.getAvailabilityContext().isContainedIn(
       IGM.Context.getObjCIsUniquelyReferencedAvailability());
 
   if (value->getType() == IGM.RefCountedPtrTy) {
     if (isNonNull)
-      fn = IGM.getIsUniquelyReferenced_nonNull_nativeFn();
+      fn = IGM.getIsUniquelyReferenced_nonNull_nativeFunctionPointer();
     else
-      fn = IGM.getIsUniquelyReferenced_nativeFn();
+      fn = IGM.getIsUniquelyReferenced_nativeFunctionPointer();
   } else if (value->getType() == IGM.UnknownRefCountedPtrTy) {
     if (nonObjC) {
       if (isNonNull)
-        fn = IGM.getIsUniquelyReferencedNonObjC_nonNullFn();
+        fn = IGM.getIsUniquelyReferencedNonObjC_nonNullFunctionPointer();
       else
-        fn = IGM.getIsUniquelyReferencedNonObjCFn();
+        fn = IGM.getIsUniquelyReferencedNonObjCFunctionPointer();
     } else {
       if (isNonNull)
-        fn = IGM.getIsUniquelyReferenced_nonNullFn();
+        fn = IGM.getIsUniquelyReferenced_nonNullFunctionPointer();
       else
-        fn = IGM.getIsUniquelyReferencedFn();
+        fn = IGM.getIsUniquelyReferencedFunctionPointer();
     }
   } else if (value->getType() == IGM.BridgeObjectPtrTy) {
     if (!isNonNull)
       unimplemented(loc, "optional bridge ref");
 
     if (nonObjC)
-      fn = IGM.getIsUniquelyReferencedNonObjC_nonNull_bridgeObjectFn();
+      fn =
+          IGM.getIsUniquelyReferencedNonObjC_nonNull_bridgeObjectFunctionPointer();
     else
-      fn = IGM.getIsUniquelyReferenced_nonNull_bridgeObjectFn();
+      fn = IGM.getIsUniquelyReferenced_nonNull_bridgeObjectFunctionPointer();
   } else {
     llvm_unreachable("Unexpected LLVM type for a refcounted pointer.");
   }
@@ -1397,9 +1398,9 @@ llvm::Value *IRGenFunction::emitIsEscapingClosureCall(
   auto filenameLength =
       llvm::ConstantInt::get(IGM.Int32Ty, loc.filename.size());
   auto type = llvm::ConstantInt::get(IGM.Int32Ty, verificationType);
-  llvm::CallInst *call =
-      Builder.CreateCall(IGM.getIsEscapingClosureAtFileLocationFn(),
-                         {value, filename, filenameLength, line, col, type});
+  llvm::CallInst *call = Builder.CreateCall(
+      IGM.getIsEscapingClosureAtFileLocationFunctionPointer(),
+      {value, filename, filenameLength, line, col, type});
   call->setDoesNotThrow();
   return call;
 }
@@ -1905,14 +1906,14 @@ static llvm::Value *emitDynamicTypeOfOpaqueHeapObject(IRGenFunction &IGF,
   
   switch (repr) {
   case MetatypeRepresentation::ObjC:
-    metadata = IGF.Builder.CreateCall(IGF.IGM.getGetObjCClassFromObjectFn(),
-                                      object,
-                                      object->getName() + ".Type");
+    metadata = IGF.Builder.CreateCall(
+        IGF.IGM.getGetObjCClassFromObjectFunctionPointer(), object);
+    metadata->setName(object->getName() + ".Type");
     break;
   case MetatypeRepresentation::Thick:
-    metadata = IGF.Builder.CreateCall(IGF.IGM.getGetObjectTypeFn(),
-                                      object,
-                                      object->getName() + ".Type");
+    metadata = IGF.Builder.CreateCall(IGF.IGM.getGetObjectTypeFunctionPointer(),
+                                      object);
+    metadata->setName(object->getName() + ".Type");
     break;
   case MetatypeRepresentation::Thin:
     llvm_unreachable("class metadata can't be thin");
@@ -1927,9 +1928,9 @@ llvm::Value *irgen::
 emitHeapMetadataRefForUnknownHeapObject(IRGenFunction &IGF,
                                         llvm::Value *object) {
   object = IGF.Builder.CreateBitCast(object, IGF.IGM.ObjCPtrTy);
-  auto metadata = IGF.Builder.CreateCall(IGF.IGM.getGetObjectClassFn(),
-                                         object,
-                                         object->getName() + ".Type");
+  auto metadata = IGF.Builder.CreateCall(
+      IGF.IGM.getGetObjectClassFunctionPointer(), object);
+  metadata->setName(object->getName() + ".Type");
   metadata->setCallingConv(llvm::CallingConv::C);
   metadata->setDoesNotThrow();
   metadata->addFnAttr(llvm::Attribute::ReadOnly);

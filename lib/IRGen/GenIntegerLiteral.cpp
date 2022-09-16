@@ -355,8 +355,8 @@ static llvm::Value *emitIntegerLiteralToFloatCall(IRGenFunction &IGF,
                                                   llvm::Value *flags,
                                                   unsigned bitWidth) {
   assert(bitWidth == 32 || bitWidth == 64);
-  auto fn = bitWidth == 32 ? IGF.IGM.getIntToFloat32Fn()
-                           : IGF.IGM.getIntToFloat64Fn();
+  auto fn = bitWidth == 32 ? IGF.IGM.getIntToFloat32FunctionPointer()
+                           : IGF.IGM.getIntToFloat64FunctionPointer();
   auto call = IGF.Builder.CreateCall(fn, {data, flags});
   call->setCallingConv(IGF.IGM.SwiftCC);
   call->setDoesNotThrow();

@@ -1401,9 +1401,9 @@ public:                                                                        \
 private:                                                                       \
   llvm::Constant *Id##Fn = nullptr;
 #include "swift/Runtime/RuntimeFunctions.def"
-  
-  Optional<llvm::Constant *> FixedClassInitializationFn;
-  
+
+  Optional<FunctionPointer> FixedClassInitializationFn;
+
   llvm::Constant *FixLifetimeFn = nullptr;
 
   mutable Optional<SpareBitVector> HeapPointerSpareBits;
@@ -1411,8 +1411,8 @@ private:                                                                       \
 //--- Generic ---------------------------------------------------------------
 public:
   llvm::Constant *getFixLifetimeFn();
-  
-  llvm::Constant *getFixedClassInitializationFn();
+
+  FunctionPointer getFixedClassInitializationFn();
   llvm::Function *getAwaitAsyncContinuationFn();
 
   /// The constructor used when generating code.
