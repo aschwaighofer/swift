@@ -668,7 +668,6 @@ static MetadataResponse emitNominalPrespecializedGenericMetadataRef(
          cacheVariable});
     call->setDoesNotThrow();
     call->setCallingConv(IGF.IGM.SwiftCC);
-    call->addFnAttr(llvm::Attribute::ReadNone);
     return MetadataResponse::handle(IGF, request, call);
   }
   }

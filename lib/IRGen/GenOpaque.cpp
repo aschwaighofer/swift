@@ -32,6 +32,7 @@
 #include "Explosion.h"
 #include "FixedTypeInfo.h"
 #include "GenPointerAuth.h"
+#include "IRGenDebugInfo.h"
 #include "IRGenFunction.h"
 #include "IRGenModule.h"
 #include "ProtocolInfo.h"
@@ -1319,6 +1320,8 @@ irgen::getOrCreateGetExtraInhabitantTagFunction(IRGenModule &IGM,
   fn->setAttributes(IGM.constructInitialAttributes());
   fn->setCallingConv(IGM.SwiftCC);
   IRGenFunction IGF(IGM, fn);
+  if (IGM.DebugInfo)
+    IGM.DebugInfo->emitArtificialFunction(IGF, fn);
   auto parameters = IGF.collectParameters();
   auto ptr = parameters.claimNext();
   auto xiCount = parameters.claimNext();
@@ -1395,6 +1398,8 @@ irgen::getOrCreateStoreExtraInhabitantTagFunction(IRGenModule &IGM,
   fn->setAttributes(IGM.constructInitialAttributes());
   fn->setCallingConv(IGM.SwiftCC);
   IRGenFunction IGF(IGM, fn);
+  if (IGM.DebugInfo)
+    IGM.DebugInfo->emitArtificialFunction(IGF, fn);
   auto parameters = IGF.collectParameters();
   auto ptr = parameters.claimNext();
   auto tag = parameters.claimNext();
