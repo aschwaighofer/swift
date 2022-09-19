@@ -569,14 +569,12 @@ StackAddress IRGenFunction::emitDynamicAlloca(llvm::Type *eltTy,
     auto alignment = llvm::ConstantInt::get(IGM.Int32Ty, align.getValue());
 
     // Allocate memory.  This produces an abstract token.
-    auto allocFn = llvm::Intrinsic::getDeclaration(
-        &IGM.Module, llvm::Intrinsic::coro_alloca_alloc, {IGM.SizeTy});
-    auto allocToken = Builder.CreateCall(allocFn, { byteCount, alignment });
+    auto allocToken = Builder.CreateIntrinsicCall(
+        llvm::Intrinsic::coro_alloca_alloc, {byteCount, alignment});
 
     // Get the allocation result.
-    auto getFn = llvm::Intrinsic::getDeclaration(
-        &IGM.Module, llvm::Intrinsic::coro_alloca_get);
-    auto ptr = Builder.CreateCall(getFn, { allocToken });
+    auto ptr = Builder.CreateIntrinsicCall(llvm::Intrinsic::coro_alloca_get,
+                                           {allocToken});
 
     return {Address(ptr, IGM.Int8Ty, align), allocToken};
   }
@@ -588,10 +586,8 @@ StackAddress IRGenFunction::emitDynamicAlloca(llvm::Type *eltTy,
   // executed more than once).
   bool isInEntryBlock = (Builder.GetInsertBlock() == &*CurFn->begin());
   if (!isInEntryBlock) {
-    auto *stackSaveFn = llvm::Intrinsic::getDeclaration(
-        &IGM.Module, llvm::Intrinsic::stacksave);
-
-    stackRestorePoint =  Builder.CreateCall(stackSaveFn, {}, "spsave");
+    stackRestorePoint =
+        Builder.CreateIntrinsicCall(llvm::Intrinsic::stacksave, {}, "spsave");
   }
 
   // Emit the dynamic alloca.
@@ -624,18 +620,14 @@ void IRGenFunction::emitDeallocateDynamicAlloca(StackAddress address,
 
     auto allocToken = address.getExtraInfo();
     assert(allocToken && "dynamic alloca in coroutine without alloc token?");
-    auto freeFn = llvm::Intrinsic::getDeclaration(
-        &IGM.Module, llvm::Intrinsic::coro_alloca_free);
-    Builder.CreateCall(freeFn, allocToken);
+    Builder.CreateIntrinsicCall(llvm::Intrinsic::coro_alloca_free, allocToken);
     return;
   }
   // Otherwise, call llvm.stackrestore if an address was saved.
   auto savedSP = address.getExtraInfo();
   if (savedSP == nullptr)
     return;
-  auto *stackRestoreFn = llvm::Intrinsic::getDeclaration(
-      &IGM.Module, llvm::Intrinsic::stackrestore);
-  Builder.CreateCall(stackRestoreFn, savedSP);
+  Builder.CreateIntrinsicCall(llvm::Intrinsic::stackrestore, savedSP);
 }
 
 /// Emit a call to do an 'initializeArrayWithCopy' operation.
@@ -647,7 +639,7 @@ void irgen::emitInitializeArrayWithCopyCall(IRGenFunction &IGF,
   auto metadata = IGF.emitTypeMetadataRefForLayout(T);
   auto dest = emitCastToOpaquePtr(IGF, destObject);
   auto src = emitCastToOpaquePtr(IGF, srcObject);
-  IGF.Builder.CreateCall(IGF.IGM.getArrayInitWithCopyFn(),
+  IGF.Builder.CreateCall(IGF.IGM.getArrayInitWithCopyFunctionPointer(),
                          {dest, src, count, metadata});
 }
 
@@ -660,7 +652,7 @@ void irgen::emitInitializeArrayWithTakeNoAliasCall(IRGenFunction &IGF,
   auto metadata = IGF.emitTypeMetadataRefForLayout(T);
   auto dest = emitCastToOpaquePtr(IGF, destObject);
   auto src = emitCastToOpaquePtr(IGF, srcObject);
-  IGF.Builder.CreateCall(IGF.IGM.getArrayInitWithTakeNoAliasFn(),
+  IGF.Builder.CreateCall(IGF.IGM.getArrayInitWithTakeNoAliasFunctionPointer(),
                          {dest, src, count, metadata});
 }
 
@@ -673,8 +665,9 @@ void irgen::emitInitializeArrayWithTakeFrontToBackCall(IRGenFunction &IGF,
   auto metadata = IGF.emitTypeMetadataRefForLayout(T);
   auto dest = emitCastToOpaquePtr(IGF, destObject);
   auto src = emitCastToOpaquePtr(IGF, srcObject);
-  IGF.Builder.CreateCall(IGF.IGM.getArrayInitWithTakeFrontToBackFn(),
-                         {dest, src, count, metadata});
+  IGF.Builder.CreateCall(
+      IGF.IGM.getArrayInitWithTakeFrontToBackFunctionPointer(),
+      {dest, src, count, metadata});
 }
 
 /// Emit a call to do an 'initializeArrayWithTakeBackToFront' operation.
@@ -686,8 +679,9 @@ void irgen::emitInitializeArrayWithTakeBackToFrontCall(IRGenFunction &IGF,
   auto metadata = IGF.emitTypeMetadataRefForLayout(T);
   auto dest = emitCastToOpaquePtr(IGF, destObject);
   auto src = emitCastToOpaquePtr(IGF, srcObject);
-  IGF.Builder.CreateCall(IGF.IGM.getArrayInitWithTakeBackToFrontFn(),
-                         {dest, src, count, metadata});
+  IGF.Builder.CreateCall(
+      IGF.IGM.getArrayInitWithTakeBackToFrontFunctionPointer(),
+      {dest, src, count, metadata});
 }
 
 /// Emit a call to do an 'assignWithCopy' operation.
@@ -722,7 +716,7 @@ void irgen::emitAssignArrayWithCopyNoAliasCall(IRGenFunction &IGF, SILType T,
   auto metadata = IGF.emitTypeMetadataRefForLayout(T);
   auto dest = emitCastToOpaquePtr(IGF, destObject);
   auto src = emitCastToOpaquePtr(IGF, srcObject);
-  IGF.Builder.CreateCall(IGF.IGM.getArrayAssignWithCopyNoAliasFn(),
+  IGF.Builder.CreateCall(IGF.IGM.getArrayAssignWithCopyNoAliasFunctionPointer(),
                          {dest, src, count, metadata});
 }
 
@@ -735,8 +729,9 @@ void irgen::emitAssignArrayWithCopyFrontToBackCall(IRGenFunction &IGF,
   auto metadata = IGF.emitTypeMetadataRefForLayout(T);
   auto dest = emitCastToOpaquePtr(IGF, destObject);
   auto src = emitCastToOpaquePtr(IGF, srcObject);
-  IGF.Builder.CreateCall(IGF.IGM.getArrayAssignWithCopyFrontToBackFn(),
-                         {dest, src, count, metadata});
+  IGF.Builder.CreateCall(
+      IGF.IGM.getArrayAssignWithCopyFrontToBackFunctionPointer(),
+      {dest, src, count, metadata});
 }
 
 /// Emit a call to do an 'arrayAssignWithCopyBackToFront' operation.
@@ -748,8 +743,9 @@ void irgen::emitAssignArrayWithCopyBackToFrontCall(IRGenFunction &IGF,
   auto metadata = IGF.emitTypeMetadataRefForLayout(T);
   auto dest = emitCastToOpaquePtr(IGF, destObject);
   auto src = emitCastToOpaquePtr(IGF, srcObject);
-  IGF.Builder.CreateCall(IGF.IGM.getArrayAssignWithCopyBackToFrontFn(),
-                         {dest, src, count, metadata});
+  IGF.Builder.CreateCall(
+      IGF.IGM.getArrayAssignWithCopyBackToFrontFunctionPointer(),
+      {dest, src, count, metadata});
 }
 
 /// Emit a call to do an 'assignWithTake' operation.
@@ -772,7 +768,7 @@ void irgen::emitAssignArrayWithTakeCall(IRGenFunction &IGF, SILType T,
   auto metadata = IGF.emitTypeMetadataRefForLayout(T);
   auto dest = emitCastToOpaquePtr(IGF, destObject);
   auto src = emitCastToOpaquePtr(IGF, srcObject);
-  IGF.Builder.CreateCall(IGF.IGM.getArrayAssignWithTakeFn(),
+  IGF.Builder.CreateCall(IGF.IGM.getArrayAssignWithTakeFunctionPointer(),
                          {dest, src, count, metadata});
 }
 
@@ -787,7 +783,8 @@ void irgen::emitDestroyArrayCall(IRGenFunction &IGF,
 
   auto metadata = IGF.emitTypeMetadataRefForLayout(T);
   auto obj = emitCastToOpaquePtr(IGF, object);
-  IGF.Builder.CreateCall(IGF.IGM.getArrayDestroyFn(), {obj, count, metadata});
+  IGF.Builder.CreateCall(IGF.IGM.getArrayDestroyFunctionPointer(),
+                         {obj, count, metadata});
 }
 
 /// Emit a trampoline to call the getEnumTagSinglePayload witness. API:
@@ -864,8 +861,10 @@ llvm::Value *irgen::emitGetEnumTagSinglePayloadCall(IRGenFunction &IGF,
   }
   auto *metadata = IGF.emitTypeMetadataRefForLayout(T);
   auto *func = getGetEnumTagSinglePayloadTrampolineFn(IGF.IGM);
+  auto *fnType = cast<llvm::Function>(func)->getFunctionType();
   auto dest = emitCastToOpaquePtr(IGF, destObject);
-  auto *result = IGF.Builder.CreateCall(func, {dest, numEmptyCases, metadata});
+  auto *result =
+      IGF.Builder.CreateCall(fnType, func, {dest, numEmptyCases, metadata});
   return result;
 }
 
@@ -883,8 +882,10 @@ void irgen::emitStoreEnumTagSinglePayloadCall(
 
   auto *metadata = IGF.emitTypeMetadataRefForLayout(T);
   auto *func = getStoreEnumTagSinglePayloadTrampolineFn(IGF.IGM);
+  auto *fnType = cast<llvm::Function>(func)->getFunctionType();
   auto dest = emitCastToOpaquePtr(IGF, destObject);
-  IGF.Builder.CreateCall(func, {dest, whichCase, numEmptyCases, metadata});
+  IGF.Builder.CreateCall(fnType, func,
+                         {dest, whichCase, numEmptyCases, metadata});
 }
 
 /// Emit a call to the 'getEnumTag' operation.
@@ -1166,9 +1167,10 @@ Address irgen::emitAllocateValueInBuffer(IRGenFunction &IGF, SILType type,
 
   /// Call a function to handle the non-fixed case.
   auto *allocateFun = getAllocateValueBufferFunction(IGF.IGM);
+  auto *fnType = cast<llvm::Function>(allocateFun)->getFunctionType();
   auto *metadata = IGF.emitTypeMetadataRefForLayout(type);
   auto *call = Builder.CreateCall(
-      allocateFun,
+      fnType, allocateFun,
       {metadata, Builder.CreateBitCast(buffer.getAddress(), IGM.OpaquePtrTy)});
   call->setCallingConv(IGF.IGM.DefaultCC);
   call->setDoesNotThrow();
@@ -1250,9 +1252,10 @@ Address irgen::emitProjectValueInBuffer(IRGenFunction &IGF, SILType type,
 
   // Dynamic packing.
   auto *projectFun = getProjectValueInBufferFunction(IGF.IGM);
+  auto *fnType = cast<llvm::Function>(projectFun)->getFunctionType();
   auto *metadata = IGF.emitTypeMetadataRefForLayout(type);
   auto *call = Builder.CreateCall(
-      projectFun,
+      fnType, projectFun,
       {metadata, Builder.CreateBitCast(buffer.getAddress(), IGM.OpaquePtrTy)});
   call->setCallingConv(IGF.IGM.DefaultCC);
   call->setDoesNotThrow();
@@ -1283,7 +1286,7 @@ irgen::emitGetEnumTagSinglePayloadGenericCall(IRGenFunction &IGF,
                                        IGF.IGM.OpaquePtrTy);
 
   auto getEnumTagGenericFn =
-    IGF.IGM.getGetEnumTagSinglePayloadGenericFn();
+      IGF.IGM.getGetEnumTagSinglePayloadGenericFunctionPointer();
   auto call = IGF.Builder.CreateCall(getEnumTagGenericFn,
                                      {ptr,
                                       numExtraCases,
@@ -1358,7 +1361,7 @@ irgen::emitStoreEnumTagSinglePayloadGenericCall(IRGenFunction &IGF,
                                        IGF.IGM.OpaquePtrTy);
 
   auto storeEnumTagGenericFn =
-    IGF.IGM.getStoreEnumTagSinglePayloadGenericFn();
+      IGF.IGM.getStoreEnumTagSinglePayloadGenericFunctionPointer();
   auto call = IGF.Builder.CreateCall(storeEnumTagGenericFn,
                                      {ptr,
                                       whichCase,

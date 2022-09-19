@@ -537,7 +537,7 @@ void IRGenModule::emitMethodLookupFunction(ClassDecl *classDecl) {
   LookUpNonoverriddenMethods(IGF, classDecl, method).layout();
   
   // Use the runtime to look up vtable entries.
-  auto *result = IGF.Builder.CreateCall(getLookUpClassMethodFn(),
+  auto *result = IGF.Builder.CreateCall(getLookUpClassMethodFunctionPointer(),
                                         {metadata, method, description});
   IGF.Builder.CreateRet(result);
 }
