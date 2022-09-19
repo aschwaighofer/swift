@@ -4484,14 +4484,12 @@ void IRGenSILFunction::visitDynamicMethodBranchInst(DynamicMethodBranchInst *i){
     IGM.Int8PtrTy,
     IGM.Int8PtrTy,
   };
-  auto respondsToSelectorTy = llvm::FunctionType::get(IGM.Int1Ty,
-                                                      argTys,
-                                                      /*isVarArg*/ false)
-  ->getPointerTo();
-  messenger = llvm::ConstantExpr::getBitCast(messenger,
-                                             respondsToSelectorTy);
-  llvm::CallInst *call = Builder.CreateCall(messenger,
-                                        {object, respondsToSelector, loadSel});
+  auto respondsToSelectorTy = llvm::FunctionType::get(IGM.Int1Ty, argTys,
+                                                      /*isVarArg*/ false);
+  messenger = llvm::ConstantExpr::getBitCast(
+      messenger, respondsToSelectorTy->getPointerTo());
+  llvm::CallInst *call = Builder.CreateCall(
+      respondsToSelectorTy, messenger, {object, respondsToSelector, loadSel});
   call->setDoesNotThrow();
 
   // FIXME: Assume (probably safely) that the hasMethodBB has only us as a
@@ -4563,10 +4561,11 @@ void IRGenSILFunction::visitRetainValueAddrInst(swift::RetainValueAddrInst *i) {
   llvm::Type *llvmType = addr.getAddress()->getType();
   const TypeInfo &addrTI = getTypeInfo(addrTy);
   auto atomicity = i->isAtomic() ? Atomicity::Atomic : Atomicity::NonAtomic;
-  auto *outlinedF = IGM.getOrCreateRetainFunction(
-      addrTI, objectT, llvmType, atomicity);
+  auto *outlinedF = cast<llvm::Function>(
+      IGM.getOrCreateRetainFunction(addrTI, objectT, llvmType, atomicity));
   llvm::Value *args[] = {addr.getAddress()};
-  llvm::CallInst *call = Builder.CreateCall(outlinedF, args);
+  llvm::CallInst *call =
+      Builder.CreateCall(outlinedF->getFunctionType(), outlinedF, args);
   call->setCallingConv(IGM.DefaultCC);
 }
 
@@ -4638,10 +4637,11 @@ void IRGenSILFunction::visitReleaseValueAddrInst(
   llvm::Type *llvmType = addr.getAddress()->getType();
   const TypeInfo &addrTI = getTypeInfo(addrTy);
   auto atomicity = i->isAtomic() ? Atomicity::Atomic : Atomicity::NonAtomic;
-  auto *outlinedF = IGM.getOrCreateReleaseFunction(
-      addrTI, objectT, llvmType, atomicity);
+  auto *outlinedF = cast<llvm::Function>(
+      IGM.getOrCreateReleaseFunction(addrTI, objectT, llvmType, atomicity));
   llvm::Value *args[] = {addr.getAddress()};
-  llvm::CallInst *call = Builder.CreateCall(outlinedF, args);
+  llvm::CallInst *call =
+      Builder.CreateCall(outlinedF->getFunctionType(), outlinedF, args);
   call->setCallingConv(IGM.DefaultCC);
 }
 
@@ -5753,8 +5753,8 @@ void IRGenSILFunction::visitBeginAccessInst(BeginAccessInst *access) {
     llvm::Value *flags =
       llvm::ConstantInt::get(IGM.SizeTy, uint64_t(getExclusivityFlags(access)));
     llvm::Value *pc = llvm::ConstantPointerNull::get(IGM.Int8PtrTy);
-    auto call = Builder.CreateCall(IGM.getBeginAccessFn(),
-                                   { pointer, scratch, flags, pc });
+    auto call = Builder.CreateCall(IGM.getBeginAccessFunctionPointer(),
+                                   {pointer, scratch, flags, pc});
     call->setDoesNotThrow();
 
     setLoweredDynamicallyEnforcedAddress(access, addr, scratch);
@@ -5801,15 +5801,13 @@ void IRGenSILFunction::visitBeginUnpairedAccessInst(
     if (IGM.Triple.isWasm() || hasBeenInlined(access)) {
       pc = llvm::ConstantPointerNull::get(IGM.Int8PtrTy);
     } else {
-      auto retAddrFn =
-        llvm::Intrinsic::getDeclaration(IGM.getModule(),
-                                        llvm::Intrinsic::returnaddress);
-      pc = Builder.CreateCall(retAddrFn,
-                              { llvm::ConstantInt::get(IGM.Int32Ty, 0) });
+      pc =
+          Builder.CreateIntrinsicCall(llvm::Intrinsic::returnaddress,
+                                      {llvm::ConstantInt::get(IGM.Int32Ty, 0)});
     }
 
-    auto call = Builder.CreateCall(IGM.getBeginAccessFn(),
-                                   { pointer, scratch, flags, pc });
+    auto call = Builder.CreateCall(IGM.getBeginAccessFunctionPointer(),
+                                   {pointer, scratch, flags, pc});
     call->setDoesNotThrow();
     return;
   }
@@ -5834,7 +5832,8 @@ void IRGenSILFunction::visitEndAccessInst(EndAccessInst *i) {
 
     auto scratch = getLoweredDynamicEnforcementScratchBuffer(access);
 
-    auto call = Builder.CreateCall(IGM.getEndAccessFn(), { scratch });
+    auto call =
+        Builder.CreateCall(IGM.getEndAccessFunctionPointer(), {scratch});
     call->setDoesNotThrow();
 
     Builder.CreateLifetimeEnd(scratch);
@@ -5857,7 +5856,8 @@ void IRGenSILFunction::visitEndUnpairedAccessInst(EndUnpairedAccessInst *i) {
   case SILAccessEnforcement::Dynamic: {
     auto scratch = getLoweredAddress(i->getBuffer()).getAddress();
 
-    auto call = Builder.CreateCall(IGM.getEndAccessFn(), { scratch });
+    auto call =
+        Builder.CreateCall(IGM.getEndAccessFunctionPointer(), {scratch});
     call->setDoesNotThrow();
     return;
   }
@@ -6548,7 +6548,8 @@ void IRGenSILFunction::visitKeyPathInst(swift::KeyPathInst *I) {
     args = llvm::UndefValue::get(IGM.Int8PtrTy);
   }
   auto patternPtr = llvm::ConstantExpr::getBitCast(pattern, IGM.Int8PtrTy);
-  auto call = Builder.CreateCall(IGM.getGetKeyPathFn(), {patternPtr, args});
+  auto call = Builder.CreateCall(IGM.getGetKeyPathFunctionPointer(),
+                                 {patternPtr, args});
   call->setDoesNotThrow();
 
   if (dynamicArgsBuf) {
@@ -7041,8 +7042,9 @@ void IRGenSILFunction::visitSuperMethodInst(swift::SuperMethodInst *i) {
                                                        NotForDefinition);
 
     // Call the lookup function.
-    llvm::Value *fnPtr = Builder.CreateCall(lookupFn,
-                                            {superMetadata, methodDescriptor});
+    llvm::Value *fnPtr =
+        Builder.CreateCall(lookupFn->getFunctionType(), lookupFn,
+                           {superMetadata, methodDescriptor});
 
     // The function returns an i8*; cast it to the correct type.
     auto sig = IGM.getSignature(methodType);
