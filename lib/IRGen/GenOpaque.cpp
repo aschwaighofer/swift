@@ -569,8 +569,9 @@ StackAddress IRGenFunction::emitDynamicAlloca(llvm::Type *eltTy,
     auto alignment = llvm::ConstantInt::get(IGM.Int32Ty, align.getValue());
 
     // Allocate memory.  This produces an abstract token.
-    auto allocToken = Builder.CreateIntrinsicCall(
-        llvm::Intrinsic::coro_alloca_alloc, {byteCount, alignment});
+    auto allocToken =
+        Builder.CreateIntrinsicCall(llvm::Intrinsic::coro_alloca_alloc,
+                                    {IGM.SizeTy}, {byteCount, alignment});
 
     // Get the allocation result.
     auto ptr = Builder.CreateIntrinsicCall(llvm::Intrinsic::coro_alloca_get,
