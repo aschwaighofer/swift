@@ -36,7 +36,8 @@ using namespace irgen;
 
 IRGenTypeVerifierFunction::IRGenTypeVerifierFunction(IRGenModule &IGM,
                                                      llvm::Function *f)
-: IRGenFunction(IGM, f), VerifierFn(IGM.getVerifyTypeLayoutAttributeFn()) {
+    : IRGenFunction(IGM, f),
+      VerifierFn(IGM.getVerifyTypeLayoutAttributeFunctionPointer()) {
   // Verifier functions are always artificial.
   if (IGM.DebugInfo)
     IGM.DebugInfo->emitArtificialFunction(*this, f);
@@ -317,7 +318,7 @@ void IRGenModule::emitTypeVerifier() {
     Builder.llvm::IRBuilderBase::SetInsertPoint(EntryBB, IP);
     if (DebugInfo)
       DebugInfo->setEntryPointLoc(Builder);
-    Builder.CreateCall(VerifierFunction, {});
+    Builder.CreateCall(fnTy, VerifierFunction, {});
   }
 
   IRGenTypeVerifierFunction VerifierIGF(*this, VerifierFunction);

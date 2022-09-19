@@ -215,7 +215,6 @@ llvm::Value *IRGenFunction::emitProjectBoxCall(llvm::Value *box,
       Builder.CreateCall(IGM.getProjectBoxFunctionPointer(), box);
   call->setCallingConv(IGM.DefaultCC);
   call->addFnAttr(llvm::Attribute::NoUnwind);
-  call->addFnAttr(llvm::Attribute::ReadNone);
   return call;
 }
 
