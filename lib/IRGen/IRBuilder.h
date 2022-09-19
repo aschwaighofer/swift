@@ -325,6 +325,13 @@ public:
   llvm::CallInst *CreateCall(const FunctionPointer &fn,
                              ArrayRef<llvm::Value *> args);
 
+  llvm::CallInst *CreateCall(const FunctionPointer &fn,
+                             ArrayRef<llvm::Value *> args, const Twine &Name) {
+    auto c = CreateCall(fn, args);
+    c->setName(Name);
+    return c;
+  }
+
   llvm::CallInst *CreateAsmCall(llvm::InlineAsm *asmBlock,
                                 ArrayRef<llvm::Value *> args) {
     return IRBuilderBase::CreateCall(asmBlock, args);
