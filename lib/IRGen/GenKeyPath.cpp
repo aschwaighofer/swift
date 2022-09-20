@@ -86,8 +86,8 @@ bindPolymorphicArgumentsFromComponentIndices(IRGenFunction &IGF,
       requirements.size() * IGF.IGM.getPointerSize().getValue());
 
     auto genericArgsOffset = IGF.Builder.CreateSub(size, genericArgsSize);
-    args = IGF.Builder.CreateInBoundsGEP(IGF.IGM.Int8Ty, args,
-        genericArgsOffset);
+    args =
+        IGF.Builder.CreateInBoundsGEP(IGF.IGM.Int8Ty, args, genericArgsOffset);
   }
   bindFromGenericRequirementsBuffer(
       IGF, requirements,
@@ -129,9 +129,9 @@ getAccessorForComputedComponent(IRGenModule &IGM,
     return IGM.getAddrOfSILFunction(accessor, NotForDefinition);
   }
   auto accessorFn = IGM.getAddrOfSILFunction(accessor, NotForDefinition);
-  
+
   auto accessorFnTy = accessorFn->getFunctionType();
-  
+
   // Otherwise, we need a thunk to unmarshal the generic environment from the
   // argument area. It'd be nice to have a good way to represent this
   // directly in SIL, of course...
@@ -191,9 +191,8 @@ getAccessorForComputedComponent(IRGenModule &IGM,
     accessorThunk->addParamAttr(1, llvm::Attribute::NoAlias);
     // Output is sret.
     auto structRetTy = accessorFn->getParamStructRetType(0);
-    assert(structRetTy == thunkParams[0]->getPointerElementType());
-    accessorThunk->addParamAttr(
-        0, llvm::Attribute::getWithStructRetType(IGM.getLLVMContext(), structRetTy));
+    accessorThunk->addParamAttr(0, llvm::Attribute::getWithStructRetType(
+                                       IGM.getLLVMContext(), structRetTy));
     break;
   }
   case Setter:
@@ -415,10 +414,8 @@ getWitnessTableForComputedComponent(IRGenModule &IGM,
         } else {
           offset = llvm::ConstantInt::get(IGM.SizeTy, 0);
         }
-        auto elt = IGF.Builder.CreateInBoundsGEP(componentArgsBuf->getType()
-                                                     ->getScalarType()
-                                                     ->getPointerElementType(),
-                                                 componentArgsBuf, offset);
+        auto elt =
+            IGF.Builder.CreateInBoundsGEP(IGM.Int8Ty, componentArgsBuf, offset);
         auto eltAddr = ti.getAddressForPointer(
           IGF.Builder.CreateBitCast(elt, ti.getStorageType()->getPointerTo()));
         ti.destroy(IGF, eltAddr, ty,
@@ -470,12 +467,10 @@ getWitnessTableForComputedComponent(IRGenModule &IGM,
         } else {
           offset = llvm::ConstantInt::get(IGM.SizeTy, 0);
         }
-        auto sourceElt = IGF.Builder.CreateInBoundsGEP(
-            sourceArgsBuf->getType()->getScalarType()->getPointerElementType(),
-            sourceArgsBuf, offset);
-        auto destElt = IGF.Builder.CreateInBoundsGEP(
-            destArgsBuf->getType()->getScalarType()->getPointerElementType(),
-            destArgsBuf, offset);
+        auto sourceElt =
+            IGF.Builder.CreateInBoundsGEP(IGM.Int8Ty, sourceArgsBuf, offset);
+        auto destElt =
+            IGF.Builder.CreateInBoundsGEP(IGM.Int8Ty, destArgsBuf, offset);
         auto sourceEltAddr = ti.getAddressForPointer(
           IGF.Builder.CreateBitCast(sourceElt,
                                     ti.getStorageType()->getPointerTo()));
@@ -496,12 +491,10 @@ getWitnessTableForComputedComponent(IRGenModule &IGM,
         offset = IGF.Builder.CreateAdd(offset, envAlignMask);
         offset = IGF.Builder.CreateAnd(offset, notAlignMask);
 
-        auto sourceEnv = IGF.Builder.CreateInBoundsGEP(
-            sourceArgsBuf->getType()->getScalarType()->getPointerElementType(),
-            sourceArgsBuf, offset);
-        auto destEnv = IGF.Builder.CreateInBoundsGEP(
-            destArgsBuf->getType()->getScalarType()->getPointerElementType(),
-            destArgsBuf, offset);
+        auto sourceEnv =
+            IGF.Builder.CreateInBoundsGEP(IGM.Int8Ty, sourceArgsBuf, offset);
+        auto destEnv =
+            IGF.Builder.CreateInBoundsGEP(IGM.Int8Ty, destArgsBuf, offset);
 
         auto align = IGM.getPointerAlignment().getValue();
         IGF.Builder.CreateMemCpy(destEnv, llvm::MaybeAlign(align), sourceEnv,
@@ -614,9 +607,7 @@ getInitializerForComputedComponent(IRGenModule &IGM,
         offset = IGF.Builder.CreateAnd(offset, notAlignMask);
       }
 
-      auto ptr = IGF.Builder.CreateInBoundsGEP(
-          src->getType()->getScalarType()->getPointerElementType(), src,
-          offset);
+      auto ptr = IGF.Builder.CreateInBoundsGEP(IGM.Int8Ty, src, offset);
       auto addr = ti.getAddressForPointer(IGF.Builder.CreateBitCast(
         ptr, ti.getStorageType()->getPointerTo()));
       srcAddresses.push_back(addr);
@@ -645,9 +636,7 @@ getInitializerForComputedComponent(IRGenModule &IGM,
         offset = IGF.Builder.CreateAnd(offset, notAlignMask);
       }
 
-      auto ptr = IGF.Builder.CreateInBoundsGEP(
-          dest->getType()->getScalarType()->getPointerElementType(), dest,
-          offset);
+      auto ptr = IGF.Builder.CreateInBoundsGEP(IGM.Int8Ty, dest, offset);
       auto destAddr = ti.getAddressForPointer(IGF.Builder.CreateBitCast(
         ptr, ti.getStorageType()->getPointerTo()));
       
@@ -676,9 +665,8 @@ getInitializerForComputedComponent(IRGenModule &IGM,
         auto notGenericEnvAlignMask = IGF.Builder.CreateNot(genericEnvAlignMask);
         offset = IGF.Builder.CreateAdd(offset, genericEnvAlignMask);
         offset = IGF.Builder.CreateAnd(offset, notGenericEnvAlignMask);
-        destGenericEnv = IGF.Builder.CreateInBoundsGEP(
-            dest->getType()->getScalarType()->getPointerElementType(), dest,
-            offset);
+        destGenericEnv =
+            IGF.Builder.CreateInBoundsGEP(IGM.Int8Ty, dest, offset);
       }
       
       auto align = IGM.getPointerAlignment().getValue();
@@ -700,8 +688,8 @@ emitMetadataTypeRefForKeyPath(IRGenModule &IGM, CanType type,
   // Mask the bottom bit to tell the key path runtime this is a mangled name
   // rather than a direct reference.
   auto bitConstant = llvm::ConstantInt::get(IGM.IntPtrTy, 1);
-  return llvm::ConstantExpr::getGetElementPtr(
-    constant->getType()->getPointerElementType(), constant, bitConstant);
+  return llvm::ConstantExpr::getGetElementPtr(IGM.Int8Ty, constant,
+                                              bitConstant);
 }
 
 static unsigned getClassFieldIndex(ClassDecl *classDecl, VarDecl *property) {
