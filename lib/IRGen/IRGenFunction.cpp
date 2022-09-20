@@ -675,11 +675,9 @@ void IRGenFunction::emitAwaitAsyncContinuation(
                               3 * IGM.getPointerSize()).getAddress();
 
     auto pendingV = llvm::ConstantInt::get(
-        contAwaitSyncAddr->getType()->getPointerElementType(),
-        unsigned(ContinuationStatus::Pending));
+        IGM.SizeTy, unsigned(ContinuationStatus::Pending));
     auto awaitedV = llvm::ConstantInt::get(
-        contAwaitSyncAddr->getType()->getPointerElementType(),
-        unsigned(ContinuationStatus::Awaited));
+        IGM.SizeTy, unsigned(ContinuationStatus::Awaited));
     auto results = Builder.CreateAtomicCmpXchg(
         contAwaitSyncAddr, pendingV, awaitedV, llvm::MaybeAlign(),
         llvm::AtomicOrdering::Release /*success ordering*/,

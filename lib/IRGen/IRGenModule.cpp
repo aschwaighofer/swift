@@ -334,13 +334,15 @@ IRGenModule::IRGenModule(IRGenerator &irgen,
     TypeMetadataPtrTy,      // Metadata *Type;
     Int32Ty                 // int32_t Offset;
   });
-  TupleTypeMetadataPtrTy = createStructPointerType(*this, "swift.tuple_type", {
-    TypeMetadataStructTy,   // (base)
-    SizeTy,                 // size_t NumElements;
-    Int8PtrTy,              // const char *Labels;
-    llvm::ArrayType::get(tupleElementTy, 0) // Element Elements[];
-  });
-
+  TupleTypeMetadataTy = createStructType(
+      *this, "swift.tuple_type",
+      {
+          TypeMetadataStructTy,                   // (base)
+          SizeTy,                                 // size_t NumElements;
+          Int8PtrTy,                              // const char *Labels;
+          llvm::ArrayType::get(tupleElementTy, 0) // Element Elements[];
+      });
+  TupleTypeMetadataPtrTy = TupleTypeMetadataTy->getPointerTo();
   // A full type metadata record is basically just an adjustment to the
   // address point of a type metadata.  Resilience may cause
   // additional data to be laid out prior to this address point.
