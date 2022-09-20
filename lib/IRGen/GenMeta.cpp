@@ -954,8 +954,7 @@ namespace {
         int offset = WitnessTableFirstRequirementOffset;
         auto firstReqAdjustment = llvm::ConstantInt::get(IGM.Int32Ty, -offset);
         address = llvm::ConstantExpr::getGetElementPtr(
-          address->getType()->getPointerElementType(), address,
-          firstReqAdjustment);
+            IGM.ProtocolRequirementStructTy, address, firstReqAdjustment);
 
         IGM.defineProtocolRequirementsBaseDescriptor(Proto, address);
       }
@@ -4330,17 +4329,17 @@ namespace {
 /// Emit the ObjC-compatible class symbol for a class.
 /// Since LLVM and many system linkers do not have a notion of relative symbol
 /// references, we emit the symbol as a global asm block.
-static void emitObjCClassSymbol(IRGenModule &IGM,
-                                ClassDecl *classDecl,
-                                llvm::Constant *metadata) {
+static void emitObjCClassSymbol(IRGenModule &IGM, ClassDecl *classDecl,
+                                llvm::Constant *metadata,
+                                llvm::Type *metadataTy) {
   auto entity = LinkEntity::forObjCClass(classDecl);
   LinkInfo link = LinkInfo::get(IGM, entity, ForDefinition);
 
   // Create the alias.
   auto *ptrTy = cast<llvm::PointerType>(metadata->getType());
-  auto *alias = llvm::GlobalAlias::create(
-      ptrTy->getPointerElementType(), ptrTy->getAddressSpace(), link.getLinkage(),
-      link.getName(), metadata, &IGM.Module);
+  auto *alias = llvm::GlobalAlias::create(metadataTy, ptrTy->getAddressSpace(),
+                                          link.getLinkage(), link.getName(),
+                                          metadata, &IGM.Module);
   ApplyIRLinkage({link.getLinkage(), link.getVisibility(), link.getDLLStorage()})
       .to(alias, link.isForDefinition());
 }
@@ -4442,7 +4441,8 @@ void irgen::emitClassMetadata(IRGenModule &IGM, ClassDecl *classDecl,
         // ancestry, it appears in the generated header. We emit an Objective-C
         // class symbol aliased to the class stub for Clang to reference.
         if (classDecl->isObjC())
-          emitObjCClassSymbol(IGM, classDecl, stub);
+          emitObjCClassSymbol(IGM, classDecl, stub,
+                              IGM.ObjCResilientClassStubTy);
 
         // Note that if the class has generic ancestry, isObjC() is false.
         // This is because such classes cannot appear in the generated header,
@@ -4474,7 +4474,7 @@ void irgen::emitClassMetadata(IRGenModule &IGM, ClassDecl *classDecl,
     case ClassMetadataStrategy::FixedOrUpdate:
     case ClassMetadataStrategy::Fixed:
       if (classDecl->isObjC())
-        emitObjCClassSymbol(IGM, classDecl, var);
+        emitObjCClassSymbol(IGM, classDecl, var, var->getValueType());
 
       IGM.addObjCClass(var,
           classDecl->getAttrs().hasAttribute<ObjCNonLazyRealizationAttr>());
