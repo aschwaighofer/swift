@@ -314,8 +314,8 @@ Address irgen::slotForLoadOfOpaqueWitness(IRGenFunction &IGF,
   // GEP to the appropriate index, avoiding spurious IR in the trivial case.
   llvm::Value *slot = table;
   if (index.getValue() != 0)
-    slot = IGF.Builder.CreateConstInBoundsGEP1_32(
-        table->getType()->getPointerElementType(), table, index.getValue());
+    slot = IGF.Builder.CreateConstInBoundsGEP1_32(IGF.IGM.WitnessTableTy, table,
+                                                  index.getValue());
 
   return Address(slot, IGF.IGM.WitnessTableTy, IGF.IGM.getPointerAlignment());
 }
@@ -340,8 +340,8 @@ llvm::Value *irgen::emitInvariantLoadOfOpaqueWitness(IRGenFunction &IGF,
   assert(table->getType() == IGF.IGM.WitnessTablePtrTy);
 
   // GEP to the appropriate index.
-  llvm::Value *slot = IGF.Builder.CreateInBoundsGEP(
-      table->getType()->getScalarType()->getPointerElementType(), table, index);
+  llvm::Value *slot =
+      IGF.Builder.CreateInBoundsGEP(IGF.IGM.WitnessTableTy, table, index);
 
   if (slotPtr) *slotPtr = slot;
 
