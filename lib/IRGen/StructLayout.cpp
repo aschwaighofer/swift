@@ -78,7 +78,7 @@ StructLayout::StructLayout(IRGenModule &IGM,
     IsKnownPOD = IsPOD;
     IsKnownBitwiseTakable = IsBitwiseTakable;
     IsKnownAlwaysFixedSize = IsFixedSize;
-    Ty = (typeToFill ? typeToFill : IGM.OpaquePtrTy->getPointerElementType());
+    Ty = (typeToFill ? typeToFill : IGM.OpaqueTy);
   } else {
     MinimumAlign = builder.getAlignment();
     MinimumSize = builder.getSize();
