@@ -86,8 +86,7 @@ bindPolymorphicArgumentsFromComponentIndices(IRGenFunction &IGF,
       requirements.size() * IGF.IGM.getPointerSize().getValue());
 
     auto genericArgsOffset = IGF.Builder.CreateSub(size, genericArgsSize);
-    args = IGF.Builder.CreateInBoundsGEP(
-        args->getType()->getScalarType()->getPointerElementType(), args,
+    args = IGF.Builder.CreateInBoundsGEP(IGF.IGM.Int8Ty, args,
         genericArgsOffset);
   }
   bindFromGenericRequirementsBuffer(
@@ -131,8 +130,7 @@ getAccessorForComputedComponent(IRGenModule &IGM,
   }
   auto accessorFn = IGM.getAddrOfSILFunction(accessor, NotForDefinition);
   
-  auto accessorFnTy = cast<llvm::FunctionType>(
-    accessorFn->getType()->getPointerElementType());;
+  auto accessorFnTy = accessorFn->getFunctionType();
   
   // Otherwise, we need a thunk to unmarshal the generic environment from the
   // argument area. It'd be nice to have a good way to represent this
@@ -184,7 +182,7 @@ getAccessorForComputedComponent(IRGenModule &IGM,
   accessorThunk->setCallingConv(IGM.SwiftCC);
 
   switch (whichAccessor) {
-  case Getter:
+  case Getter: {
     // Original accessor's args should be @in or @out, meaning they won't be
     // captured or aliased.
     accessorThunk->addParamAttr(0, llvm::Attribute::NoCapture);
@@ -192,10 +190,12 @@ getAccessorForComputedComponent(IRGenModule &IGM,
     accessorThunk->addParamAttr(1, llvm::Attribute::NoCapture);
     accessorThunk->addParamAttr(1, llvm::Attribute::NoAlias);
     // Output is sret.
+    auto structRetTy = accessorFn->getParamStructRetType(0);
+    assert(structRetTy == thunkParams[0]->getPointerElementType());
     accessorThunk->addParamAttr(
-        0, llvm::Attribute::getWithStructRetType(
-               IGM.getLLVMContext(), thunkParams[0]->getPointerElementType()));
+        0, llvm::Attribute::getWithStructRetType(IGM.getLLVMContext(), structRetTy));
     break;
+  }
   case Setter:
     // Original accessor's args should be @in or @out, meaning they won't be
     // captured or aliased.

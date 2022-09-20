@@ -239,7 +239,10 @@ public:
                                const llvm::Twine &name = "") {
     // Do nothing if the type doesn't change.
     auto origPtrType = address.getType();
-    if (origPtrType->getPointerElementType() == type) return address;
+    if (origPtrType->getPointerElementType() == type) {
+      assert(address.getElementType() == type);
+      return address;
+    }
 
     // Otherwise, cast to a pointer to the correct type.
     return Address(
