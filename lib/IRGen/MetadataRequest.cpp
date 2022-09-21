@@ -305,8 +305,7 @@ llvm::Constant *IRGenModule::getAddrOfStringForMetadataRef(
       return addr;
 
     auto bitConstant = llvm::ConstantInt::get(IntPtrTy, 1);
-    return llvm::ConstantExpr::getGetElementPtr(
-      addr->getType()->getPointerElementType(), addr, bitConstant);
+    return llvm::ConstantExpr::getGetElementPtr(Int8Ty, addr, bitConstant);
   };
 
   // Check whether we already have an entry with this name.
@@ -1172,8 +1171,7 @@ static llvm::Constant *emitEmptyTupleTypeMetadataRef(IRGenModule &IGM) {
     llvm::ConstantInt::get(IGM.Int32Ty, 1)
   };
   return llvm::ConstantExpr::getInBoundsGetElementPtr(
-        fullMetadata->getType()->getPointerElementType(), fullMetadata,
-        indices);
+      IGM.FullTypeMetadataStructTy, fullMetadata, indices);
 }
 
 using GetElementMetadataFn =
@@ -1304,8 +1302,7 @@ static Address createGenericArgumentsArray(IRGenFunction &IGF,
   for (unsigned i : indices(args)) {
     Address elt = IGF.Builder.CreateStructGEP(argsBuffer, i,
                                               IGF.IGM.getPointerSize() * i);
-    auto *arg =
-      IGF.Builder.CreateBitCast(args[i], elt.getType()->getPointerElementType());
+    auto *arg = IGF.Builder.CreateBitCast(args[i], IGF.IGM.Int8PtrTy);
     IGF.Builder.CreateStore(arg, elt);
   }
 
@@ -1800,9 +1797,8 @@ namespace {
         llvm::ConstantInt::get(IGF.IGM.Int32Ty, 1)
       };
       return MetadataResponse::forComplete(
-        llvm::ConstantExpr::getInBoundsGetElementPtr(
-          singletonMetadata->getType()->getPointerElementType(),
-          singletonMetadata, indices));
+          llvm::ConstantExpr::getInBoundsGetElementPtr(
+              IGF.IGM.FullTypeMetadataStructTy, singletonMetadata, indices));
     }
 
     llvm::Value *emitExistentialTypeMetadata(CanExistentialType type) {
@@ -2100,9 +2096,7 @@ void irgen::emitCacheAccessFunction(IRGenModule &IGM, llvm::Function *accessor,
   }
 
   llvm::Constant *null =
-    llvm::ConstantPointerNull::get(
-      cast<llvm::PointerType>(
-        cacheVariable->getType()->getPointerElementType()));
+      llvm::ConstantPointerNull::get(cast<llvm::PointerType>(cacheTy));
 
   Address cache(cacheVariable, cacheTy, IGM.getPointerAlignment());
 
