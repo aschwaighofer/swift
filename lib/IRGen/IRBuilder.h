@@ -238,13 +238,12 @@ public:
   Address CreateElementBitCast(Address address, llvm::Type *type,
                                const llvm::Twine &name = "") {
     // Do nothing if the type doesn't change.
-    auto origPtrType = address.getType();
-    if (origPtrType->getPointerElementType() == type) {
-      assert(address.getElementType() == type);
+    if (address.getElementType() == type) {
       return address;
     }
 
     // Otherwise, cast to a pointer to the correct type.
+    auto origPtrType = address.getType();
     return Address(
         CreateBitCast(address.getAddress(),
                       type->getPointerTo(origPtrType->getAddressSpace())),
