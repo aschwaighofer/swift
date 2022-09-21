@@ -3849,8 +3849,8 @@ void IRGenSILFunction::visitThrowInst(swift::ThrowInst *i) {
   }
 
   // Create a normal return, but leaving the return value undefined.
-  auto fnTy = CurFn->getType()->getPointerElementType();
-  auto retTy = cast<llvm::FunctionType>(fnTy)->getReturnType();
+  auto fnTy = CurFn->getFunctionType();
+  auto retTy = fnTy->getReturnType();
   if (retTy->isVoidTy()) {
     Builder.CreateRetVoid();
   } else {
@@ -5417,8 +5417,14 @@ void IRGenSILFunction::emitDebugInfoForAllocStack(AllocStackInst *i,
       ValueDomPoints.push_back({shadow, getActiveDominancePoint()});
     auto shadowInst = cast<llvm::Instruction>(shadow);
     llvm::IRBuilder<> builder(shadowInst->getNextNode());
-    addr =
-        builder.CreateLoad(shadow->getType()->getPointerElementType(), shadow);
+    llvm::Type *shadowTy = IGM.IntPtrTy;
+    if (auto *alloca = dyn_cast<llvm::AllocaInst>(shadow)) {
+      shadowTy = alloca->getAllocatedType();
+    } else if (isCallToSwiftTaskAlloc(shadow)) {
+      shadowTy = IGM.Int8Ty;
+    }
+    assert(shadowTy == shadow->getType()->getPointerElementType());
+    addr = builder.CreateLoad(shadowTy, shadow);
   }
 
   bindArchetypes(DbgTy.getType());
@@ -6519,12 +6525,8 @@ void IRGenSILFunction::visitKeyPathInst(swift::KeyPathInst *I) {
     for (unsigned i : indices(I->getAllOperands())) {
       auto operand = I->getAllOperands()[i].get();
       auto &ti = getTypeInfo(operand->getType());
-      auto ptr =
-          Builder.CreateInBoundsGEP(argsBuf.getAddress()
-                                        ->getType()
-                                        ->getScalarType()
-                                        ->getPointerElementType(),
-                                    argsBuf.getAddress(), operandOffsets[i]);
+      auto ptr = Builder.CreateInBoundsGEP(IGM.Int8Ty, argsBuf.getAddress(),
+                                           operandOffsets[i]);
       auto addr = ti.getAddressForPointer(
         Builder.CreateBitCast(ptr, ti.getStorageType()->getPointerTo()));
       if (operand->getType().isAddress()) {
@@ -6615,8 +6617,7 @@ void IRGenSILFunction::visitIndexRawPointerInst(swift::IndexRawPointerInst *i) {
   llvm::Value *index = indexValues.claimNext();
   
   // We don't expose a non-inbounds GEP operation.
-  llvm::Value *destValue = Builder.CreateInBoundsGEP(
-      base->getType()->getScalarType()->getPointerElementType(), base, index);
+  llvm::Value *destValue = Builder.CreateInBoundsGEP(IGM.Int8Ty, base, index);
 
   Explosion result;
   result.add(destValue);
