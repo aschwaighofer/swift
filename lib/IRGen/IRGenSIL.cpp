@@ -1042,8 +1042,8 @@ public:
         auto shadow = Alloca.getAddress();
         auto inst = cast<llvm::Instruction>(shadow);
         llvm::IRBuilder<> builder(inst->getNextNode());
-        shadow = builder.CreateLoad(shadow->getType()->getPointerElementType(),
-                                    shadow);
+        shadow =
+            builder.CreateLoad(Alloca.getElementType(), Alloca.getAddress());
         copy.push_back(shadow);
         return;
       }
@@ -2589,9 +2589,8 @@ void IRGenSILFunction::visitDifferentiabilityWitnessFunctionInst(
     llvm_unreachable("Not yet implemented");
   }
 
-  diffWitness = Builder.CreateStructGEP(
-      diffWitness->getType()->getScalarType()->getPointerElementType(),
-      diffWitness, offset);
+  diffWitness = Builder.CreateStructGEP(IGM.DifferentiabilityWitnessTy,
+                                        diffWitness, offset);
   diffWitness = Builder.CreateLoad(
       Address(diffWitness, IGM.Int8PtrTy, IGM.getPointerAlignment()));
 
