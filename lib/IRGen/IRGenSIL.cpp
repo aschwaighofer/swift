@@ -2605,7 +2605,7 @@ void IRGenSILFunction::visitDifferentiabilityWitnessFunctionInst(
       Builder.CreateBitCast(diffWitness, signature.getType()->getPointerTo());
 
   setLoweredFunctionPointer(
-      i, FunctionPointer::createUnsigned(fnType, diffWitness, signature));
+      i, FunctionPointer::createUnsigned(fnType, diffWitness, signature, true));
 }
 
 FunctionPointer::Kind irgen::classifyFunctionPointerKind(SILFunction *fn) {
@@ -6861,7 +6861,7 @@ void IRGenSILFunction::visitWitnessMethodInst(swift::WitnessMethodInst *i) {
     }
 
     auto sig = IGM.getSignature(fnType);
-    auto fn = FunctionPointer::forDirect(fnType, fnPtr, secondaryValue, sig);
+    auto fn = FunctionPointer::forDirect(fnType, fnPtr, secondaryValue, sig, true);
 
     setLoweredFunctionPointer(i, fn);
     return;
@@ -7094,7 +7094,7 @@ void IRGenSILFunction::visitSuperMethodInst(swift::SuperMethodInst *i) {
     auto authInfo =
       PointerAuthInfo::emit(*this, schema, /*storageAddress=*/nullptr, method);
 
-    auto fn = FunctionPointer::createSigned(methodType, fnPtr, authInfo, sig);
+    auto fn = FunctionPointer::createSigned(methodType, fnPtr, authInfo, sig, true);
 
     setLoweredFunctionPointer(i, fn);
     return;
@@ -7157,7 +7157,7 @@ void IRGenSILFunction::visitClassMethodInst(swift::ClassMethodInst *i) {
     }
 
     auto sig = IGM.getSignature(methodType);
-    auto fn = FunctionPointer::createUnsigned(methodType, fnPtr, sig);
+    auto fn = FunctionPointer::createUnsigned(methodType, fnPtr, sig, true);
 
     setLoweredFunctionPointer(i, fn);
     return;
