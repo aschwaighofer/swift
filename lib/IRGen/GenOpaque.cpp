@@ -308,8 +308,19 @@ llvm::PointerType *IRGenModule::getEnumValueWitnessTablePtrTy() {
 
 Address irgen::slotForLoadOfOpaqueWitness(IRGenFunction &IGF,
                                           llvm::Value *table,
-                                          WitnessIndex index) {
+                                          WitnessIndex index,
+                                          bool areEntriesRelative) {
   assert(table->getType() == IGF.IGM.WitnessTablePtrTy);
+
+  // Are we loading from a relative protocol witness table.
+  if (areEntriesRelative) {
+    llvm::Value *slot =
+      IGF.Builder.CreateBitOrPointerCast(table, IGF.IGM.RelativeAddressPtrTy);
+    if (index.getValue() != 0)
+      slot = IGF.Builder.CreateConstInBoundsGEP1_32(IGF.IGM.RelativeAddressTy,
+                                                    slot, index.getValue());
+    return Address(slot, IGF.IGM.RelativeAddressTy, Alignment(4));
+  }
 
   // GEP to the appropriate index, avoiding spurious IR in the trivial case.
   llvm::Value *slot = table;

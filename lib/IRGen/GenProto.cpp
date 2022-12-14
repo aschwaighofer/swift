@@ -3554,7 +3554,8 @@ void irgen::expandTrailingWitnessSignature(IRGenModule &IGM,
 }
 
 static llvm::Value *emitWTableSlotLoad(IRGenFunction &IGF, llvm::Value *wtable,
-                                       SILDeclRef member, Address slot) {
+                                       SILDeclRef member, Address slot,
+                                       bool isRelativeTable) {
   if (IGF.IGM.getOptions().WitnessMethodElimination) {
     // For LLVM IR WME, emit a @llvm.type.checked.load with the type of the
     // method.
@@ -3573,8 +3574,12 @@ static llvm::Value *emitWTableSlotLoad(IRGenFunction &IGF, llvm::Value *wtable,
     // which could mean redundant loads don't get removed.
     llvm::Value *checkedLoad = IGF.Builder.CreateIntrinsicCall(
         llvm::Intrinsic::type_checked_load, args);
+    assert(!isRelativeTable && "Not yet implemented");
     return IGF.Builder.CreateExtractValue(checkedLoad, 0);
   }
+
+  if (isRelativeTable)
+    return IGF.emitLoadOfRelativePointer(slot, false, IGF.IGM.Int8Ty);
 
   // Not doing LLVM IR WME, can just be a direct load.
   return IGF.emitInvariantLoad(slot);
@@ -3591,15 +3596,22 @@ FunctionPointer irgen::emitWitnessMethodValue(IRGenFunction &IGF,
   // Find the witness we're interested in.
   auto &fnProtoInfo = IGF.IGM.getProtocolInfo(proto, ProtocolInfoKind::Full);
   auto index = fnProtoInfo.getFunctionIndex(member);
+  auto isRelativeTable = IGF.IGM.IRGen.Opts.UseRelativeProtocolWitnessTables;
   auto slot =
-      slotForLoadOfOpaqueWitness(IGF, wtable, index.forProtocolWitnessTable());
-  llvm::Value *witnessFnPtr = emitWTableSlotLoad(IGF, wtable, member, slot);
+      slotForLoadOfOpaqueWitness(IGF, wtable, index.forProtocolWitnessTable(),
+                                 isRelativeTable);
+  llvm::Value *witnessFnPtr = emitWTableSlotLoad(IGF, wtable, member, slot,
+                                                 isRelativeTable);
 
   auto fnType = IGF.IGM.getSILTypes().getConstantFunctionType(
       IGF.IGM.getMaximalTypeExpansionContext(), member);
   Signature signature = IGF.IGM.getSignature(fnType);
   witnessFnPtr = IGF.Builder.CreateBitCast(witnessFnPtr,
                                            signature.getType()->getPointerTo());
+  if (isRelativeTable) {
+    return FunctionPointer::createUnsigned(fnType, witnessFnPtr, signature,
+                                           true);
+  }
 
   auto &schema = fnType->isAsync()
                      ? IGF.getOptions().PointerAuth.AsyncProtocolWitnesses
