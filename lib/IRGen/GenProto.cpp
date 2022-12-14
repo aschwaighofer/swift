@@ -1279,6 +1279,7 @@ public:
     const ProtocolInfo &PI;
 
     SmallVector<size_t, 4> ConditionalRequirementPrivateDataIndices;
+    bool isRelative;
 
     void addConditionalConformances() {
       for (auto reqtIndex : indices(SILConditionalConformances)) {
@@ -1290,12 +1291,13 @@ public:
 
   public:
     FragileWitnessTableBuilder(IRGenModule &IGM, ConstantArrayBuilder &table,
-                               SILWitnessTable *SILWT)
+                               SILWitnessTable *SILWT, bool isRelative)
         : WitnessTableBuilderBase(IGM, SILWT), Table(table),
           SILEntries(SILWT->getEntries()),
           SILConditionalConformances(SILWT->getConditionalConformances()),
           PI(IGM.getProtocolInfo(SILWT->getConformance()->getProtocol(),
-                                 ProtocolInfoKind::Full)) {}
+                                 ProtocolInfoKind::Full)),
+          isRelative(isRelative) {}
 
     /// The number of entries in the witness table.
     unsigned getTableSize() const { return TableSize; }
@@ -1312,7 +1314,10 @@ public:
     void addProtocolConformanceDescriptor() {
       auto descriptor =
         IGM.getAddrOfProtocolConformanceDescriptor(&Conformance);
-      Table.addBitCast(descriptor, IGM.Int8PtrTy);
+      if (isRelative)
+        Table.addRelativeAddress(descriptor);
+      else
+        Table.addBitCast(descriptor, IGM.Int8PtrTy);
     }
 
     /// A base protocol is witnessed by a pointer to the conformance
@@ -1393,11 +1398,17 @@ public:
       }
       witness = llvm::ConstantExpr::getBitCast(witness, IGM.Int8PtrTy);
 
+      if (isRelative) {
+        Table.addRelativeAddress(witness);
+        return;
+      }
+
       PointerAuthSchema schema =
           isAsyncRequirement
               ? IGM.getOptions().PointerAuth.AsyncProtocolWitnesses
               : IGM.getOptions().PointerAuth.ProtocolWitnesses;
       Table.addSignedPointer(witness, schema, requirement);
+
       return;
     }
 
@@ -2262,23 +2273,32 @@ void IRGenModule::emitSILWitnessTable(SILWitnessTable *wt) {
   llvm::Function *instantiationFunction = nullptr;
   bool isDependent = isDependentConformance(conf);
   SmallVector<llvm::Constant *, 4> resilientWitnesses;
-
-  if (!isResilientConformance(conf)) {
+  bool isResilient = isResilientConformance(conf);
+  bool useRelativeProtocolWitnessTable =
+    IRGen.Opts.UseRelativeProtocolWitnessTables;
+  if (!isResilient) {
     // Build the witness table.
     ConstantInitBuilder builder(*this);
-    auto wtableContents = builder.beginArray(Int8PtrTy);
-    FragileWitnessTableBuilder wtableBuilder(*this, wtableContents, wt);
+    auto witnessTableEntryTy = useRelativeProtocolWitnessTable ?
+      (llvm::Type*)RelativeAddressTy : (llvm::Type*)Int8PtrTy;
+    auto wtableContents = builder.beginArray(witnessTableEntryTy);
+    FragileWitnessTableBuilder wtableBuilder(*this, wtableContents, wt,
+                                             useRelativeProtocolWitnessTable);
     wtableBuilder.build();
 
     // Produce the initializer value.
     auto initializer = wtableContents.finishAndCreateFuture();
 
     global = cast<llvm::GlobalVariable>(
-      (isDependent && conf->getDeclContext()->isGenericContext())
+      (isDependent && conf->getDeclContext()->isGenericContext() &&
+       !useRelativeProtocolWitnessTable)
         ? getAddrOfWitnessTablePattern(cast<NormalProtocolConformance>(conf),
                                        initializer)
         : getAddrOfWitnessTable(conf, initializer));
-    global->setConstant(isConstantWitnessTable(wt));
+    // Eelative protocol witness tables are always constant. They don't cache
+    // results in the table.
+    global->setConstant(useRelativeProtocolWitnessTable ||
+                        isConstantWitnessTable(wt));
     global->setAlignment(
         llvm::MaybeAlign(getWitnessTableAlignment().getValue()));
 
@@ -2289,6 +2309,8 @@ void IRGenModule::emitSILWitnessTable(SILWitnessTable *wt) {
     tableSize = wtableBuilder.getTableSize();
     instantiationFunction = wtableBuilder.buildInstantiationFunction();
   } else {
+    assert(!IRGen.Opts.UseRelativeProtocolWitnessTables &&
+           "resilient relative protocol witness tables are not supported");
     // Build the witness table.
     ResilientWitnessTableBuilder wtableBuilder(*this, wt);
 
