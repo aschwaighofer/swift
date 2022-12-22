@@ -337,8 +337,12 @@ llvm::Value *irgen::emitInvariantLoadOfOpaqueWitness(IRGenFunction &IGF,
                                                      llvm::Value *table,
                                                      WitnessIndex index,
                                                      llvm::Value **slotPtr) {
-  auto slot = slotForLoadOfOpaqueWitness(IGF, table, index);
+  auto isRelativeTable = IGF.IGM.IRGen.Opts.UseRelativeProtocolWitnessTables;
+  auto slot = slotForLoadOfOpaqueWitness(IGF, table, index, isRelativeTable);
   if (slotPtr) *slotPtr = slot.getAddress();
+  if (isRelativeTable) {
+    return IGF.emitLoadOfRelativePointer(slot, false, IGF.IGM.Int8Ty);
+  }
   return IGF.emitInvariantLoad(slot);
 }
 

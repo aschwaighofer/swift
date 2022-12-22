@@ -1348,7 +1348,14 @@ public:
 
       // If we can emit the base witness table as a constant, do so.
       llvm::Constant *baseWitness = conf.tryGetConstantTable(IGM, ConcreteType);
-      if (baseWitness) {
+
+      assert((!isRelative || baseWitness) &&
+             "In relative mode there should always be a constant table");
+
+      if (baseWitness && isRelative) {
+        Table.addRelativeAddress(baseWitness);
+        return;
+      } else if (baseWitness) {
         Table.addBitCast(baseWitness, IGM.Int8PtrTy);
         return;
       }
@@ -2154,15 +2161,18 @@ IRGenModule::getConformanceInfo(const ProtocolDecl *protocol,
 
   const ConformanceInfo *info;
   // If the conformance is dependent in any way, we need to unique it.
+  // Under a relative protocol witness table implementation conformances are
+  // always direct.
   //
   // FIXME: Both implementations of ConformanceInfo are trivially-destructible,
   // so in theory we could allocate them on a BumpPtrAllocator. But there's not
   // a good one for us to use. (The ASTContext's outlives the IRGenModule in
   // batch mode.)
-  if (isDependentConformance(rootConformance) ||
+  if (!IRGen.Opts.UseRelativeProtocolWitnessTables &&
+      (isDependentConformance(rootConformance) ||
       // Foreign types need to go through the accessor to unique the witness
       // table.
-      isSynthesizedNonUnique(rootConformance)) {
+      isSynthesizedNonUnique(rootConformance))) {
     info = new AccessorConformanceInfo(conformance);
     Conformances.try_emplace(conformance, info);
   } else {
