@@ -52,6 +52,14 @@ func requireWitness3<T: WithAssoc> (_ t: T) {
     _ = T.self.AssocType
 }
 
+protocol WithAssocConformance {
+    associatedtype AssocType : FuncOnly
+}
+
+struct DStruct : WithAssocConformance {
+    typealias AssocType = AStruct
+}
+
 // Relative protocol witness table.
 
 // Simple Table.
@@ -86,6 +94,15 @@ func requireWitness3<T: WithAssoc> (_ t: T) {
 // CHECK-SAME:                      i64 ptrtoint (i32* getelementptr inbounds ([3 x i32], [3 x i32]* @"$s1A7CStructVAA9WithAssocAAWP", i32 0, i32 1) to i64)) to i32),
 // CHECK-SAME:  i32 trunc (i64 sub (i64 ptrtoint (void (%T1A7CStructV*, %swift.type*, i8**)* @"$s1A7CStructVAA9WithAssocA2aDP1ayyFTW" to i64),
 // CHECK-SAME:                      i64 ptrtoint (i32* getelementptr inbounds ([3 x i32], [3 x i32]* @"$s1A7CStructVAA9WithAssocAAWP", i32 0, i32 2) to i64)) to i32)
+// CHECK-SAME: ], align 8
+
+// CHECK: @"$s1A7DStructVAA20WithAssocConformanceAAWP" = hidden constant [3 x i32]
+// CHECK-SAME: [i32 trunc (i64 sub (i64 ptrtoint (%swift.protocol_conformance_descriptor* @"$s1A7DStructVAA20WithAssocConformanceAAMc" to i64),
+// CHECK-SAME:                      i64 ptrtoint ([3 x i32]* @"$s1A7DStructVAA20WithAssocConformanceAAWP" to i64)) to i32),
+// CHECK-SAME:  i32 trunc (i64 sub (i64 ptrtoint (i8* getelementptr (i8, i8* getelementptr inbounds (<{ i8, i8, i32, i8 }>, <{ i8, i8, i32, i8 }>* @"associated conformance 1A7DStructVAA20WithAssocConformanceAA0C4TypeAaDP_AA8FuncOnly", i32 0, i32 0), i64 1) to i64),
+// CHECK-SAME:                      i64 ptrtoint (i32* getelementptr inbounds ([3 x i32], [3 x i32]* @"$s1A7DStructVAA20WithAssocConformanceAAWP", i32 0, i32 1) to i64)) to i32),
+// CHECK-SAME:  i32 trunc (i64 sub (i64 ptrtoint (i8* getelementptr inbounds (i8, i8* getelementptr inbounds (<{ i8, i32, i8 }>, <{ i8, i32, i8 }>* @"symbolic _____ 1A7AStructV", i32 0, i32 0), i64 1) to i64),
+// CHECK-SAME:                      i64 ptrtoint (i32* getelementptr inbounds ([3 x i32], [3 x i32]* @"$s1A7DStructVAA20WithAssocConformanceAAWP", i32 0, i32 2) to i64)) to i32)
 // CHECK-SAME: ], align 8
 
 // Simple witness entry access.

@@ -1495,6 +1495,11 @@ public:
         getAssociatedConformanceWitness(requirement, associate,
                                         associatedConformance);
 
+      if (isRelative) {
+        Table.addRelativeAddress(witnessEntry);
+        return;
+      }
+
       auto &schema = IGM.getOptions().PointerAuth
                         .ProtocolAssociatedTypeWitnessTableAccessFunctions;
       Table.addSignedPointer(witnessEntry, schema, requirement);
@@ -1768,6 +1773,9 @@ llvm::Function *FragileWitnessTableBuilder::buildInstantiationFunction() {
   // is non-dependent.
   if (SpecializedBaseConformances.empty())
     return nullptr;
+
+  assert(!isRelative &&
+        "Should not have specialzied base conformances if we are relative");
 
   assert(isa<NormalProtocolConformance>(Conformance) &&
          "self-conformance requiring instantiation function?");
