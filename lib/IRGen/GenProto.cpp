@@ -1450,6 +1450,11 @@ public:
             /*inProtocolContext=*/false);
       witness = llvm::ConstantExpr::getBitCast(witness, IGM.Int8PtrTy);
 
+      if (isRelative) {
+        Table.addRelativeAddress(witness);
+        return;
+      }
+
       auto &schema = IGM.getOptions().PointerAuth
                         .ProtocolAssociatedTypeAccessFunctions;
       Table.addSignedPointer(witness, schema, requirement);

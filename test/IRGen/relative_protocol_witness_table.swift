@@ -48,6 +48,10 @@ struct CStruct : WithAssoc {
     func a() {}
 }
 
+func requireWitness3<T: WithAssoc> (_ t: T) {
+    _ = T.self.AssocType
+}
+
 // Relative protocol witness table.
 
 // Simple Table.
@@ -70,6 +74,18 @@ struct CStruct : WithAssoc {
 // CHECK-SAME:                      i64 ptrtoint (i32* getelementptr inbounds ([3 x i32], [3 x i32]* @"$s1A7BStructVAA9InheritedAAWP", i32 0, i32 1) to i64)) to i32),
 // CHECK-SAME   i32 trunc (i64 sub (i64 ptrtoint (void (%T1A7BStructV*, %swift.type*, i8**)* @"$s1A7BStructVAA9InheritedA2aDP1cyyFTW" to i64),
 // CHECK-SAME:                      i64 ptrtoint (i32* getelementptr inbounds ([3 x i32], [3 x i32]* @"$s1A7BStructVAA9InheritedAAWP", i32 0, i32 2) to i64)) to i32)
+// CHECK-SAME: ], align 8
+
+
+// Simple associated type conformance.
+
+// CHECK: @"$s1A7CStructVAA9WithAssocAAWP" = hidden constant [3 x i32]
+// CHECK-SAME: [i32 trunc (i64 sub (i64 ptrtoint (%swift.protocol_conformance_descriptor* @"$s1A7CStructVAA9WithAssocAAMc" to i64),
+// CHECK-SAME:                      i64 ptrtoint ([3 x i32]* @"$s1A7CStructVAA9WithAssocAAWP" to i64)) to i32),
+// CHECK-SAME:  i32 trunc (i64 sub (i64 ptrtoint (i8* getelementptr inbounds (<{ [2 x i8], i8 }>, <{ [2 x i8], i8 }>* @"symbolic Si", i32 0, i32 0, i64 1) to i64),
+// CHECK-SAME:                      i64 ptrtoint (i32* getelementptr inbounds ([3 x i32], [3 x i32]* @"$s1A7CStructVAA9WithAssocAAWP", i32 0, i32 1) to i64)) to i32),
+// CHECK-SAME:  i32 trunc (i64 sub (i64 ptrtoint (void (%T1A7CStructV*, %swift.type*, i8**)* @"$s1A7CStructVAA9WithAssocA2aDP1ayyFTW" to i64),
+// CHECK-SAME:                      i64 ptrtoint (i32* getelementptr inbounds ([3 x i32], [3 x i32]* @"$s1A7CStructVAA9WithAssocAAWP", i32 0, i32 2) to i64)) to i32)
 // CHECK-SAME: ], align 8
 
 // Simple witness entry access.
@@ -110,4 +126,10 @@ struct CStruct : WithAssoc {
 
 // CHECK: define{{.*}} swiftcc void @"$s1A6useIt2yyF"()
 // CHECK:   call swiftcc void @"$s1A15requireWitness2yyxAA9InheritedRzlF"(%swift.opaque* {{.*}}, %swift.type* {{.*}} @"$s1A7BStructVMf"{{.*}}, i8** {{.*}} @"$s1A7BStructVAA9InheritedAAWP"{{.*}})
+// CHECK:   ret void
+
+// Accessing an associated witness
+// TODO: we will probably end up calling a different entry point
+// CHECK: define{{.*}} swiftcc void @"$s1A15requireWitness3yyxAA9WithAssocRzlF"(
+// CHECK:   call{{.*}} swiftcc %swift.metadata_response @swift_getAssociatedTypeWitness(
 // CHECK:   ret void
