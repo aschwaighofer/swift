@@ -38,6 +38,16 @@ func useIt2() {
     requireWitness2(BStruct())
 }
 
+protocol WithAssoc {
+    associatedtype AssocType
+    func a()
+}
+
+struct CStruct : WithAssoc {
+    typealias AssocType = Int
+    func a() {}
+}
+
 // Relative protocol witness table.
 
 // Simple Table.
