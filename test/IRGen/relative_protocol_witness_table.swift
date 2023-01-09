@@ -66,6 +66,17 @@ struct DStruct : WithAssocConformance {
 func requireWitness4<T: WithAssocConformance>(_ t: T) {
     requireWitness(t.initAssoc())
 }
+
+protocol InitP {
+  init()
+}
+
+struct GStruct<T> : WithAssocConformance where T: FuncOnly, T: InitP {
+    func initAssoc() -> T {
+        return T()
+    }
+}
+
 // Relative protocol witness table.
 
 // Simple Table.
@@ -113,6 +124,17 @@ func requireWitness4<T: WithAssocConformance>(_ t: T) {
 // CHECK-SAME:                      i64 ptrtoint (i32* getelementptr inbounds ([4 x i32], [4 x i32]* @"$s1A7DStructVAA20WithAssocConformanceAAWP", i32 0, i32 3) to i64)) to i32)
 // CHECK-SAME: ], align 8
 
+// CHECK: @"$s1A7GStructVyxGAA20WithAssocConformanceAAWP" = hidden constant [4 x i32]
+// CHECK-SAME: [i32 trunc (i64 sub (i64 ptrtoint ({ i32, i32, i32, i32, i16, i16, i32, i32 }* @"$s1A7GStructVyxGAA20WithAssocConformanceAAMc" to i64),
+// CHECK-SAME:                      i64 ptrtoint ([4 x i32]* @"$s1A7GStructVyxGAA20WithAssocConformanceAAWP" to i64)) to i32),
+// CHECK-SAME:  i32 trunc (i64 sub (i64 ptrtoint (i8* getelementptr (i8, i8* getelementptr inbounds (<{ i8, i8, i32, i8 }>, <{ i8, i8, i32, i8 }>* @"associated conformance 1A7GStructVyxGAA20WithAssocConformanceAA0C4TypeAaEP_AA8FuncOnly", i32 0, i32 0), i64 1) to i64),
+// CHECK-SAME:                      i64 ptrtoint (i32* getelementptr inbounds ([4 x i32], [4 x i32]* @"$s1A7GStructVyxGAA20WithAssocConformanceAAWP", i32 0, i32 1) to i64)) to i32),
+// CHECK-SAME:  i32 trunc (i64 sub (i64 ptrtoint (i8* getelementptr inbounds (<{ [1 x i8], i8 }>, <{ [1 x i8], i8 }>* @"symbolic x", i32 0, i32 0, i64 1) to i64),
+// CHECK-SAME:                      i64 ptrtoint (i32* getelementptr inbounds ([4 x i32], [4 x i32]* @"$s1A7GStructVyxGAA20WithAssocConformanceAAWP", i32 0, i32 2) to i64)) to i32),
+// CHECK-SAME:  i32 trunc (i64 sub (i64 ptrtoint (void (%swift.opaque*, %T1A7GStructV*, %swift.type*, i8**)* @"$s1A7GStructVyxGAA20WithAssocConformanceA2aEP04initC00C4TypeQzyFTW" to i64),
+// CHECK-SAME:                      i64 ptrtoint (i32* getelementptr inbounds ([4 x i32], [4 x i32]* @"$s1A7GStructVyxGAA20WithAssocConformanceAAWP", i32 0, i32 3) to i64)) to i32)
+// CHECK-SAME: ], align 8
+
 // Simple witness entry access.
 
 // CHECK: define{{.*}} swiftcc void @"$s1A14requireWitnessyyxAA8FuncOnlyRzlF"(%swift.opaque* noalias nocapture {{%.*}}, %swift.type* {{%.*}}, i8** [[PWT:%.*]])
@@ -158,3 +180,8 @@ func requireWitness4<T: WithAssocConformance>(_ t: T) {
 // CHECK: define{{.*}} swiftcc void @"$s1A15requireWitness3yyxAA9WithAssocRzlF"(
 // CHECK:   call{{.*}} swiftcc %swift.metadata_response @swift_getAssociatedTypeWitness(
 // CHECK:   ret void
+
+// CHECK: define{{.*}} swiftcc void @"$s1A15requireWitness4yyxAA20WithAssocConformanceRzlF"(%swift.opaque* {{.*}}, %swift.type* [[TYPE:%.*]], i8** [[PWT:%.*]])
+// CHECK:  [[RES:%.*]] = call{{.*}} swiftcc %swift.metadata_response @swift_getAssociatedTypeWitness(i64 0, i8** [[PWT]], %swift.type* [[TYPE]]
+// CHECK:  [[ASSOCTYPE:%.*]] = extractvalue %swift.metadata_response [[RES]], 0
+// CHECK:  call{{.*}} swiftcc i8** @swift_getAssociatedConformanceWitness(i8** [[PWT]], %swift.type* [[TYPE]], %swift.type* [[ASSOCTYPE]]
