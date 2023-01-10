@@ -90,6 +90,50 @@ extension ConditionalStruct : WithAssocConformance where T: FuncOnly, T: InitP {
 func instantiate_conditional_conformance<T>(_ t : T) where T: FuncOnly, T: InitP {
   requireWitness4(ConditionalStruct(t))
 }
+
+protocol Base {
+}
+
+protocol Sub : Base {
+  associatedtype S : Base
+}
+
+struct X<T> {
+    init(_ t: T) {}
+}
+
+extension X: Base where T: Base { }
+extension X: Sub where T: Sub, T.S == T {
+   typealias S = X<T>
+}
+
+func requireWitness5<T: Sub> (_ t: T) {}
+
+func instantiate_conditional_conformance_2nd<T>(_ t : T)  where T: Sub, T.S == T {
+    requireWitness5(X(t))
+}
+/*
+protocol Base {
+    associatedtype BaseAssoc : FuncOnly
+    func a()
+}
+
+protocol Sub  : Base {
+    func b()
+}
+
+struct X<T>  {
+}
+
+extension X : Base where  T : FuncOnly  {
+    typealias BaseAssoc = T
+    func a() {}
+}
+
+extension X : Sub where T: FuncOnly {
+    func b() {}
+}
+*/
 // Relative protocol witness table.
 
 // Simple Table.

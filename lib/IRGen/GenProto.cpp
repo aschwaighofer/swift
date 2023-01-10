@@ -1403,8 +1403,8 @@ public:
       // If we can emit the base witness table as a constant, do so.
       llvm::Constant *baseWitness = conf.tryGetConstantTable(IGM, ConcreteType);
 
-      assert((!isRelative || baseWitness) &&
-             "In relative mode there should always be a constant table");
+      //assert((!isRelative || baseWitness) &&
+      //       "In relative mode there should always be a constant table");
 
       if (baseWitness && isRelative) {
         Table.addRelativeAddress(baseWitness);
@@ -1416,6 +1416,11 @@ public:
 
       // Otherwise, we'll need to derive it at instantiation time.
       SpecializedBaseConformances.push_back({Table.size(), &conf});
+
+      if (isRelative) {
+        Table.addInt32(0);
+        return;
+      }
       Table.addNullPointer(IGM.Int8PtrTy);
     }
 
@@ -1828,8 +1833,8 @@ llvm::Function *FragileWitnessTableBuilder::buildInstantiationFunction() {
   if (SpecializedBaseConformances.empty())
     return nullptr;
 
-  assert(!isRelative &&
-        "Should not have specialzied base conformances if we are relative");
+ // assert((!isRelative || )&&
+ //       "Should not have specialzied base conformances if we are relative");
 
   assert(isa<NormalProtocolConformance>(Conformance) &&
          "self-conformance requiring instantiation function?");
