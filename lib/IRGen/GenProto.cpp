@@ -1059,7 +1059,11 @@ static llvm::Value *emitWitnessTableAccessorCall(
   auto conditionalTables =
       emitConditionalConformancesBuffer(IGF, conformance);
 
-  auto call = IGF.Builder.CreateCall(
+  auto call = IGF.IGM.IRGen.Opts.UseRelativeProtocolWitnessTables ?
+    IGF.Builder.CreateCall(
+      IGF.IGM.getGetWitnessTableRelativeFunctionPointer(),
+      {conformanceDescriptor, *srcMetadataCache, conditionalTables}) :
+    IGF.Builder.CreateCall(
       IGF.IGM.getGetWitnessTableFunctionPointer(),
       {conformanceDescriptor, *srcMetadataCache, conditionalTables});
 
@@ -2545,7 +2549,12 @@ emitAssociatedTypeWitnessTableRef(IRGenFunction &IGF,
   auto baseDescriptor =
     IGF.IGM.getAddrOfProtocolRequirementsBaseDescriptor(sourceProtocol);
 
-  auto call = IGF.Builder.CreateCall(
+  auto call = IGF.IGM.IRGen.Opts.UseRelativeProtocolWitnessTables ?
+    IGF.Builder.CreateCall(
+      IGF.IGM.getGetAssociatedConformanceWitnessRelativeFunctionPointer(),
+      {wtable, parentMetadata, associatedTypeMetadata, baseDescriptor,
+       assocConformanceDescriptor}) :
+    IGF.Builder.CreateCall(
       IGF.IGM.getGetAssociatedConformanceWitnessFunctionPointer(),
       {wtable, parentMetadata, associatedTypeMetadata, baseDescriptor,
        assocConformanceDescriptor});
@@ -3701,9 +3710,12 @@ irgen::emitAssociatedTypeMetadataRef(IRGenFunction &IGF,
   // Extract the associated type descriptor.
   auto assocTypeDescriptor =
     IGM.getAddrOfAssociatedTypeDescriptor(associatedType.getAssociation());
-
   // Call swift_getAssociatedTypeWitness().
   auto call =
+    IGF.IGM.IRGen.Opts.UseRelativeProtocolWitnessTables ?
+      IGF.Builder.CreateCall(IGM.getGetAssociatedTypeWitnessRelativeFunctionPointer(),
+                             {request.get(IGF), wtable, parentMetadata,
+                              reqBaseDescriptor, assocTypeDescriptor}) :
       IGF.Builder.CreateCall(IGM.getGetAssociatedTypeWitnessFunctionPointer(),
                              {request.get(IGF), wtable, parentMetadata,
                               reqBaseDescriptor, assocTypeDescriptor});
