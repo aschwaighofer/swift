@@ -988,6 +988,56 @@ static bool isDependentConformance(
     conformance, [](unsigned, CanType, ProtocolDecl *) { return true; });
 }
 
+static bool hasConditionalConformances(IRGenModule &IGM,
+                                       const RootProtocolConformance *rootConformance,
+                                       llvm::SmallPtrSet<const NormalProtocolConformance *, 4> visited) {
+  // Self-conformances are never dependent.
+  auto conformance = dyn_cast<NormalProtocolConformance>(rootConformance);
+  if (!conformance)
+    return false;
+
+  // Check whether we've visited this conformance already.  If so,
+  // optimistically assume it's fine --- we want the maximal fixed point.
+  if (!visited.insert(conformance).second)
+    return false;
+
+  // Check whether any of the conformances are dependent.
+  auto proto = conformance->getProtocol();
+  for (const auto &req : proto->getRequirementSignature().getRequirements()) {
+    if (req.getKind() != RequirementKind::Conformance)
+      continue;
+
+    auto assocProtocol = req.getProtocolDecl();
+    if (assocProtocol->isObjC())
+      continue;
+
+    auto assocConformance =
+      conformance->getAssociatedConformance(req.getFirstType(), assocProtocol);
+
+    // We might be presented with a broken AST.
+    if (assocConformance.isInvalid())
+      return false;
+
+    if (assocConformance.isAbstract())
+      continue;
+
+    if (hasConditionalConformances(IGM,
+                               assocConformance.getConcrete()
+                                 ->getRootConformance(),
+                               visited))
+      return true;
+  }
+
+  // Check if there are any conditional conformances. Other forms of conditional
+  // requirements don't exist in the witness table.
+  return SILWitnessTable::enumerateWitnessTableConditionalConformances(
+    conformance, [](unsigned, CanType, ProtocolDecl *) { return true; });
+}
+static bool hasConditionalConformances(IRGenModule &IGM,
+                                       const RootProtocolConformance *conformance) {
+  llvm::SmallPtrSet<const NormalProtocolConformance *, 4> visited;
+  return hasConditionalConformances(IGM, conformance, visited);
+}
 /// Is there anything about the given conformance that requires witness
 /// tables to be dependently-generated?
 bool IRGenModule::isDependentConformance(
@@ -2190,6 +2240,10 @@ IRGenModule::getConformanceInfo(const ProtocolDecl *protocol,
       // Foreign types need to go through the accessor to unique the witness
       // table.
       isSynthesizedNonUnique(rootConformance))) {
+    info = new AccessorConformanceInfo(conformance);
+    Conformances.try_emplace(conformance, info);
+  } else if(IRGen.Opts.UseRelativeProtocolWitnessTables &&
+            hasConditionalConformances(*this, rootConformance)) {
     info = new AccessorConformanceInfo(conformance);
     Conformances.try_emplace(conformance, info);
   } else {
