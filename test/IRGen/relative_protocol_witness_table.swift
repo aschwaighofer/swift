@@ -208,7 +208,19 @@ extension X : Sub where T: FuncOnly {
 // Simple witness entry access.
 
 // CHECK: define{{.*}} swiftcc void @"$s1A14requireWitnessyyxAA8FuncOnlyRzlF"(%swift.opaque* noalias nocapture {{%.*}}, %swift.type* {{%.*}}, i8** [[PWT:%.*]])
-// CHECK:   [[CAST:%.*]] = bitcast i8** [[PWT]] to i32*
+// CHECK:[[ENTRY:.*]]:
+// CHECK:   [[T0:%.*]] = ptrtoint i8** [[PWT]] to i64
+// CHECK:   [[T1:%.*]] = and i64 [[T0]], 1
+// CHECK:   [[C:%.*]] = icmp eq i64 [[T1]], 1
+// CHECK:   br i1 [[C]], label %[[LBL1:.*]], label %[[LBL2:.*]]
+// CHECK:[[LBL1]]:
+// CHECK:   [[T2:%.*]] = and i64 [[T0]], -2
+// CHECK:   [[T3:%.*]] = inttoptr i64 [[T2]] to i8***
+// CHECK:   [[T4:%.*]] = load i8**, i8*** [[T3]], align 8
+// CHECK:   br label %[[LBL2]]
+// CHECK:[[LBL2]]:
+// CHECK:   [[T5:%.*]] = phi i8** [ [[PWT]], %[[ENTRY]] ], [ [[T4]], %[[LBL1]] ]
+// CHECK:   [[CAST:%.*]] = bitcast i8** [[T5]] to i32*
 // CHECK:   [[SLOT:%.*]] = getelementptr inbounds i32, i32* [[CAST]], i32 1
 // CHECK:   [[T0:%.*]] = load i32, i32* [[SLOT]], align 4
 // CHECK:   [[T1:%.*]] = sext i32 [[T0]] to i64
