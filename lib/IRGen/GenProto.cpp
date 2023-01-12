@@ -2594,6 +2594,37 @@ MetadataResponse MetadataPath::follow(IRGenFunction &IGF,
   return source;
 }
 
+llvm::Value *IRGenFunction::optionallyLoadFromConditionalProtocolWitnessTable(
+  llvm::Value *wtable) {
+  if (!IGM.IRGen.Opts.UseRelativeProtocolWitnessTables)
+    return wtable;
+
+  auto *ptrVal = Builder.CreatePtrToInt(wtable, IGM.IntPtrTy);
+  auto *one = llvm::ConstantInt::get(IGM.IntPtrTy, 1);
+  auto *isCond = Builder.CreateAnd(ptrVal, one);
+  auto *isCondBB = llvm::BasicBlock::Create(IGM.getLLVMContext());
+  auto *endBB = llvm::BasicBlock::Create(IGM.getLLVMContext());
+  auto *origBB = Builder.GetInsertBlock();
+  isCond = Builder.CreateICmpEQ(isCond, one);
+  Builder.CreateCondBr(isCond, isCondBB, endBB);
+
+  Builder.emitBlock(isCondBB);
+  ConditionalDominanceScope condition (*this);
+  auto *mask = Builder.CreateNot(one);
+  auto *wtableAddr = Builder.CreateAnd(ptrVal, mask);
+  wtableAddr = Builder.CreateIntToPtr(wtableAddr, IGM.WitnessTablePtrPtrTy);
+  auto *wtableDeref = Builder.CreateLoad(Address(wtableAddr,
+                                                 IGM.WitnessTablePtrTy,
+                                                 IGM.getPointerAlignment()));
+  Builder.CreateBr(endBB);
+
+  Builder.emitBlock(endBB);
+  auto *phi = Builder.CreatePHI(wtable->getType(), 2);
+  phi->addIncoming(wtable, origBB);
+  phi->addIncoming(wtableDeref, isCondBB);
+  return phi;
+}
+
 /// Call an associated-type witness table access function.  Does not do
 /// any caching or drill down to implied protocols.
 static llvm::Value *
@@ -3688,6 +3719,7 @@ FunctionPointer irgen::emitWitnessMethodValue(IRGenFunction &IGF,
   auto &fnProtoInfo = IGF.IGM.getProtocolInfo(proto, ProtocolInfoKind::Full);
   auto index = fnProtoInfo.getFunctionIndex(member);
   auto isRelativeTable = IGF.IGM.IRGen.Opts.UseRelativeProtocolWitnessTables;
+  wtable = IGF.optionallyLoadFromConditionalProtocolWitnessTable(wtable);
   auto slot =
       slotForLoadOfOpaqueWitness(IGF, wtable, index.forProtocolWitnessTable(),
                                  isRelativeTable);
