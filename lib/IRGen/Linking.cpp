@@ -569,6 +569,19 @@ SILDeclRef LinkEntity::getSILDeclRef() const {
   return SILDeclRef(const_cast<ValueDecl *>(getDecl()), getSILDeclRefKind());
 }
 
+// Async functions that end up with weak_odr or linkonce_odr linkage may not be
+// directly called because we need to preserve the connection between the
+// function's implementation and the function's context size in the async
+// function pointer data structure.
+static bool mayDirectlyCallAsync(SILFunction *fn) {
+  if (fn->getLinkage() == SILLinkage::Shared ||
+      fn->getLinkage() == SILLinkage::PublicNonABI) {
+    return false;
+  }
+
+  return true;
+}
+
 SILLinkage LinkEntity::getLinkage(ForDefinition_t forDefinition) const {
   // For when `this` is a protocol conformance of some kind.
   auto getLinkageAsConformance = [&] {
@@ -827,8 +840,13 @@ SILLinkage LinkEntity::getLinkage(ForDefinition_t forDefinition) const {
   case Kind::DynamicallyReplaceableFunctionKey:
     return getSILFunction()->getLinkage();
 
-  case Kind::SILFunction:
-    return getSILFunction()->getEffectiveSymbolLinkage();
+  case Kind::SILFunction: {
+    auto fn = getSILFunction();
+    if (fn->isAsync() && !mayDirectlyCallAsync(fn)) {
+      return SILLinkage::Private;
+    }
+    return fn->getEffectiveSymbolLinkage();
+  }
 
   case Kind::AsyncFunctionPointerAST:
   case Kind::DistributedThunkAsyncFunctionPointer:
@@ -1479,6 +1497,21 @@ bool LinkEntity::isAlwaysSharedLinkage() const {
   case Kind::NoncanonicalSpecializedGenericTypeMetadata:
   case Kind::NoncanonicalSpecializedGenericTypeMetadataCacheVariable:
     return true;
+
+  default:
+    return false;
+  }
+}
+
+bool LinkEntity::forceInternalLinkage() const {
+  switch (getKind()) {
+  case Kind::SILFunction: {
+    auto fn = getSILFunction();
+    if (fn->isAsync() && !mayDirectlyCallAsync(fn))
+      return true;
+    return false;
+  }
+  break;
 
   default:
     return false;

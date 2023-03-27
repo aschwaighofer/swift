@@ -2171,6 +2171,7 @@ void IRGenerator::emitEntryPointInfo() {
 static IRLinkage
 getIRLinkage(const UniversalLinkageInfo &info, SILLinkage linkage,
              ForDefinition_t isDefinition, bool isWeakImported,
+             bool forceInternalLinkage,
              bool isKnownLocal = false) {
 #define RESULT(LINKAGE, VISIBILITY, DLL_STORAGE)                               \
   IRLinkage{llvm::GlobalValue::LINKAGE##Linkage,                               \
@@ -2211,12 +2212,14 @@ getIRLinkage(const UniversalLinkageInfo &info, SILLinkage linkage,
   case SILLinkage::Private: {
     if (info.forcePublicDecls() && !isDefinition)
       return getIRLinkage(info, SILLinkage::PublicExternal, isDefinition,
-                          isWeakImported, isKnownLocal);
+                          isWeakImported, false, isKnownLocal);
 
-    auto linkage = info.needLinkerToMergeDuplicateSymbols()
+    auto linkage = (!forceInternalLinkage &&
+                    info.needLinkerToMergeDuplicateSymbols())
                        ? llvm::GlobalValue::LinkOnceODRLinkage
                        : llvm::GlobalValue::InternalLinkage;
-    auto visibility = info.shouldAllPrivateDeclsBeVisibleFromOtherFiles()
+    auto visibility = (!forceInternalLinkage &&
+                       info.shouldAllPrivateDeclsBeVisibleFromOtherFiles())
                           ? llvm::GlobalValue::HiddenVisibility
                           : llvm::GlobalValue::DefaultVisibility;
     return {linkage, visibility, llvm::GlobalValue::DefaultStorageClass};
@@ -2265,7 +2268,8 @@ void irgen::updateLinkageForDefinition(IRGenModule &IGM,
 
   auto IRL =
       getIRLinkage(linkInfo, entity.getLinkage(ForDefinition),
-                   ForDefinition, weakImported, isKnownLocal);
+                   ForDefinition, weakImported, entity.forceInternalLinkage(),
+                   isKnownLocal);
   ApplyIRLinkage(IRL).to(global);
 
   LinkInfo link = LinkInfo::get(IGM, entity, ForDefinition);
@@ -2300,18 +2304,8 @@ LinkInfo LinkInfo::get(const UniversalLinkageInfo &linkInfo,
 
   bool weakImported = entity.isWeakImported(swiftModule);
   result.IRL = getIRLinkage(linkInfo, entity.getLinkage(isDefinition),
-                            isDefinition, weakImported, isKnownLocal);
-  result.ForDefinition = isDefinition;
-  return result;
-}
-
-LinkInfo LinkInfo::get(const UniversalLinkageInfo &linkInfo, StringRef name,
-                       SILLinkage linkage, ForDefinition_t isDefinition,
-                       bool isWeakImported) {
-  LinkInfo result;
-  result.Name += name;
-  result.IRL = getIRLinkage(linkInfo, linkage, isDefinition, isWeakImported,
-                            linkInfo.Internalize);
+                            isDefinition, weakImported,
+                            entity.forceInternalLinkage(), isKnownLocal);
   result.ForDefinition = isDefinition;
   return result;
 }

@@ -1581,6 +1581,11 @@ public:
   llvm::Type *getDefaultDeclarationType(IRGenModule &IGM) const;
 
   bool isAlwaysSharedLinkage() const;
+
+  // For async function implementations we always  use internal linkage even in
+  // multi LLVM module mode mode.
+  bool forceInternalLinkage() const;
+
 #undef LINKENTITY_GET_FIELD
 #undef LINKENTITY_SET_FIELD
 
@@ -1655,10 +1660,6 @@ public:
                       ModuleDecl *swiftModule,
                       const LinkEntity &entity,
                       ForDefinition_t forDefinition);
-
-  static LinkInfo get(const UniversalLinkageInfo &linkInfo, StringRef name,
-                      SILLinkage linkage, ForDefinition_t isDefinition,
-                      bool isWeakImported);
 
   StringRef getName() const {
     return Name.str();
