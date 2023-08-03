@@ -45,6 +45,9 @@
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/LegacyPassNameParser.h"
 #include "llvm/IR/Module.h"
+#include "llvm/Passes/PassBuilder.h"
+#include "llvm/Passes/PassPlugin.h"
+#include "llvm/Passes/StandardInstrumentations.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/InitializePasses.h"
@@ -65,6 +68,7 @@
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
+#include "llvm/Transforms/Scalar/LoopPassManager.h"
 
 using namespace swift;
 
@@ -117,6 +121,11 @@ struct SwiftLLVMOptOptions {
       llvm::cl::value_desc("layout-string"), llvm::cl::init(""));
 };
 
+static llvm::cl::opt<std::string> PassPipeline(
+    "passes",
+    llvm::cl::desc(
+        "A textual description of the pass pipeline. To have analysis passes "
+        "available before a certain pass, add 'require<foo-analysis>'."));
 //===----------------------------------------------------------------------===//
 //                               Helper Methods
 //===----------------------------------------------------------------------===//
@@ -146,71 +155,6 @@ getTargetMachine(llvm::Triple TheTriple, StringRef CPUStr,
       llvm::Optional<llvm::Reloc::Model>(
           llvm::codegen::getExplicitRelocModel()),
       llvm::codegen::getExplicitCodeModel(), GetCodeGenOptLevel(options));
-}
-
-static void dumpOutput(llvm::Module &M, llvm::raw_ostream &os) {
-  // For now just always dump assembly.
-  llvm::legacy::PassManager EmitPasses;
-  EmitPasses.add(createPrintModulePass(os));
-  EmitPasses.run(M);
-}
-
-static inline void addPass(llvm::legacy::PassManagerBase &PM, llvm::Pass *P,
-                           const SwiftLLVMOptOptions &options) {
-  // Add the pass to the pass manager...
-  PM.add(P);
-  if (P->getPassID() == &SwiftAAWrapperPass::ID) {
-    PM.add(llvm::createExternalAAWrapperPass([](llvm::Pass &P, llvm::Function &,
-                                                llvm::AAResults &AAR) {
-      if (auto *WrapperPass = P.getAnalysisIfAvailable<SwiftAAWrapperPass>())
-        AAR.addAAResult(WrapperPass->getResult());
-    }));
-  }
-
-  // If we are verifying all of the intermediate steps, add the verifier...
-  if (options.VerifyEach)
-    PM.add(llvm::createVerifierPass());
-}
-
-static void runSpecificPasses(StringRef Binary, llvm::Module *M,
-                              llvm::TargetMachine *TM,
-                              llvm::Triple &ModuleTriple,
-                              const SwiftLLVMOptOptions &options) {
-  llvm::legacy::PassManager Passes;
-  llvm::TargetLibraryInfoImpl TLII(ModuleTriple);
-  Passes.add(new llvm::TargetLibraryInfoWrapperPass(TLII));
-
-  const llvm::DataLayout &DL = M->getDataLayout();
-  if (DL.isDefault() && !options.DefaultDataLayout.empty()) {
-    M->setDataLayout(options.DefaultDataLayout);
-  }
-
-  // Add internal analysis passes from the target machine.
-  Passes.add(createTargetTransformInfoWrapperPass(
-      TM ? TM->getTargetIRAnalysis() : llvm::TargetIRAnalysis()));
-
-  if (TM) {
-    // FIXME: We should dyn_cast this when supported.
-    auto &LTM = static_cast<llvm::LLVMTargetMachine &>(*TM);
-    llvm::Pass *TPC = LTM.createPassConfig(Passes);
-    Passes.add(TPC);
-  }
-
-  for (const llvm::PassInfo *PassInfo : options.PassList) {
-    llvm::Pass *P = nullptr;
-    if (PassInfo->getNormalCtor())
-      P = PassInfo->getNormalCtor()();
-    else
-      llvm::errs() << Binary
-                   << ": cannot create pass: " << PassInfo->getPassName()
-                   << "\n";
-    if (P) {
-      addPass(Passes, P, options);
-    }
-  }
-
-  // Do it.
-  Passes.run(*M);
 }
 
 //===----------------------------------------------------------------------===//
@@ -317,9 +261,87 @@ int swift_llvm_opt_main(ArrayRef<const char *> argv, void *MainAddr) {
     // Then perform the optimizations.
     performLLVMOptimizations(Opts, M.get(), TM.get(), &Out->os());
   } else {
-    runSpecificPasses(argv[0], M.get(), TM.get(), ModuleTriple, options);
-    // Finally dump the output.
-    dumpOutput(*M, Out->os());
+    std::string Pipeline = PassPipeline;
+    llvm::TargetLibraryInfoImpl TLII(ModuleTriple);
+    if (TM)
+      TM->setPGOOption(std::nullopt);
+    llvm::LoopAnalysisManager LAM;
+    llvm::FunctionAnalysisManager FAM;
+    llvm::CGSCCAnalysisManager CGAM;
+    llvm::ModuleAnalysisManager MAM;
+
+    llvm::Optional<llvm::PGOOptions> P;
+    llvm::PassInstrumentationCallbacks PIC;
+    llvm::PrintPassOptions PrintPassOpts;
+
+    PrintPassOpts.Verbose = false;
+    PrintPassOpts.SkipAnalyses = false;
+    auto &Mod = *M;
+    llvm::StandardInstrumentations SI(false, false, PrintPassOpts);
+    SI.registerCallbacks(PIC, &FAM);
+
+    llvm::PipelineTuningOptions PTO;
+    // LoopUnrolling defaults on to true and DisableLoopUnrolling is initialized
+    // to false above so we shouldn't necessarily need to check whether or not the
+    // option has been enabled.
+    PTO.LoopUnrolling = true;
+    llvm::PassBuilder PB(TM.get(), PTO, P, &PIC);
+
+    PB.registerPipelineParsingCallback(
+                [ModuleTriple](StringRef Name, llvm::ModulePassManager &PM,
+                   ArrayRef<llvm::PassBuilder::PipelineElement>) {
+                  if (Name == "swift-merge-functions") {
+                    if (ModuleTriple.isArm64e())
+                      PM.addPass(SwiftMergeFunctionsPass(true, 0));
+                    else
+                      PM.addPass(SwiftMergeFunctionsPass(false, 0));
+                    return true;
+                  }
+                  return false;
+                });
+    PB.registerPipelineParsingCallback(
+                [ModuleTriple](StringRef Name, llvm::FunctionPassManager &PM,
+                   ArrayRef<llvm::PassBuilder::PipelineElement>) {
+                  if (Name == "swift-llvm-arc-optimize") {
+                      PM.addPass(SwiftARCOptPass());
+                    return true;
+                  }
+                  return false;
+                });
+    PB.registerPipelineParsingCallback(
+                [ModuleTriple](StringRef Name, llvm::FunctionPassManager &PM,
+                   ArrayRef<llvm::PassBuilder::PipelineElement>) {
+                  if (Name == "swift-llvm-arc-contract") {
+                      PM.addPass(SwiftARCContractPass());
+                    return true;
+                  }
+                  return false;
+                });
+    auto AA = PB.buildDefaultAAPipeline();
+    AA.registerFunctionAnalysis<SwiftAA>();
+
+    // Register the AA manager first so that our version is the one used.
+    FAM.registerPass([&] { return std::move(AA); });
+    FAM.registerPass([&] { return SwiftAA(); });
+    // Register our TargetLibraryInfoImpl.
+    FAM.registerPass([&] { return llvm::TargetLibraryAnalysis(TLII); });
+
+    // Register all the basic analyses with the managers.
+    PB.registerModuleAnalyses(MAM);
+    PB.registerCGSCCAnalyses(CGAM);
+    PB.registerFunctionAnalyses(FAM);
+    PB.registerLoopAnalyses(LAM);
+    PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
+
+    llvm::ModulePassManager MPM;
+    if (!Pipeline.empty()) {
+      if (auto Err = PB.parsePassPipeline(MPM, Pipeline)) {
+        llvm::errs() << argv[0] << ": " << toString(std::move(Err)) << "\n";
+        return 1;
+      }
+    }
+    MPM.addPass(llvm::PrintModulePass(Out.get()->os(), "", false));
+    MPM.run(*M, MAM);
   }
 
   return 0;

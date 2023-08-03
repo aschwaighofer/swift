@@ -1,4 +1,4 @@
-; RUN: %swift-llvm-opt -mtriple i686-windows -swift-merge-functions -swiftmergefunc-threshold=4 %s | %FileCheck %s
+; RUN: %swift-llvm-opt -mtriple i686-windows -passes='swift-merge-functions' -swiftmergefunc-threshold=4 %s | %FileCheck %s
 
 @g = external global i32
 
