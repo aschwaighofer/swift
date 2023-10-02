@@ -512,6 +512,10 @@ public:
                           Node::Kind::NonUniqueExtendedExistentialTypeShapeSymbolicReference,
                           resolved.getResolvedAddress().getAddressData());
       }
+      case Demangle::SymbolicReferenceKind::ObjectiveCProtocol: {
+        return dem.createNode(Node::Kind::ObjectiveCProtocolSymbolicReference,
+                              resolved.getResolvedAddress().getAddressData());
+      }
       }
 
       return nullptr;

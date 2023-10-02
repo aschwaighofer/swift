@@ -917,7 +917,9 @@ public:
   bool shouldPrespecializeGenericMetadata();
   
   bool canMakeStaticObjectsReadOnly();
-  
+
+  bool canUseObjCSymbolicReferences();
+
   Size getAtomicBoolSize() const { return AtomicBoolSize; }
   Alignment getAtomicBoolAlignment() const { return AtomicBoolAlign; }
 
