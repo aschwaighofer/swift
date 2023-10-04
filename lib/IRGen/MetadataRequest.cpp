@@ -409,9 +409,7 @@ llvm::Constant *IRGenModule::getAddrOfStringForTypeRef(
         if (proto->isObjC()) {
           assert(canUseObjCSymbolicReferences());
           ref = ConstantReference(
-              cast<llvm::Constant>(
-                  getAddrOfObjCProtocolRef(proto, NotForDefinition)
-                      .getAddress()),
+              cast<llvm::Constant>(getObjCProtocolRefSymRefDescriptor(proto)),
               ConstantReference::Direct);
           isObjCProtocol = true;
         } else {
