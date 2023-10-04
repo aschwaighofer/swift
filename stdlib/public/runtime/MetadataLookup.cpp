@@ -1507,7 +1507,10 @@ _findOpaqueTypeDescriptor(NodePointer demangleNode,
 static Protocol *_asObjectiveCProtocol(NodePointer demangleNode) {
   if (demangleNode->getKind() ==
       Node::Kind::ObjectiveCProtocolSymbolicReference) {
-    auto *protocol = *(Protocol **)demangleNode->getIndex();
+    
+    auto protocolPtr =
+      ((RelativeDirectPointer<Protocol *, false> *)demangleNode->getIndex())->get();
+    Protocol *protocol = *protocolPtr;
     return protocol;
   }
   return nullptr;
