@@ -1002,7 +1002,8 @@ AccessStorage::AccessStorage(SILValue base, Kind kind)
   }
   value = base;
   if (auto *param = dyn_cast_or_null<ParamDecl>(getDecl())) {
-    setLetAccess(param->getDeclContext() ? param->isImmutable() : false);
+    setLetAccess(param->getDeclContext() ?
+                 param->isImmutableInFunctionBody() : false);
   } else if (auto *decl = dyn_cast_or_null<VarDecl>(getDecl())) {
     setLetAccess(decl->isLet());
   }
