@@ -479,6 +479,11 @@ BridgedPassContext::AssertConfiguration BridgedPassContext::getAssertConfigurati
   return (AssertConfiguration)mod->getOptions().AssertConfig;
 }
 
+bool BridgedPassContext::shouldExpand(BridgedType ty) const {
+  swift::SILModule &mod = *invocation->getPassManager()->getModule();
+  return swift::shouldExpand(mod, ty.unbridged());
+}
+
 static_assert((int)BridgedPassContext::SILStage::Raw == (int)swift::SILStage::Raw);
 static_assert((int)BridgedPassContext::SILStage::Canonical == (int)swift::SILStage::Canonical);
 static_assert((int)BridgedPassContext::SILStage::Lowered == (int)swift::SILStage::Lowered);
