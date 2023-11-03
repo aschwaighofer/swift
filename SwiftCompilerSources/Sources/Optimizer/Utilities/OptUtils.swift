@@ -719,3 +719,9 @@ extension CheckedCastAddrBranchInst {
     }
   }
 }
+
+extension Type {
+  func shouldExpand(_ context: some Context) -> Bool {
+    return context._bridged.shouldExpand(self.bridged)
+  }
+}
