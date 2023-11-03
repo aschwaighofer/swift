@@ -243,6 +243,8 @@ struct BridgedPassContext {
   BRIDGED_INLINE bool optimizeMemoryAccesses(BridgedFunction f) const;
   BRIDGED_INLINE bool eliminateDeadAllocations(BridgedFunction f) const;
 
+  BRIDGED_INLINE bool shouldExpand(BridgedType type) const;
+
   // IRGen
 
   SwiftInt getStaticSize(BridgedType type) const;
