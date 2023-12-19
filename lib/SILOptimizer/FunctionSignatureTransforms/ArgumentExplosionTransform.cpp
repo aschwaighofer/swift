@@ -156,7 +156,8 @@ shouldExplode(FunctionSignatureTransformDescriptor &transformDesc,
 
   // If the global type expansion heuristic does not allow the type to be
   // expanded, it will not be exploded.
-  if (!shouldExpand(module, type)) {
+  if (!shouldExpand(module, type,
+                    argument->getFunction()->getTypeExpansionContext())) {
     LLVM_DEBUG(llvm::dbgs()
                << "The argument is of a type which should not be expanded.");
     return false;

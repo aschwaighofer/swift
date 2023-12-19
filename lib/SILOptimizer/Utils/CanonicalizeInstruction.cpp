@@ -363,7 +363,8 @@ broadenSingleElementStores(StoreInst *storeInst,
 
   // Don't promote large values.
   if (!shouldExpand(storeInst->getFunction()->getModule(),
-                    storeInst->getSrc()->getType()))
+                    storeInst->getSrc()->getType(),
+                    storeInst->getFunction()->getTypeExpansionContext()))
     return nextII;
 
   ProjectionPath projections(storeInst->getDest()->getType());

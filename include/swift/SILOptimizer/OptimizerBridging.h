@@ -219,7 +219,7 @@ struct BridgedPassContext {
   BRIDGED_INLINE bool optimizeMemoryAccesses(BridgedFunction f) const;
   BRIDGED_INLINE bool eliminateDeadAllocations(BridgedFunction f) const;
 
-  BRIDGED_INLINE bool shouldExpand(BridgedType type) const;
+  BRIDGED_INLINE bool shouldExpand(BridgedType type, BridgedFunction f) const;
 
   // IRGen
 
