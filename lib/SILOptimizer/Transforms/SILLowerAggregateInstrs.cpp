@@ -57,7 +57,8 @@ static bool shouldExpandShim(SILFunction *fn, SILType type) {
               "types");
     return true;
   }
-  return !fn->hasOwnership() && shouldExpand(fn->getModule(), type);
+  return !fn->hasOwnership() && shouldExpand(fn->getModule(), type,
+                                             fn->getTypeExpansionContext());
 }
 
 //===----------------------------------------------------------------------===//
@@ -122,6 +123,12 @@ static bool expandCopyAddr(CopyAddrInst *cai) {
   if (srcType.isAddressOnly(*fn))
     return false;
 
+  // Don't value promote large types.
+  if (!EnableExpandAll &&
+      !shouldExpand(fn->getModule(), srcType.getObjectType(),
+                    fn->getTypeExpansionContext()))
+    return false;
+
   bool expand = shouldExpandShim(fn, srcType.getObjectType());
   using TypeExpansionKind = Lowering::TypeLowering::TypeExpansionKind;
   auto expansionKind = expand ? TypeExpansionKind::MostDerivedDescendents
@@ -181,6 +188,11 @@ static bool expandDestroyAddr(DestroyAddrInst *dai) {
   // If we have an address only type, do nothing.
   SILType type = addr->getType();
   if (type.isAddressOnly(*fn))
+    return false;
+
+  // Don't value promote large types.
+  if (!EnableExpandAll && !shouldExpand(fn->getModule(), type.getObjectType(),
+                                        fn->getTypeExpansionContext()))
     return false;
 
   // We only expand if ownership is not enabled and we do not have a large

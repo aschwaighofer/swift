@@ -36,7 +36,7 @@ TypeExpansionAnalysis::getTypeExpansion(SILType B, SILModule *Mod,
   }
 
   // Don't expand large types. This would defeat keeping them in memory.
-  if (!shouldExpand(*Mod, B)) {
+  if (!shouldExpand(*Mod, B, context)) {
     // Push the empty projection path.
     ProjectionPath P(B);
     ExpansionCache[key].push_back(P);

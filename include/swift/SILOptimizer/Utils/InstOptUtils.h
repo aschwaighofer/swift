@@ -404,7 +404,7 @@ bool simplifyUsers(SingleValueInstruction *inst);
 ///
 /// False if expanding a type is invalid. For example, expanding a
 /// struct-with-deinit drops the deinit.
-bool shouldExpand(SILModule &module, SILType ty);
+bool shouldExpand(SILModule &module, SILType ty, TypeExpansionContext context);
 
 /// Check if the value of value is computed by means of a simple initialization.
 /// Store the actual SILValue into \p Val and the reversed list of instructions

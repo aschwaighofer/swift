@@ -318,7 +318,8 @@ static bool runSROAOnFunction(SILFunction &Fn, bool splitSemanticTypes) {
         if (!splitSemanticTypes && isSemanticType(ctxt, AI->getElementType()))
           continue;
 
-        if (shouldExpand(Fn.getModule(), AI->getElementType()))
+        if (shouldExpand(Fn.getModule(), AI->getElementType(),
+                         Fn.getTypeExpansionContext()))
           Worklist.push_back(AI);
       }
 

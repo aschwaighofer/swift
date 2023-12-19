@@ -897,7 +897,7 @@ getReturnTypeCategory(const SILResultInfo &RI,
         ->isVoid())
     return NotLoadable;
 
-  if (!shouldExpand(getModule(), ResultTy))
+  if (!shouldExpand(getModule(), ResultTy, typeExpansion))
     return NotLoadable;
   
   return TL.isTrivial() ? LoadableAndTrivial : Loadable;

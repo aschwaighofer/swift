@@ -291,7 +291,8 @@ replaceDestroy(DestroyAddrInst *dai, SILValue newValue, SILBuilderContext &ctx,
   auto &typeLowering = f->getTypeLowering(ty);
 
   bool expand = shouldExpand(dai->getModule(),
-                             dai->getOperand()->getType().getObjectType());
+                             dai->getOperand()->getType().getObjectType(),
+                             f->getTypeExpansionContext());
   using TypeExpansionKind = Lowering::TypeLowering::TypeExpansionKind;
   auto expansionKind = expand ? TypeExpansionKind::MostDerivedDescendents
                               : TypeExpansionKind::None;

@@ -94,7 +94,7 @@ private func eliminateRedundantLoads(in function: Function, ignoreArrays: Bool, 
         if ignoreArrays && load.type.isNominal && load.type.nominal == context.swiftArrayDecl {
           continue
         }
-        if !load.type.shouldExpand(context) {
+        if !load.type.shouldExpand(in: function, context) {
            continue
         }
         tryEliminate(load: load, complexityBudget: &complexityBudget, context)
