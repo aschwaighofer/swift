@@ -597,6 +597,16 @@ public:
     return finalize();
   }
 
+  std::string mangleOutlinedEnumTagStoreFunction(CanType t,
+                                                 CanGenericSignature sig,
+                                                 unsigned enumCaseNum) {
+    beginMangling();
+    appendType(t, sig);
+    if (sig)
+      appendGenericSignature(sig);
+    appendOperatorParam("WOi", Index(enumCaseNum));
+    return finalize();
+  }
   std::string manglePartialApplyForwarder(StringRef FuncName);
   
   std::string mangleTypeForForeignMetadataUniquing(Type type) {
