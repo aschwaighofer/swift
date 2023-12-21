@@ -7246,10 +7246,58 @@ Address irgen::emitDestructiveProjectEnumAddressForLoad(IRGenFunction &IGF,
     .destructiveProjectDataForLoad(IGF, enumTy, enumAddr, theCase);
 }
 
+static void emitCallToOutlinedEnumTagStore(IRGenFunction &IGF,
+                                    Address addr, SILType T,
+                                    const TypeInfo &ti,
+                                    EnumElementDecl *theCase,
+                                    unsigned caseIdx) {
+  llvm::SmallVector<llvm::Value *, 4> args;
+  args.push_back(IGF.Builder.CreateElementBitCast(addr, ti.getStorageType())
+                            .getAddress());
+
+  auto outlinedFn = IGF.IGM.getOrCreateOutlinedEnumTagStoreFunction(T, ti,
+                                                                    theCase,
+                                                                    caseIdx);
+
+  llvm::CallInst *call = IGF.Builder.CreateCall(
+      cast<llvm::Function>(outlinedFn)->getFunctionType(), outlinedFn, args);
+  call->setCallingConv(IGF.IGM.DefaultCC);
+}
+
+llvm::Constant *IRGenModule::getOrCreateOutlinedEnumTagStoreFunction(
+                              SILType T, const TypeInfo &ti,
+                              EnumElementDecl *theCase,
+                              unsigned caseIdx) {
+  IRGenMangler mangler;
+  auto manglingBits = getTypeAndGenericSignatureForManglingOutlineFunction(T);
+  auto funcName = mangler.mangleOutlinedEnumTagStoreFunction(manglingBits.first,
+                                                             manglingBits.second,
+                                                             caseIdx);
+
+  auto ptrTy = ti.getStorageType()->getPointerTo();
+  llvm::SmallVector<llvm::Type *, 4> paramTys;
+  paramTys.push_back(ptrTy);
+
+  return getOrCreateHelperFunction(funcName, VoidTy, paramTys,
+      [&](IRGenFunction &IGF) {
+        Explosion params = IGF.collectParameters();
+        Address enumAddr = ti.getAddressForPointer(params.claimNext());
+        getEnumImplStrategy(IGF.IGM, T).storeTag(IGF, T, enumAddr, theCase);
+        IGF.Builder.CreateRetVoid();
+      },
+      true /*setIsNoInline*/);
+}
+
 void irgen::emitStoreEnumTagToAddress(IRGenFunction &IGF,
                                        SILType enumTy,
                                        Address enumAddr,
                                        EnumElementDecl *theCase) {
+  const TypeInfo &TI = IGF.getTypeInfo(enumTy);
+  unsigned caseIdx = getEnumImplStrategy(IGF.IGM, enumTy).getTagIndex(theCase);
+  if (isa<LoadableTypeInfo>(TI)) {
+    emitCallToOutlinedEnumTagStore(IGF, enumAddr, enumTy, TI, theCase, caseIdx);
+    return;
+  }
   getEnumImplStrategy(IGF.IGM, enumTy)
     .storeTag(IGF, enumTy, enumAddr, theCase);
 }
