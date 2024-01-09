@@ -3858,7 +3858,8 @@ protected:
   void visitMarkDependenceInst(MarkDependenceInst *m) {
     auto builder = assignment.getBuilder(m->getIterator());
     auto opdAddr = assignment.getAddressForValue(m->getBase());
-    auto newValue = builder.createMarkDependence(m->getLoc(), m->getValue(), opdAddr);
+    auto newValue = builder.createMarkDependence(m->getLoc(), m->getValue(),
+                                                 opdAddr, m->isNonEscaping());
     m->replaceAllUsesWith(newValue);
     assignment.markForDeletion(m);
   }
