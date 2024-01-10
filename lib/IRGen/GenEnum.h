@@ -200,7 +200,10 @@ public:
   IsTriviallyDestroyable_t isTriviallyDestroyable(ResilienceExpansion expansion) const {
     return getTypeInfo().isTriviallyDestroyable(expansion);
   }
-  
+
+  const TypeInfo &getTypeInfoForPayloadCase(EnumElementDecl *theCase) const;
+  bool isPayloadCase(EnumElementDecl *theCase) const;
+
   /// \group Query enum layout
   ///
   /// These APIs assume a fixed layout; they will not work on generic

@@ -332,6 +332,7 @@ with a differentiable function used for differentiable programming.
   global ::= generic-signature? type 'WOf' // Outlined assignWithCopy
   global ::= generic-signature? type 'WOh' // Outlined destroy
   global ::= generic-signature? type 'WOi` // Outlined store enum tag
+  global ::= generic-signature? type 'WOj` // Outlined enum destructive project
 
 Entities
 ~~~~~~~~

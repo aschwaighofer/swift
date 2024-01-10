@@ -2553,6 +2553,11 @@ ManglingError Remangler::mangleOutlinedEnumTagStore(Node *node, unsigned depth) 
   Buffer << "Wi";
   return mangleSingleChildNode(node, depth + 1);
 }
+ManglingError Remangler::mangleOutlinedEnumProjectDataForLoad(Node *node, unsigned depth) {
+  Buffer << "Wj";
+  return mangleSingleChildNode(node, depth + 1);
+}
+
 ManglingError Remangler::mangleOutlinedVariable(Node *node, unsigned depth) {
   Buffer << "Tv" << node->getIndex();
   return mangleSingleChildNode(node, depth + 1);

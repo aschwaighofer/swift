@@ -574,6 +574,7 @@ private:
     case Node::Kind::OutlinedAssignWithCopy:
     case Node::Kind::OutlinedDestroy:
     case Node::Kind::OutlinedEnumTagStore:
+    case Node::Kind::OutlinedEnumProjectDataForLoad:
     case Node::Kind::OutlinedVariable:
     case Node::Kind::OutlinedReadOnlyObject:
     case Node::Kind::AssocTypePath:
@@ -1392,6 +1393,10 @@ NodePointer NodePrinter::print(NodePointer Node, unsigned depth,
     return nullptr;
   case Node::Kind::OutlinedDestroy:
     Printer << "outlined destroy of ";
+    print(Node->getChild(0), depth + 1);
+    return nullptr;
+  case Node::Kind::OutlinedEnumProjectDataForLoad:
+    Printer << "outlined enum project data for load of ";
     print(Node->getChild(0), depth + 1);
     return nullptr;
   case Node::Kind::OutlinedEnumTagStore:
