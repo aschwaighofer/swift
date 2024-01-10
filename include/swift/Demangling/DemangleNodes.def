@@ -373,6 +373,7 @@ NODE(OpaqueReturnTypeParent)
 
 // Addedn in Swift 5.11
 NODE(OutlinedEnumTagStore)
+NODE(OutlinedEnumProjectDataForLoad)
 // Added in Swift 5.9 + 1
 NODE(AsyncRemoved)
 

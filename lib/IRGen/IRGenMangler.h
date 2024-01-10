@@ -607,6 +607,18 @@ public:
     appendOperatorParam("WOi", Index(enumCaseNum));
     return finalize();
   }
+
+  std::string mangleOutlinedEnumProjectDataForLoadFunction(CanType t,
+                                                 CanGenericSignature sig,
+                                                 unsigned enumCaseNum) {
+    beginMangling();
+    appendType(t, sig);
+    if (sig)
+      appendGenericSignature(sig);
+    appendOperatorParam("WOj", Index(enumCaseNum));
+    return finalize();
+  }
+
   std::string manglePartialApplyForwarder(StringRef FuncName);
   
   std::string mangleTypeForForeignMetadataUniquing(Type type) {

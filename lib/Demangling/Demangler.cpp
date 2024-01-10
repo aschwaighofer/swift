@@ -3481,6 +3481,16 @@ NodePointer Demangler::demangleWitness() {
         return createWithChildren(Node::Kind::OutlinedEnumTagStore,
                                   popNode(Node::Kind::Type), enumCaseIdx);
       }
+      case 'j': {
+        auto enumCaseIdx = demangleIndexAsNode();
+        if (auto sig = popNode(Node::Kind::DependentGenericSignature))
+          return createWithChildren(Node::Kind::OutlinedEnumProjectDataForLoad,
+                                    popNode(Node::Kind::Type), sig,
+                                    enumCaseIdx);
+        return createWithChildren(Node::Kind::OutlinedEnumProjectDataForLoad,
+                                  popNode(Node::Kind::Type), enumCaseIdx);
+      }
+
       default:
         return nullptr;
       }

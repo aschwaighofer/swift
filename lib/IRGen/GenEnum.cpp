@@ -197,6 +197,21 @@ loadRefcountedPtr(IRGenFunction &IGF, SourceLoc loc, Address addr) const {
   llvm::report_fatal_error("loadRefcountedPtr: Invalid SIL in IRGen");
 }
 
+const TypeInfo &EnumImplStrategy::getTypeInfoForPayloadCase(EnumElementDecl *theCase) const {
+  auto payloadI = std::find_if(ElementsWithPayload.begin(),
+                               ElementsWithPayload.end(),
+   [&](const Element &e) { return e.decl == theCase; });
+  assert (payloadI != ElementsWithPayload.end());
+  return *(payloadI->ti);
+}
+
+bool EnumImplStrategy::isPayloadCase(EnumElementDecl *theCase) const {
+  auto payloadI = std::find_if(ElementsWithPayload.begin(),
+                               ElementsWithPayload.end(),
+   [&](const Element &e) { return e.decl == theCase; });
+  return (payloadI != ElementsWithPayload.end());
+}
+
 Address
 EnumImplStrategy::projectDataForStore(IRGenFunction &IGF,
                                       EnumElementDecl *elt,
@@ -7238,10 +7253,68 @@ Address irgen::emitProjectEnumAddressForStore(IRGenFunction &IGF,
     .projectDataForStore(IGF, theCase, enumAddr);
 }
 
+static llvm::CallInst *emitCallToOutlinedDestructiveProjectDataForLoad(
+  IRGenFunction &IGF, Address addr, SILType T, const TypeInfo &ti,
+  EnumElementDecl *theCase, unsigned caseIdx) {
+
+  llvm::SmallVector<llvm::Value *, 4> args;
+  args.push_back(IGF.Builder.CreateElementBitCast(addr, ti.getStorageType())
+                            .getAddress());
+
+  auto outlinedFn =
+    IGF.IGM.getOrCreateOutlinedDestructiveProjectDataForLoad(T, ti, theCase,
+                                                             caseIdx);
+
+  llvm::CallInst *call = IGF.Builder.CreateCall(
+      cast<llvm::Function>(outlinedFn)->getFunctionType(), outlinedFn, args);
+  call->setCallingConv(IGF.IGM.DefaultCC);
+  return call;
+}
+
+llvm::Constant *IRGenModule::getOrCreateOutlinedDestructiveProjectDataForLoad(
+                              SILType T, const TypeInfo &ti,
+                              EnumElementDecl *theCase,
+                              unsigned caseIdx) {
+  IRGenMangler mangler;
+  auto manglingBits = getTypeAndGenericSignatureForManglingOutlineFunction(T);
+  auto funcName =
+    mangler.mangleOutlinedEnumProjectDataForLoadFunction(manglingBits.first,
+                                                         manglingBits.second,
+                                                         caseIdx);
+
+  auto ptrTy = ti.getStorageType()->getPointerTo();
+  llvm::SmallVector<llvm::Type *, 4> paramTys;
+  paramTys.push_back(ptrTy);
+
+  return getOrCreateHelperFunction(funcName, PtrTy, paramTys,
+      [&](IRGenFunction &IGF) {
+        Explosion params = IGF.collectParameters();
+        Address enumAddr = ti.getAddressForPointer(params.claimNext());
+        Address res = getEnumImplStrategy(IGF.IGM, T)
+           .destructiveProjectDataForLoad(IGF, T, enumAddr, theCase);
+        IGF.Builder.CreateRet(res.getAddress());
+      },
+      true /*setIsNoInline*/);
+}
 Address irgen::emitDestructiveProjectEnumAddressForLoad(IRGenFunction &IGF,
                                                    SILType enumTy,
                                                    Address enumAddr,
                                                    EnumElementDecl *theCase) {
+  const TypeInfo &TI = IGF.getTypeInfo(enumTy);
+  if (isa<LoadableTypeInfo>(TI)) {
+    auto &strategy = getEnumImplStrategy(IGF.IGM, enumTy);
+    if (strategy.getElementsWithPayload().size() > 1 &&
+        strategy.isPayloadCase(theCase)) {
+      unsigned caseIdx = strategy.getTagIndex(theCase);
+      auto res =
+        emitCallToOutlinedDestructiveProjectDataForLoad(IGF, enumAddr,
+                                                        enumTy, TI,
+                                                        theCase, caseIdx);
+      auto &payloadTI = strategy.getTypeInfoForPayloadCase(theCase);
+      return payloadTI.getAddressForPointer(res);
+    }
+  }
+
   return getEnumImplStrategy(IGF.IGM, enumTy)
     .destructiveProjectDataForLoad(IGF, enumTy, enumAddr, theCase);
 }
