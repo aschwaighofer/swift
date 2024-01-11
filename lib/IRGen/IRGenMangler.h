@@ -619,6 +619,16 @@ public:
     return finalize();
   }
 
+  std::string mangleOutlinedEnumGetTag(CanType t, CanGenericSignature sig) {
+    beginMangling();
+    appendType(t, sig);
+    if (sig)
+      appendGenericSignature(sig);
+    appendOperator("WOg");
+    return finalize();
+
+  }
+
   std::string manglePartialApplyForwarder(StringRef FuncName);
   
   std::string mangleTypeForForeignMetadataUniquing(Type type) {
