@@ -266,6 +266,8 @@ public:
   virtual llvm::Value *emitFixedGetEnumTag(IRGenFunction &IGF,
                                            SILType T,
                                            Address enumAddr) const;
+  llvm::Value *emitOutlinedGetEnumTag(IRGenFunction &IGF, SILType T,
+                                           Address enumAddr) const;
 
   /// Project the address of the data for a case. Does not check or modify
   /// the referenced enum value.
@@ -309,20 +311,24 @@ public:
 
   /// Return an i1 value that indicates whether the specified indirect enum
   /// value holds the specified case.  This is a light-weight form of a switch.
+  /// If `noLoad` is true don't load the enum's value from the address.
   virtual llvm::Value *emitIndirectCaseTest(IRGenFunction &IGF,
                                             SILType T,
                                             Address enumAddr,
-                                            EnumElementDecl *Case) const = 0;
+                                            EnumElementDecl *Case,
+                                            bool noLoad) const = 0;
   
   /// Emit a branch on the case contained by an enum explosion.
   /// Performs the branching for a SIL 'switch_enum_addr'
   /// instruction.
+  /// If `noLoad` is true don't load the enum's value from the address.
   virtual void emitIndirectSwitch(IRGenFunction &IGF,
                                   SILType T,
                                   Address enumAddr,
                                   ArrayRef<std::pair<EnumElementDecl*,
                                                      llvm::BasicBlock*>> dests,
-                                  llvm::BasicBlock *defaultDest) const = 0;
+                                  llvm::BasicBlock *defaultDest,
+                                  bool noLoad) const = 0;
 
   /// Emit code to extract the discriminator as an integer value.
   /// Returns null if this is not supported by the enum implementation.
