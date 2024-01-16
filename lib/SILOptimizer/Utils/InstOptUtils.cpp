@@ -1136,7 +1136,8 @@ bool swift::simplifyUsers(SingleValueInstruction *inst) {
 // False if expanding a type is invalid. For example, expanding a
 // struct-with-deinit drops the deinit.
 bool swift::shouldExpand(SILModule &module, SILType ty,
-                         TypeExpansionContext expansion) {
+                         TypeExpansionContext ) {
+  auto expansion = TypeExpansionContext::minimal();
   if (module.Types.getTypeLowering(ty, expansion).isAddressOnly()) {
     return false;
   }

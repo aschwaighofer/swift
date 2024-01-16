@@ -3454,6 +3454,8 @@ public:
     if (!TI.isBitwiseTakable(ResilienceExpansion::Maximal))
       return false;
 #endif
+    return ::isLargeLoadableType(genEnv, ty, *irgenModule,
+                               /*includeTuples*/true);
 
     if (!::isLargeLoadableType(genEnv, ty, *irgenModule,
                                /*includeTuples*/true))
