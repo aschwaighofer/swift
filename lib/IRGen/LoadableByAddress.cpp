@@ -3439,6 +3439,26 @@ public:
       return false;
     }
 
+    auto canType = ty.getASTType();
+    if (canType->hasTypeParameter()) {
+      assert(genEnv && "Expected a GenericEnv");
+      canType = genEnv->mapTypeIntoContext(canType)->getCanonicalType();
+    }
+
+    if (canType.getAnyGeneric() ||  isa<TupleType>(canType)) {
+      assert(ty.isObject() &&
+             "Expected only two categories: address and object");
+      assert(!canType->hasTypeParameter());
+      const TypeInfo &TI = irgenModule->getTypeInfoForLowered(canType);
+      auto &nativeSchemaOrigParam = TI.nativeParameterValueSchema(*irgenModule);
+      return nativeSchemaOrigParam.size() > 10;
+    }
+    return false;
+#if 0
+    if (ty.isAddress() || ty.isClassOrClassMetatype()) {
+      return false;
+    }
+
 #if 1
     auto canType = ty.getASTType();
     if (canType->hasTypeParameter()) {
@@ -3463,6 +3483,7 @@ public:
 
     return !::shouldExpand(irgenModule->getSILModule(), ty,
                            currFn.getTypeExpansionContext());
+#endif
   }
 
   bool contains(SILValue v) {
