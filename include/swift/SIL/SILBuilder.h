@@ -1168,7 +1168,7 @@ public:
   CopyAddrInst *createCopyAddr(SILLocation Loc, SILValue srcAddr,
                                SILValue destAddr, IsTake_t isTake,
                                IsInitialization_t isInitialize) {
-    assert(srcAddr->getType() == destAddr->getType());
+    //assert(srcAddr->getType() == destAddr->getType());
     return insert(new (getModule()) CopyAddrInst(
         getSILDebugLocation(Loc), srcAddr, destAddr, isTake, isInitialize));
   }

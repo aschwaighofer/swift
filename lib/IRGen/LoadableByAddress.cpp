@@ -3451,7 +3451,7 @@ public:
       assert(!canType->hasTypeParameter());
       const TypeInfo &TI = irgenModule->getTypeInfoForLowered(canType);
       auto &nativeSchemaOrigParam = TI.nativeParameterValueSchema(*irgenModule);
-      return nativeSchemaOrigParam.size() > 10;
+      return nativeSchemaOrigParam.size() > 15;
     }
     return false;
 #if 0
