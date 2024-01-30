@@ -3568,6 +3568,23 @@ protected:
     singleValueInstructionFallback(kp);
   }
 
+  void visitBeginApplyInst(BeginApplyInst *apply) {
+    auto builder = assignment.getBuilder(++apply->getIterator());
+    auto addr = assignment.createAllocStack(origValue->getType());
+    assignment.mapValueToAddress(origValue, addr);
+    for (auto &opd : apply->getAllOperands()) {
+      if (assignment.contains(opd.get())) {
+        auto builder = assignment.getBuilder(apply->getIterator());
+        auto loaded = builder.createLoad(
+            apply->getLoc(), assignment.getAddressForValue(opd.get()),
+            LoadOwnershipQualifier::Unqualified);
+        opd.set(loaded);
+      }
+    }
+    builder.createStore(apply->getLoc(), origValue, addr,
+                        StoreOwnershipQualifier::Unqualified);
+  }
+
   void visitApplyInst(ApplyInst *apply) {
     // The loadable by address transformation ignores large tuple return types.
     auto builder = assignment.getBuilder(++apply->getIterator());
@@ -3731,7 +3748,7 @@ protected:
       build.createStore(bi->getLoc(), origValue, newAddr,
                         StoreOwnershipQualifier::Unqualified);
     } else {
-      llvm::report_fatal_error("Unimplemented builtin");
+      singleValueInstructionFallback(bi);
     }
   }
 
@@ -3810,6 +3827,10 @@ protected:
 
   void visitKeyPathInst(KeyPathInst *kp) {
     userInstructionFallback(kp);
+  }
+
+  void visitCheckedCastBranchInst(CheckedCastBranchInst *c) {
+    userInstructionFallback(c);
   }
 
   void visitFixLifetimeInst(FixLifetimeInst *f) {
@@ -4279,7 +4300,8 @@ static void runPeepholesAndReg2Mem(SILPassManager *pm, SILModule *silMod,
           // Large try apply results have to be stored to their stack location
           // in the success block.
           if (auto *pred = bb.getSinglePredecessorBlock()) {
-            if (auto *term = dyn_cast<TryApplyInst>(pred->getTerminator())) {
+            if (isa<TryApplyInst>(pred->getTerminator()) ||
+                isa<CheckedCastBranchInst>(pred->getTerminator())) {
               assert(bb.getArguments().size() == 1);
               shouldDeleteBlockArgument = false;
               // We will emit the store to initialize after parsing all other
