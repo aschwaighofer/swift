@@ -3386,6 +3386,215 @@ bool Peepholes::optimizeLoad(SILBasicBlock &BB, SILInstruction *I) {
 }
 
 namespace {
+struct Properties {
+private:
+  bool sawConstructor = false;
+  bool sawProjection = false;
+  bool sawFunctionUseOrReturn = false;
+  bool sawLoad = false;
+  bool sawStore = false;
+
+  uint16_t use = 0;
+  uint16_t numRegisters = 0;
+
+public:
+  void addConstructor() {
+    sawConstructor = true;
+  }
+  bool hasConstructorUse() const {
+    return sawConstructor;
+  }
+
+  void addProjection() {
+    sawProjection = true;
+  }
+  bool hasProjection() const {
+    return sawProjection;
+  }
+
+  void addFunctionUseOrReturn() {
+    sawFunctionUseOrReturn = true;
+  }
+  bool hasFunctionUseOrReturn() const {
+    return sawFunctionUseOrReturn;
+  }
+
+  void addLoad() {
+    sawLoad = true;
+  }
+  bool hasLoad() const {
+    return sawLoad;
+  }
+
+  void addStore() {
+    sawStore = true;
+  }
+  bool hasStore() const {
+    return sawStore;
+  }
+
+  void addUse() {
+    if (use == 65535)
+      return;
+    ++use;
+  }
+  uint16_t numUses() const {
+    return use;
+  }
+
+  void setNumRegisters(unsigned regs) {
+    if (regs > 65535) {
+      regs = 65535;
+      return;
+    }
+    numRegisters = regs;
+  }
+  uint16_t getNumRegisters() const {
+    return numRegisters;
+  }
+};
+}
+
+namespace {
+class LargeLoadableHeuristic {
+  GenericEnvironment *genEnv;
+  IRGenModule *irgenModule;
+
+  llvm::DenseMap<SILType, Properties> largeTypeProperties;
+
+  static const unsigned NumRegistersVeryLargeType = 16;
+  static const unsigned NumRegistersLargeType = 8;
+  static const unsigned numUsesThreshold = 8;
+
+public:
+   LargeLoadableHeuristic(IRGenModule *irgenModule, GenericEnvironment *genEnv)
+      : genEnv(genEnv), irgenModule(irgenModule) {}
+
+   void visit(SILInstruction *i);
+
+   bool isLargeLoadableType(SILType ty);
+
+private:
+  unsigned numRegisters(SILType ty) {
+    if (ty.isAddress() || ty.isClassOrClassMetatype()) {
+      return 0;
+    }
+
+    auto canType = ty.getASTType();
+    if (canType->hasTypeParameter()) {
+      assert(genEnv && "Expected a GenericEnv");
+      canType = genEnv->mapTypeIntoContext(canType)->getCanonicalType();
+    }
+
+    if (canType.getAnyGeneric() || isa<TupleType>(canType)) {
+      assert(ty.isObject() &&
+             "Expected only two categories: address and object");
+      assert(!canType->hasTypeParameter());
+      const TypeInfo &TI = irgenModule->getTypeInfoForLowered(canType);
+      auto &nativeSchemaOrigParam = TI.nativeParameterValueSchema(*irgenModule);
+      return nativeSchemaOrigParam.size();
+    }
+    return 0;
+  }
+};
+}
+
+void LargeLoadableHeuristic::visit(SILInstruction *i) {
+  for (const auto &opd : i->getAllOperands()) {
+    auto opdTy = opd.get()->getType();
+    auto objType = opdTy.getObjectType();
+    auto registerCount = numRegisters(objType);
+    if (registerCount < NumRegistersLargeType)
+      continue;
+
+    auto &entry = largeTypeProperties[objType];
+    entry.setNumRegisters(registerCount);
+
+    switch (i->getKind()) {
+    case SILInstructionKind::TupleExtractInst:
+    case SILInstructionKind::StructExtractInst: {
+      auto projectionTy = cast<SingleValueInstruction>(i)->getType();
+      if (numRegisters(projectionTy) >= NumRegistersLargeType)
+        entry.addProjection();
+      break;
+    }
+    case SILInstructionKind::EnumInst:
+    case SILInstructionKind::TupleInst:
+    case SILInstructionKind::StructInst: {
+      entry.addConstructor();
+      auto userType = cast<SingleValueInstruction>(i)->getType();
+      auto &userEntry = largeTypeProperties[userType];
+      userEntry.addConstructor();
+      break;
+    }
+    case SILInstructionKind::SwitchEnumInst: {
+      for (auto &succ : i->getParent()->getSuccessors()) {
+        auto *caseBB = succ.getBB();
+        if (caseBB->getArguments().size() == 0)
+          continue;
+        assert(caseBB->getArguments().size() == 1);
+        auto caseTy = caseBB->getArgument(0)->getType();
+        if (numRegisters(caseTy) >= NumRegistersLargeType)
+          entry.addProjection();
+      }
+      break;
+    }
+    case SILInstructionKind::SelectEnumInst:
+      break;
+    case SILInstructionKind::LoadInst:
+      entry.addLoad();
+      break;
+    case SILInstructionKind::StoreInst:
+      entry.addStore();
+      break;
+    case SILInstructionKind::ReturnInst:
+    case SILInstructionKind::ApplyInst:
+    case SILInstructionKind::PartialApplyInst:
+    case SILInstructionKind::TryApplyInst:
+    case SILInstructionKind::BeginApplyInst:
+      entry.addFunctionUseOrReturn();
+      break;
+    default:
+      entry.addUse();
+      break;
+    }
+  }
+}
+
+bool LargeLoadableHeuristic::isLargeLoadableType(SILType ty) {
+  auto regs = numRegisters(ty);
+  if (regs < NumRegistersLargeType)
+    return false;
+
+  auto it = largeTypeProperties.find(ty);
+  if (it == largeTypeProperties.end()) {
+    return regs >= NumRegistersVeryLargeType;
+  }
+  const auto entry = it->second;
+
+  if (regs >= NumRegistersVeryLargeType)
+    return true;
+
+  if (entry.numUses() > numUsesThreshold)
+   return true;
+
+  if (entry.hasStore())
+    return true;
+
+  if (entry.hasConstructorUse())
+    return true;
+
+  if (entry.hasProjection())
+    return true;
+
+  if (entry.hasLoad()) {
+    return entry.hasConstructorUse() || entry.hasFunctionUseOrReturn();
+  }
+
+  return false;
+}
+
+namespace {
 class AddressAssignment {
   // Map from a loaded SIL SSA value to and address value.
   llvm::DenseMap<SILValue, SILValue> valueToAddressMap;
@@ -3393,14 +3602,14 @@ class AddressAssignment {
   SmallVector<SILInstruction *, 16> toDelete;
   SmallVector<std::pair<SILBasicBlock *, unsigned>, 16> toDeleteBlockArg;
 
-  GenericEnvironment *genEnv;
+  LargeLoadableHeuristic &heuristic;
   IRGenModule *irgenModule;
   SILFunction &currFn;
 
 public:
-  AddressAssignment(IRGenModule *irgenModule, GenericEnvironment *genEnv,
+  AddressAssignment(LargeLoadableHeuristic &heuristic, IRGenModule *irgenModule,
                     SILFunction &currFn)
-      : genEnv(genEnv), irgenModule(irgenModule), currFn(currFn) {}
+      : heuristic(heuristic), irgenModule(irgenModule), currFn(currFn) {}
 
   void assign(SILInstruction *inst);
 
@@ -3457,29 +3666,7 @@ public:
   }
 
   bool isLargeLoadableType(SILType ty) {
-    if (ty.isAddress() || ty.isClassOrClassMetatype()) {
-      return false;
-    }
-
-    auto canType = ty.getASTType();
-    if (canType->hasTypeParameter()) {
-      assert(genEnv && "Expected a GenericEnv");
-      canType = genEnv->mapTypeIntoContext(canType)->getCanonicalType();
-    }
-
-    if (canType.getAnyGeneric() || isa<TupleType>(canType)) {
-      assert(ty.isObject() &&
-             "Expected only two categories: address and object");
-      assert(!canType->hasTypeParameter());
-      const TypeInfo &TI = irgenModule->getTypeInfoForLowered(canType);
-      auto &nativeSchemaOrigParam = TI.nativeParameterValueSchema(*irgenModule);
-      if (nativeSchemaOrigParam.size() > 15)
-        return true;
-      auto explosionSchema = TI.getSchema();
-      if (explosionSchema.size() > 15)
-        return true;
-    }
-    return false;
+    return heuristic.isLargeLoadableType(ty);
   }
 
   bool contains(SILValue v) {
@@ -4290,9 +4477,11 @@ static void runPeepholesAndReg2Mem(SILPassManager *pm, SILModule *silMod,
     removeUnreachableBlocks(currF);
 
     // copy_addr peepholes
+    LargeLoadableHeuristic heuristic(irgenModule, genEnv);
     Peepholes opts(pm, silMod, irgenModule);
     for (SILBasicBlock &BB : currF) {
       for (SILInstruction &I : BB) {
+        heuristic.visit(&I);
         if (opts.ignore(&I))
           continue;
 
@@ -4303,7 +4492,7 @@ static void runPeepholesAndReg2Mem(SILPassManager *pm, SILModule *silMod,
     // Delete replaced instructions.
     opts.deleteInstructions();
 
-    AddressAssignment assignment(irgenModule, genEnv, currF);
+    AddressAssignment assignment(heuristic, irgenModule, currF);
 
     // Assign addresses to basic block arguments.
 
