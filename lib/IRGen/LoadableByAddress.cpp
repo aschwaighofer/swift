@@ -17,6 +17,7 @@
 //===----------------------------------------------------------------------===//
 
 #define DEBUG_TYPE "loadable-address"
+#include "Explosion.h"
 #include "FixedTypeInfo.h"
 #include "IRGenMangler.h"
 #include "IRGenModule.h"
@@ -3488,10 +3489,23 @@ private:
       assert(ty.isObject() &&
              "Expected only two categories: address and object");
       assert(!canType->hasTypeParameter());
+
+      auto &entry = largeTypeProperties[ty];
+      auto cached = entry.getNumRegisters();
+      if (cached)
+        return cached;
+
       const TypeInfo &TI = irgenModule->getTypeInfoForLowered(canType);
       auto &nativeSchemaOrigParam = TI.nativeParameterValueSchema(*irgenModule);
-      return nativeSchemaOrigParam.size();
+      // Passed compactly in registers but kept in many explosions.
+      // An example of this is a C struct with a char buffer e.g
+      // `struct {char buf[28]; }`.
+      auto explosionSchema = TI.getSchema();
+      auto res = std::max(nativeSchemaOrigParam.size(), explosionSchema.size());
+      entry.setNumRegisters(res);
+      return entry.getNumRegisters();
     }
+
     return 0;
   }
 };
@@ -3506,7 +3520,6 @@ void LargeLoadableHeuristic::visit(SILInstruction *i) {
       continue;
 
     auto &entry = largeTypeProperties[objType];
-    entry.setNumRegisters(registerCount);
 
     switch (i->getKind()) {
     case SILInstructionKind::TupleExtractInst:
@@ -3561,6 +3574,7 @@ void LargeLoadableHeuristic::visit(SILInstruction *i) {
 
 bool LargeLoadableHeuristic::isLargeLoadableType(SILType ty) {
   auto regs = numRegisters(ty);
+
   if (regs < NumRegistersLargeType)
     return false;
 
