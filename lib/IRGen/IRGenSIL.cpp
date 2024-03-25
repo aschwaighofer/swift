@@ -53,6 +53,7 @@
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/SmallBitVector.h"
 #include "llvm/ADT/TinyPtrVector.h"
+#include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DIBuilder.h"
@@ -5297,13 +5298,56 @@ void IRGenSILFunction::visitLoadInst(swift::LoadInst *i) {
   }
   setLoweredExplosion(i, lowered);
 }
+static Address isSafeForMemCpyPeephole(const TypeInfo &TI, SILArgument *arg,
+                                       Explosion &argSrc, AllocStackInst *dst,
+                                       StoreInst *store) {
+  if (!arg || !dst)
+    return Address();
+
+  // Store of function argument.
+  if (store->getParent() != store->getFunction()->getEntryBlock())
+    return Address();
+
+  if (argSrc.size() < 1)
+    return Address();
+
+  auto *load = dyn_cast<llvm::LoadInst>(*argSrc.begin());
+  if (!load)
+    return Address();
+
+  auto *gep = dyn_cast<llvm::GetElementPtrInst>(load->getPointerOperand());
+  if (!gep)
+    return Address();
+
+  auto *alloca = dyn_cast<llvm::AllocaInst>(getUnderlyingObject(gep));
+  if (!alloca)
+    return Address();
+
+  return TI.getAddressForPointer(alloca);
+}
 
 void IRGenSILFunction::visitStoreInst(swift::StoreInst *i) {
   Explosion source = getLoweredExplosion(i->getSrc());
   Address dest = getLoweredAddress(i->getDest());
   SILType objType = i->getSrc()->getType().getObjectType();
-
   const auto &typeInfo = cast<LoadableTypeInfo>(getTypeInfo(objType));
+
+  auto argSrc = dyn_cast<SILArgument>(i->getSrc());
+  auto stackDst = dyn_cast<AllocStackInst>(i->getDest());
+  const auto &addrTI = getTypeInfo(i->getDest()->getType());
+
+  // See if we can forward a load from an alloca we have created for the purpose
+  // of coercion.
+  auto srcAddr = isSafeForMemCpyPeephole(addrTI, argSrc, source, stackDst, i);
+  if (srcAddr.isValid() &&
+      (i->getOwnershipQualifier() == StoreOwnershipQualifier::Trivial ||
+       i->getOwnershipQualifier() == StoreOwnershipQualifier::Unqualified)) {
+    addrTI.initializeWithTake(*this, dest, srcAddr, i->getDest()->getType(),
+                              false);
+    (void)source.claimAll();
+    return;
+  }
+
   switch (i->getOwnershipQualifier()) {
   case StoreOwnershipQualifier::Unqualified:
   case StoreOwnershipQualifier::Init:
