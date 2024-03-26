@@ -4011,8 +4011,16 @@ protected:
       auto addr = assignment.createAllocStack(bc->getType());
       auto opdAddr = builder.createUncheckedAddrCast(
           bc->getLoc(), addr, bc->getOperand()->getType().getAddressType());
-      builder.createStore(bc->getLoc(), bc->getOperand(), opdAddr,
-                          StoreOwnershipQualifier::Unqualified);
+      // Try load -> store forwarding.
+      auto peephole = dyn_cast<LoadInst>(bc->getOperand());
+      if (peephole && peephole->getParent() == bc->getParent() &&
+          (++peephole->getIterator()) == bc->getIterator()) {
+        builder.createCopyAddr(bc->getLoc(), peephole->getOperand(), opdAddr,
+                               IsTake, IsInitialization);
+      } else {
+        builder.createStore(bc->getLoc(), bc->getOperand(), opdAddr,
+                            StoreOwnershipQualifier::Unqualified);
+      }
       assignment.mapValueToAddress(origValue, addr);
       assignment.markForDeletion(bc);
       return;
