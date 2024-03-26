@@ -3512,6 +3512,24 @@ private:
 }
 
 void LargeLoadableHeuristic::visit(SILInstruction *i) {
+
+  // Heuristic to make sure that UncheckedBitCast on C unions don't cause
+  // trouble (the type of a union has a single llvm register representing the
+  // bitwidth).
+  if (auto *bitcast = dyn_cast<UncheckedTrivialBitCastInst>(i)) {
+    auto opdTy = bitcast->getOperand()->getType();
+    auto numRegs = numRegisters(opdTy);
+    if (numRegs < NumRegistersLargeType) {
+      auto resTy = bitcast->getType();
+      if (numRegisters(resTy) > NumRegistersLargeType) {
+        // Force the source type to be indirect.
+        auto &entry = largeTypeProperties[opdTy];
+        entry.setNumRegisters(65535);
+        return;
+      }
+    }
+  }
+
   for (const auto &opd : i->getAllOperands()) {
     auto opdTy = opd.get()->getType();
     auto objType = opdTy.getObjectType();
