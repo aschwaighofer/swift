@@ -4225,7 +4225,8 @@ void IRGenFunction::emitCoroutineOrAsyncExit(bool isUnwind) {
 static void emitReturnInst(IRGenSILFunction &IGF,
                            SILType resultTy,
                            Explosion &result,
-                           CanSILFunctionType fnType) {
+                           CanSILFunctionType fnType,
+                           bool mayPeepholeLoad) {
   SILFunctionConventions conv(IGF.CurSILFn->getLoweredFunctionType(),
                               IGF.getSILModule());
 
@@ -4300,8 +4301,31 @@ static void emitReturnInst(IRGenSILFunction &IGF,
     assert(swiftCCReturn ||
            funcLang == SILFunctionLanguage::C && "Need to handle all cases");
     IGF.emitScalarReturn(resultTy, funcResultType, result, swiftCCReturn,
-                         false);
+                         false, mayPeepholeLoad);
   }
+}
+
+static bool canPeepholeLoadToReturn(IRGenModule &IGM, swift::ReturnInst *r) {
+  auto *load = dyn_cast<LoadInst>(r->getOperand());
+  if (!load)
+    return false;
+
+  if (load->getParent() != r->getParent())
+    return false;
+
+  for (auto it = ++load->getIterator(), e = r->getIterator(); it != e; ++it) {
+    if (it->mayHaveSideEffects()) {
+      if (auto *dealloc = dyn_cast<DeallocStackInst>(&*it)) {
+        auto &ti = IGM.getTypeInfo(
+          dealloc->getOperand()->getType().getObjectType());
+        if (!ti.isLoadable())
+          return false;
+        continue;
+      }
+      return false;
+    }
+  }
+  return true;
 }
 
 void IRGenSILFunction::visitReturnInst(swift::ReturnInst *i) {
@@ -4318,8 +4342,11 @@ void IRGenSILFunction::visitReturnInst(swift::ReturnInst *i) {
     result = std::move(temp);
   }
 
+  bool mayPeepholeLoad = canPeepholeLoadToReturn(IGM, i);
+
   emitReturnInst(*this, i->getOperand()->getType(), result,
-                 i->getFunction()->getLoweredFunctionType());
+                 i->getFunction()->getLoweredFunctionType(),
+                 mayPeepholeLoad);
 }
 
 void IRGenSILFunction::visitThrowInst(swift::ThrowInst *i) {
