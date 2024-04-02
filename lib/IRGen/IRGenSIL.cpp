@@ -16,10 +16,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "GenKeyPath.h"
-#include "swift/AST/ExtInfo.h"
 #include "swift/AST/ASTContext.h"
 #include "swift/AST/ASTMangler.h"
 #include "swift/AST/DiagnosticsIRGen.h"
+#include "swift/AST/ExtInfo.h"
 #include "swift/AST/GenericEnvironment.h"
 #include "swift/AST/IRGenOptions.h"
 #include "swift/AST/ParameterList.h"
@@ -53,6 +53,7 @@
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/SmallBitVector.h"
 #include "llvm/ADT/TinyPtrVector.h"
+#include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DIBuilder.h"
@@ -5360,12 +5361,61 @@ void IRGenSILFunction::visitLoadInst(swift::LoadInst *i) {
   setLoweredExplosion(i, lowered);
 }
 
+static Address canForwardIndirectResultAlloca(const TypeInfo &TI,
+                                              StoreInst *store,
+                                              Explosion &argSrc) {
+  // Check that the store stores the result of and apply instruction immediately
+  // preceeding the store.
+  auto *apply = dyn_cast<ApplyInst>(store->getSrc());
+  auto *allocStack = dyn_cast<AllocStackInst>(store->getDest());
+  if (!apply || !allocStack || apply->getParent() != store->getParent() ||
+      std::next(apply->getIterator()) != store->getIterator())
+    return Address();
+
+  auto explosionSize = TI.getSchema().size();
+  if (argSrc.size() < 1 || explosionSize < 4)
+    return Address();
+
+  auto *load = dyn_cast<llvm::LoadInst>(*argSrc.begin());
+  if (!load)
+    return Address();
+  auto *gep = dyn_cast<llvm::GetElementPtrInst>(load->getPointerOperand());
+  if (!gep)
+    return Address();
+
+  auto *alloca = dyn_cast<llvm::AllocaInst>(getUnderlyingObject(gep));
+  if (!alloca)
+    return Address();
+
+  // Check all the other loads.
+  for (size_t i = 1, e = explosionSize; i != e; ++i) {
+    auto *load = dyn_cast<llvm::LoadInst>(*(argSrc.begin() + i));
+    if (!load)
+      return Address();
+    auto *alloca2 = dyn_cast<llvm::AllocaInst>(
+        getUnderlyingObject(load->getPointerOperand()));
+    if (!alloca2 || alloca2 != alloca)
+      return Address();
+  }
+
+  return TI.getAddressForPointer(alloca);
+}
+
 void IRGenSILFunction::visitStoreInst(swift::StoreInst *i) {
   Explosion source = getLoweredExplosion(i->getSrc());
   Address dest = getLoweredAddress(i->getDest());
   SILType objType = i->getSrc()->getType().getObjectType();
-
   const auto &typeInfo = cast<LoadableTypeInfo>(getTypeInfo(objType));
+
+  auto forwardAddr = canForwardIndirectResultAlloca(typeInfo, i, source);
+  if (forwardAddr.isValid()) {
+    const auto &addrTI = getTypeInfo(i->getDest()->getType());
+    addrTI.initializeWithTake(*this, dest, forwardAddr, i->getDest()->getType(),
+                              false);
+    (void)source.claimAll();
+    return;
+  }
+
   switch (i->getOwnershipQualifier()) {
   case StoreOwnershipQualifier::Unqualified:
   case StoreOwnershipQualifier::Init:
