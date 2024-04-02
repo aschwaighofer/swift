@@ -3258,7 +3258,9 @@ void IRGenSILFunction::visitExistentialMetatypeInst(
 static void emitApplyArgument(IRGenSILFunction &IGF,
                               SILValue arg,
                               SILType paramType,
-                              Explosion &out) {
+                              Explosion &out,
+                              SILInstruction *apply = nullptr,
+                              unsigned idx = 0) {
   bool isSubstituted = (arg->getType() != paramType);
 
   // For indirect arguments, we just need to pass a pointer.
@@ -3282,7 +3284,24 @@ static void emitApplyArgument(IRGenSILFunction &IGF,
 
   // Fast path: avoid an unnecessary temporary explosion.
   if (!isSubstituted) {
+    bool canForwardLoadToIndirect = false;
+    auto *load = dyn_cast<LoadInst>(arg);
+    [&]() {
+      if (apply && load && apply->getParent() == load->getParent()) {
+        for (auto it = std::next(load->getIterator()), e = apply->getIterator();
+             it != e; ++it) {
+          if (isa<LoadInst>(&(*it))) {
+            continue;
+          }
+          return;
+        }
+        canForwardLoadToIndirect = true;
+      }
+    }();
     IGF.getLoweredExplosion(arg, out);
+    if (canForwardLoadToIndirect) {
+      IGF.setForwardableArgument(idx);
+    }
     return;
   }
 
@@ -3710,6 +3729,8 @@ void IRGenSILFunction::visitFullApplySite(FullApplySite site) {
   // Lower the SIL arguments to IR arguments.
   
   // Turn the formal SIL parameters into IR-gen things.
+  clearForwardableArguments();
+
   for (auto index : indices(args)) {
     if (origConv.hasIndirectSILErrorResults() &&
         index == origConv.getNumIndirectSILResults()) {
@@ -3718,7 +3739,7 @@ void IRGenSILFunction::visitFullApplySite(FullApplySite site) {
       continue;
     }
     emitApplyArgument(*this, args[index], emission->getParameterType(index),
-                      llArgs);
+                      llArgs, site.getInstruction(), index);
   }
 
   auto &calleeFP = emission->getCallee().getFunctionPointer();
@@ -3743,6 +3764,9 @@ void IRGenSILFunction::visitFullApplySite(FullApplySite site) {
   
   Explosion result;
   emission->emitToExplosion(result, false);
+
+  // We might have set forwardable arguments. Clear it for the next round.
+  clearForwardableArguments();
 
   // For a simple apply, just bind the apply result to the result of the call.
   if (auto apply = dyn_cast<ApplyInst>(i)) {
