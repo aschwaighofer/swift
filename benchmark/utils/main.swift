@@ -53,7 +53,7 @@ import Chars
 import ClassArrayGetter
 import CodableTest
 import Combos
-import CountAlgo
+//import CountAlgo
 import CreateObjects
 // rdar://128520766
 // import CxxSetToCollection
@@ -251,7 +251,7 @@ register(CharacterRecognizer.benchmarks)
 register(Chars.benchmarks)
 register(CodableTest.benchmarks)
 register(Combos.benchmarks)
-register(CountAlgo.benchmarks)
+//register(CountAlgo.benchmarks)
 register(ClassArrayGetter.benchmarks)
 register(CreateObjects.benchmarks)
 // rdar://128520766
