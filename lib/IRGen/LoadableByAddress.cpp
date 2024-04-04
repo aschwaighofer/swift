@@ -3473,7 +3473,7 @@ public:
    void visit(SILInstruction *i);
 
    bool isLargeLoadableType(SILType ty);
-
+   bool isPotentiallyCArray(SILType ty);
 private:
   unsigned numRegisters(SILType ty) {
     if (ty.isAddress() || ty.isClassOrClassMetatype()) {
@@ -3572,6 +3572,29 @@ void LargeLoadableHeuristic::visit(SILInstruction *i) {
     }
   }
 }
+bool LargeLoadableHeuristic::isPotentiallyCArray(SILType ty) {
+    if (ty.isAddress() || ty.isClassOrClassMetatype()) {
+      return false;
+    }
+
+    auto canType = ty.getASTType();
+    if (canType->hasTypeParameter()) {
+      assert(genEnv && "Expected a GenericEnv");
+      canType = genEnv->mapTypeIntoContext(canType)->getCanonicalType();
+    }
+
+    if (canType.getAnyGeneric() || isa<TupleType>(canType)) {
+      assert(ty.isObject() &&
+             "Expected only two categories: address and object");
+      assert(!canType->hasTypeParameter());
+      const TypeInfo &TI = irgenModule->getTypeInfoForLowered(canType);
+      auto explosionSchema = TI.getSchema();
+      if (explosionSchema.size() > 15)
+        return true;
+    }
+    return false;
+  }
+
 
 bool LargeLoadableHeuristic::isLargeLoadableType(SILType ty) {
   auto regs = numRegisters(ty);
@@ -3656,26 +3679,7 @@ public:
   }
 
   bool isPotentiallyCArray(SILType ty) {
-    if (ty.isAddress() || ty.isClassOrClassMetatype()) {
-      return false;
-    }
-
-    auto canType = ty.getASTType();
-    if (canType->hasTypeParameter()) {
-      assert(genEnv && "Expected a GenericEnv");
-      canType = genEnv->mapTypeIntoContext(canType)->getCanonicalType();
-    }
-
-    if (canType.getAnyGeneric() || isa<TupleType>(canType)) {
-      assert(ty.isObject() &&
-             "Expected only two categories: address and object");
-      assert(!canType->hasTypeParameter());
-      const TypeInfo &TI = irgenModule->getTypeInfoForLowered(canType);
-      auto explosionSchema = TI.getSchema();
-      if (explosionSchema.size() > 15)
-        return true;
-    }
-    return false;
+    return heuristic.isPotentiallyCArray(ty);
   }
 
   bool isLargeLoadableType(SILType ty) {
