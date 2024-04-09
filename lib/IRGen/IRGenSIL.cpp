@@ -5389,6 +5389,7 @@ void IRGenSILFunction::visitLoadInst(swift::LoadInst *i) {
 }
 static Address isSafeForMemCpyPeephole(const TypeInfo &TI, SILArgument *arg,
                                        Explosion &argSrc, AllocStackInst *dst,
+                                       Address storeDst,
                                        StoreInst *store,
                                        llvm::Instruction * &insertPt) {
   if (!arg || !dst)
@@ -5399,7 +5400,7 @@ static Address isSafeForMemCpyPeephole(const TypeInfo &TI, SILArgument *arg,
     return Address();
 
   auto explosionSize = TI.getSchema().size();
-  if (argSrc.size() < 1)
+  if (argSrc.size() < 1 || explosionSize < 4)
     return Address();
 
   auto *load = dyn_cast<llvm::LoadInst>(*argSrc.begin());
@@ -5424,6 +5425,36 @@ static Address isSafeForMemCpyPeephole(const TypeInfo &TI, SILArgument *arg,
     if (!alloca2 || alloca2 != alloca)
       return Address();
   }
+
+  auto *dstAlloca = dyn_cast<llvm::AllocaInst>(storeDst.getAddress());
+  if (!dstAlloca)
+    return Address();
+
+  // Move the lifetime.begin above the load instruction (where we eventually
+  // will insert the memcpy.
+  llvm::Instruction *lifetimeBegin = nullptr;
+  for (const auto &use : dstAlloca->uses()) {
+    auto *begin = dyn_cast<llvm::LifetimeIntrinsic>(use.getUser());
+    if (!begin)
+      continue;
+    if (begin->getParent() != alloca->getParent())
+      continue;
+    if (begin->getIntrinsicID() != llvm::Intrinsic::lifetime_start)
+      continue;
+
+    if (lifetimeBegin) {
+      // Seen a second lifetime.begin in the entry block.
+      lifetimeBegin = nullptr;
+      break;
+    }
+    lifetimeBegin = begin;
+  }
+
+  if (!lifetimeBegin) {
+    return Address();
+  }
+
+  lifetimeBegin->moveBefore(load);
 
   // Set insertPt to the first load such that we are within the lifetime of the
   // alloca marked by the lifetime intrinsic.
@@ -5504,8 +5535,8 @@ void IRGenSILFunction::visitStoreInst(swift::StoreInst *i) {
   const auto &addrTI = getTypeInfo(i->getDest()->getType());
   insertPt = nullptr;
 
-  auto srcAddr = isSafeForMemCpyPeephole(addrTI, argSrc, source, stackDst, i,
-                                         insertPt);
+  auto srcAddr = isSafeForMemCpyPeephole(addrTI, argSrc, source, stackDst, dest,
+                                         i, insertPt);
   if (srcAddr.isValid() &&
       (i->getOwnershipQualifier() == StoreOwnershipQualifier::Trivial ||
        i->getOwnershipQualifier() == StoreOwnershipQualifier::Unqualified)) {
