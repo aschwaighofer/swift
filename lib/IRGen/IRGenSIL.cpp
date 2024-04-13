@@ -5533,6 +5533,7 @@ void IRGenSILFunction::visitStoreInst(swift::StoreInst *i) {
     // Set the insert point to the first load instruction. We need to be with
     // the lifetime of the alloca.
     IRBuilder::SavedInsertionPointRAII insertRAII(this->Builder, insertPt);
+    ArtificialLocation Loc(getDebugScope(), IGM.DebugInfo.get(), Builder);
     addrTI.initializeWithTake(*this, dest, forwardAddr, i->getDest()->getType(),
                               false, /*zeroizeIfSensitive=*/ true);
     (void)source.claimAll();
@@ -5552,6 +5553,7 @@ void IRGenSILFunction::visitStoreInst(swift::StoreInst *i) {
       (i->getOwnershipQualifier() == StoreOwnershipQualifier::Trivial ||
        i->getOwnershipQualifier() == StoreOwnershipQualifier::Unqualified)) {
     IRBuilder::SavedInsertionPointRAII insertRAII(this->Builder, insertPt);
+    ArtificialLocation Loc(getDebugScope(), IGM.DebugInfo.get(), Builder);
     addrTI.initializeWithTake(*this, dest, srcAddr, i->getDest()->getType(),
                               false);
     (void)source.claimAll();
