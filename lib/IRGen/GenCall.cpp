@@ -5374,6 +5374,19 @@ Explosion NativeConventionSchema::mapIntoNative(IRGenModule &IGM,
       auto *alloca = dyn_cast<llvm::AllocaInst>(getUnderlyingObject(gep));
       if (!alloca)
         return false;
+      auto numExplosions = fromNonNative.size();
+      if (numExplosions < 2)
+        return false;
+      for (unsigned i = 0, e = numExplosions; i < e; ++i) {
+        auto *otherLoad = dyn_cast<llvm::LoadInst>(*(fromNonNative.begin() + i));
+        if (!otherLoad)
+          return false;
+        auto otherAlloca = dyn_cast<llvm::AllocaInst>(
+          getUnderlyingObject(otherLoad->getPointerOperand()));
+        if (!otherAlloca || otherAlloca != alloca)
+          return false;
+        load = otherLoad;
+      }
       auto allocaSize =
         DataLayout.getTypeSizeInBits(alloca->getAllocatedType());
 
@@ -5385,7 +5398,8 @@ Explosion NativeConventionSchema::mapIntoNative(IRGenModule &IGM,
 
       if (allocaSize < coercionSize) {
         auto coerced = IGF.createAlloca(coercionTy, Alignment(alloca->getAlign().value()) , "tmp.coerce");
-        Builder.CreateMemCpy(coerced, origAlloca, Size(coercionSize));
+        // Copy the defined bytes.
+        Builder.CreateMemCpy(coerced, origAlloca, Size(allocaSize/8));
         origAlloca = coerced;
       }
 
@@ -5408,10 +5422,12 @@ Explosion NativeConventionSchema::mapIntoNative(IRGenModule &IGM,
         expandedElts[index] = elt;
         ++expandedMapIdx;
       }
+
       // Add the values to the explosion.
       for (auto *val : expandedElts)
         nativeExplosion.add(val);
       assert(expandedTys.size() == nativeExplosion.size());
+
       return true;
     }();
 

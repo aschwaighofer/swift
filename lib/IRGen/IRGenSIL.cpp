@@ -4310,6 +4310,10 @@ static bool canPeepholeLoadToReturn(IRGenModule &IGM, swift::ReturnInst *r) {
   if (!load)
     return false;
 
+  // Later code can't deal with projections.
+  if (!isa<AllocStackInst>(load->getOperand()))
+    return false;
+
   if (load->getParent() != r->getParent())
     return false;
 
