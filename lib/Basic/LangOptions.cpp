@@ -284,6 +284,10 @@ bool LangOptions::isCustomConditionalCompilationFlagSet(StringRef Name) const {
 }
 
 bool LangOptions::hasFeature(Feature feature) const {
+  if (feature == Feature::LayoutStringValueWitnessesInstantiation ||
+      feature == Feature::LayoutStringValueWitnesses)
+    return true;
+
   if (Features.contains(feature))
     return true;
 
