@@ -5559,7 +5559,7 @@ void IRGenSILFunction::visitStoreInst(swift::StoreInst *i) {
     IRBuilder::SavedInsertionPointRAII insertRAII(this->Builder, insertPt);
     ArtificialLocation Loc(getDebugScope(), IGM.DebugInfo.get(), Builder);
     addrTI.initializeWithTake(*this, dest, srcAddr, i->getDest()->getType(),
-                              false);
+                              false, /*zeroizeIfSensitive*/true);
     (void)source.claimAll();
     return;
   }
