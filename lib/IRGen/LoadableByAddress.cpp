@@ -3712,7 +3712,7 @@ public:
     auto it = valueToAddressMap.find(v);
 
     // This can happen if we deem a container type small but a contained type
-    // big.
+    // big or we have an undef operand.
     if (it == valueToAddressMap.end()) {
       if (auto *sv = dyn_cast<SingleValueInstruction>(v)) {
         auto addr = createAllocStack(v->getType());
@@ -3722,6 +3722,12 @@ public:
         mapValueToAddress(v, addr);
         return addr;
       }
+      if (isa<SILUndef>(v)) {
+        auto undefAddr = createAllocStack(v->getType());
+        mapValueToAddress(v, undefAddr);
+        return undefAddr;
+      }
+
     }
     assert(it != valueToAddressMap.end());
 
