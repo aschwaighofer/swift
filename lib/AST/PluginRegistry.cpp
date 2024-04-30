@@ -17,6 +17,7 @@
 #include "swift/Basic/Program.h"
 #include "swift/Basic/Sandbox.h"
 #include "swift/Basic/StringExtras.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/raw_ostream.h"
@@ -152,7 +153,10 @@ llvm::Error LoadedExecutablePlugin::spawnIfNeeded() {
   }
 
   // Launch.
-  auto childInfo = ExecuteWithPipe(command[0], command);
+  const char *env[] =
+    { "DYLD_LIBRARY_PATH=/Users/arnold/github/build/my-stdlibs/macosx", 0};
+  auto envArr = llvm::toStringRefArray(env);
+  auto childInfo = ExecuteWithPipe(command[0], command, envArr);
   if (!childInfo) {
     return llvm::errorCodeToError(childInfo.getError());
   }
