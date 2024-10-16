@@ -3827,7 +3827,7 @@ protected:
       build.createStore(bi->getLoc(), origValue, newAddr,
                         StoreOwnershipQualifier::Unqualified);
     } else {
-      llvm::report_fatal_error("Unimplemented builtin");
+      singleValueInstructionFallback(bi);
     }
   }
 
@@ -3926,6 +3926,10 @@ protected:
   void visitYieldInst(YieldInst *yield) { userInstructionFallback(yield); }
 
   void visitThrowInst(ThrowInst *t) { userInstructionFallback(t); }
+
+  void visitCheckedCastBranchInst(CheckedCastBranchInst *c) {
+    userInstructionFallback(c);
+  }
 
   void visitFixLifetimeInst(FixLifetimeInst *f) {
     auto addr = assignment.getAddressForValue(f->getOperand());
@@ -4396,7 +4400,8 @@ static void runPeepholesAndReg2Mem(SILPassManager *pm, SILModule *silMod,
           // in the success block.
           if (auto *pred = bb.getSinglePredecessorBlock()) {
             if (isa<TryApplyInst>(pred->getTerminator()) ||
-                isa<SwitchEnumInst>(pred->getTerminator())) {
+                isa<SwitchEnumInst>(pred->getTerminator()) ||
+                isa<CheckedCastBranchInst>(pred->getTerminator())) {
               assert(bb.getArguments().size() == 1);
               shouldDeleteBlockArgument = false;
               // We will emit the store to initialize after parsing all other
