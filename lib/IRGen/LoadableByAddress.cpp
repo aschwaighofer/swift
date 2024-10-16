@@ -4050,10 +4050,19 @@ protected:
       // We therefore must use the bigger type, i.e the operand type, to create
       // a stack allocation.
       auto opdAddr = assignment.createAllocStack(bc->getOperand()->getType());
-      builder.createStore(bc->getLoc(), bc->getOperand(), opdAddr,
-                          StoreOwnershipQualifier::Unqualified);
+      // Try load -> store forwarding.
+      auto peephole = dyn_cast<LoadInst>(bc->getOperand());
+      if (peephole && peephole->getParent() == bc->getParent() &&
+          (++peephole->getIterator()) == bc->getIterator()) {
+        builder.createCopyAddr(bc->getLoc(), peephole->getOperand(), opdAddr,
+                               IsTake, IsInitialization);
+      } else {
+        builder.createStore(bc->getLoc(), bc->getOperand(), opdAddr,
+                            StoreOwnershipQualifier::Unqualified);
+      }
       auto addr = builder.createUncheckedAddrCast(
           bc->getLoc(), opdAddr, bc->getType().getAddressType());
+
       assignment.mapValueToAddress(origValue, addr);
       assignment.markForDeletion(bc);
       return;
