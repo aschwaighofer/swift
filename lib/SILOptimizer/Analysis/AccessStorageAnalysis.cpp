@@ -320,6 +320,8 @@ void AccessStorageResult::analyzeInstruction(SILInstruction *I) {
     visitBeginAccess(BAI);
   else if (auto *BUAI = dyn_cast<BeginUnpairedAccessInst>(I))
     visitBeginAccess(BUAI);
+  else if (I->mayRelease())
+    setWorstEffects();
 }
 
 void StorageAccessInfo::print(raw_ostream &os) const {
