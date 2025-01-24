@@ -2563,6 +2563,23 @@ bool swift::isDestructorSideEffectFree(SILInstruction *mayRelease,
 
     return false;
   }
+  case SILInstructionKind::BuiltinInst: {
+    auto *builtin = cast<BuiltinInst>(mayRelease);
+    switch (builtin->getBuiltinInfo().ID) {
+    case BuiltinValueKind::CopyArray:
+    case BuiltinValueKind::TakeArrayNoAlias:
+    case BuiltinValueKind::TakeArrayFrontToBack:
+    case BuiltinValueKind::TakeArrayBackToFront:
+    case BuiltinValueKind::AssignCopyArrayNoAlias:
+    case BuiltinValueKind::AssignCopyArrayFrontToBack:
+    case BuiltinValueKind::AssignCopyArrayBackToFront:
+    case BuiltinValueKind::AssignTakeArray:
+      return true;
+    default:
+      break;
+    }
+    return false;
+  }
   // Unhandled instruction.
   default:
     return false;
