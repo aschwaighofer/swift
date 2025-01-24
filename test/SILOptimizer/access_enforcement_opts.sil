@@ -976,17 +976,17 @@ bb0:
 
 
 // public func testOldToNewMapReadMayRelease() {
-// Checks merging 2 out of 3 scopes resulting in a larger read scope
-// Due to a MayRelease instruction before the 3rd scope
+// Checks merging 3 of 3 scopes resulting in a larger read scope
+// There is a MayRelease instruction but we recognize it to be harmless
 //
 // CHECK-LABEL: sil @testOldToNewMapReadMayRelease : $@convention(thin) () -> () {
 // CHECK: [[GLOBAL:%.*]] = global_addr @globalX : $*X
 // CHECK-NEXT: [[BEGIN:%.*]] = begin_access [read] [dynamic] [no_nested_conflict] [[GLOBAL]] : $*X
 // CHECK-NEXT: load [[BEGIN]] : $*X
 // CHECK-NEXT: load [[BEGIN]] : $*X
-// CHECK-NEXT: end_access [[BEGIN]] : $*X
 // CHECK-NEXT: strong_release
-// CHECK-NEXT: [[BEGIN:%.*]] = begin_access [read] [dynamic] [no_nested_conflict] [[GLOBAL]] : $*X
+// CHECK-NEXT: load [[BEGIN]] : $*X
+// CHECK-NEXT: end_access [[BEGIN]] : $*X
 // CHECK-LABEL: } // end sil function 'testOldToNewMapReadMayRelease'
 sil @testOldToNewMapReadMayRelease : $@convention(thin) () -> () {
 bb0:

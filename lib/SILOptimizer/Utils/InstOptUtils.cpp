@@ -35,6 +35,7 @@
 #include "swift/SILOptimizer/Analysis/ArraySemantic.h"
 #include "swift/SILOptimizer/Analysis/BasicCalleeAnalysis.h"
 #include "swift/SILOptimizer/Analysis/DominanceAnalysis.h"
+#include "swift/SILOptimizer/Analysis/DestructorAnalysis.h"
 #include "swift/SILOptimizer/OptimizerBridging.h"
 #include "swift/SILOptimizer/Utils/CFGOptUtils.h"
 #include "swift/SILOptimizer/Utils/DebugOptUtils.h"
@@ -2469,4 +2470,103 @@ SILValue swift::getInitOfTemporaryAllocStack(AllocStackInst *asi) {
   if (asi->getType().is<TupleType>())
     return findRootValueForTupleTempAllocation(asi, state);
   return findRootValueForNonTupleTempAllocation(asi, state);
+}
+
+SILType getTypeOfLoadOfArrayOperandStorage(SILValue val) {
+  // The projection should look something like this:
+  // %29 = struct_element_addr %28 : $*Array<UInt8>, #Array._buffer
+  // %30 = struct_element_addr %29 : $*_ArrayBuffer<UInt8>, #_ArrayBuffer._storage
+  // %31 = struct_element_addr %30 : $*_BridgeStorage<__ContiguousArrayStorageBase>, #_BridgeStorage.rawValue
+  // %32 = load %31 : $*Builtin.BridgeObject
+
+  auto ld = dyn_cast<LoadInst>(val);
+  if (!ld)
+    return SILType();
+  auto opd = ld->getOperand();
+  auto opdTy = opd->getType();
+  if (opdTy.getObjectType() !=
+      SILType::getBridgeObjectType(opdTy.getASTContext()))
+    return SILType();
+
+  auto bridgedStoragePrj = dyn_cast<StructElementAddrInst>(opd);
+  if (!bridgedStoragePrj)
+    return SILType();
+
+  auto arrayBufferStoragePrj =
+    dyn_cast<StructElementAddrInst>(bridgedStoragePrj->getOperand());
+  if (!arrayBufferStoragePrj)
+    return SILType();
+
+  // If successfull return _ArrayBuffer<UInt8>.
+  return arrayBufferStoragePrj->getOperand()->getType().getObjectType();
+}
+
+static bool isBoxTypeWithoutSideEffectsOnRelease(SILFunction *f,
+                                                 DestructorAnalysis *DA,
+                                                 SILType ty) {
+  auto silBoxedTy = ty.getSILBoxFieldType(f);
+  if (silBoxedTy && !DA->mayStoreToMemoryOnDestruction(silBoxedTy))
+   return true;
+  return false;
+}
+
+
+static bool isReleaseOfClosureWithoutSideffects(SILFunction *f,
+                                                DestructorAnalysis *DA,
+                                                SILValue opd) {
+  auto fnTy = dyn_cast<SILFunctionType>(opd->getType().getASTType());
+  if (!fnTy)
+    return false;
+
+  if (fnTy->isNoEscape() &&
+      fnTy->getRepresentation() == SILFunctionType::Representation::Thick)
+    return true;
+
+  auto pa = dyn_cast<PartialApplyInst>(lookThroughOwnershipInsts(opd));
+  if (!pa)
+    return false;
+
+  // Check that all captured argument types are "trivial".
+  for (auto &opd: pa->getArgumentOperands()) {
+    auto OpdTy = opd.get()->getType().getObjectType();
+    if (!DA->mayStoreToMemoryOnDestruction(OpdTy))
+      continue;
+    if (isBoxTypeWithoutSideEffectsOnRelease(f, DA, OpdTy))
+      continue;
+    return false;
+  }
+
+  return true;
+}
+
+bool swift::isDestructorSideEffectFree(SILInstruction *mayRelease,
+                                       DestructorAnalysis *DA) {
+  switch (mayRelease->getKind()) {
+  case SILInstructionKind::DestroyValueInst:
+  case SILInstructionKind::StrongReleaseInst:
+  case SILInstructionKind::ReleaseValueInst: {
+    auto opd = mayRelease->getOperand(0);
+    auto opdTy = opd->getType();
+    if (!DA->mayStoreToMemoryOnDestruction(opdTy))
+      return true;
+
+    auto arrayTy = getTypeOfLoadOfArrayOperandStorage(opd);
+    if (arrayTy &&  !DA->mayStoreToMemoryOnDestruction(arrayTy))
+      return true;
+
+    if (isReleaseOfClosureWithoutSideffects(mayRelease->getFunction(), DA, opd))
+      return true;
+
+    if (isBoxTypeWithoutSideEffectsOnRelease(mayRelease->getFunction(), DA,
+                                             opdTy))
+      return true;
+
+    return false;
+  }
+  // Unhandled instruction.
+  default:
+    return false;
+  }
+
+  return false;
 }
