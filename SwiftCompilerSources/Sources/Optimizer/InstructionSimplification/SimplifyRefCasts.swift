@@ -86,6 +86,9 @@ private extension UnaryInstruction {
       operand.set(to: replacement, context)
     }
 
+    if let ccb = self as? CheckedCastBranchInst {
+        ccb.updateSourceFormalTypeFromOperandLoweredType()
+    }
     if canEraseInst {
       context.erase(instructionIncludingDebugUses: inst)
     }
