@@ -2479,9 +2479,13 @@ SILType getTypeOfLoadOfArrayOperandStorage(SILValue val) {
   // %31 = struct_element_addr %30 : $*_BridgeStorage<__ContiguousArrayStorageBase>, #_BridgeStorage.rawValue
   // %32 = load %31 : $*Builtin.BridgeObject
 
-  auto ld = dyn_cast<LoadInst>(val);
+  // We can strip casts and init_existential_ref leading to a load.
+  if (auto initExistRef = dyn_cast<InitExistentialRefInst>(val))
+    val = initExistRef->getOperand();
+  auto ld = dyn_cast<LoadInst>(stripCasts(val));
   if (!ld)
     return SILType();
+
   auto opd = ld->getOperand();
   auto opdTy = opd->getType();
   if (opdTy.getObjectType() !=
