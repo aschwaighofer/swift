@@ -629,7 +629,7 @@ SILDeclRef LinkEntity::getSILDeclRef() const {
   return ref;
 }
 
-static bool canHavePublicSymbolsEmittedIntoMultipleModules(CanType ty) {
+static bool needToAccountForLazyPublicSymbolInOtherModule(CanType ty) {
   // In embedded existenitals mode we generate lazy public metadata on demand
   // which makes it non unique.
   if (ty->getASTContext().LangOpts.hasFeature(Feature::EmbeddedExistentials)) {
@@ -675,7 +675,7 @@ SILLinkage LinkEntity::getLinkage(ForDefinition_t forDefinition) const {
 
     // In embedded existenitals mode we generate lazy public metadata on demand
     // which makes it non unique.
-    if (canHavePublicSymbolsEmittedIntoMultipleModules(type))
+    if (needToAccountForLazyPublicSymbolInOtherModule(type))
        return SILLinkage::Shared;
 
     // Builtin types, (), () -> () and so on are in the runtime.
@@ -718,7 +718,7 @@ SILLinkage LinkEntity::getLinkage(ForDefinition_t forDefinition) const {
 
     // In embedded existenitals mode we generate lazy public metadata on demand
     // which makes it non unique.
-    if (canHavePublicSymbolsEmittedIntoMultipleModules(getType()))
+    if (needToAccountForLazyPublicSymbolInOtherModule(getType()))
       return SILLinkage::Shared;
 
     auto *nominal = getType().getAnyNominal();
